@@ -78,9 +78,7 @@ function getMomentum(score: number, changePct: number, trend: string) {
 }
 
 function makeBuyLadder(price: number) {
-  if (!Number.isFinite(price) || price <= 0) {
-    return [];
-  }
+  if (!Number.isFinite(price) || price <= 0) return [];
 
   return [
     { label: "Buy In Point 1", pct: 0, price },
@@ -91,9 +89,7 @@ function makeBuyLadder(price: number) {
 }
 
 function makeProfitLadder(basePrice: number) {
-  if (!Number.isFinite(basePrice) || basePrice <= 0) {
-    return [];
-  }
+  if (!Number.isFinite(basePrice) || basePrice <= 0) return [];
 
   return [
     { label: "Profit 10%", pct: 10, price: basePrice * 1.1 },
@@ -163,9 +159,7 @@ export default function StockIntelligenceClient({ ticker }: Props) {
 
   const row = useMemo(() => {
     const symbol = safeUpper(ticker);
-    return (
-      scannerRows.find((item) => safeUpper(item.ticker) === symbol) || null
-    );
+    return scannerRows.find((item) => safeUpper(item.ticker) === symbol) || null;
   }, [scannerRows, ticker]);
 
   const company = row?.company || safeUpper(ticker);
