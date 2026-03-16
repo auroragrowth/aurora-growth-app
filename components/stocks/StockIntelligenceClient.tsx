@@ -404,7 +404,7 @@ export default function StockIntelligenceClient({ ticker }: { ticker: string }) 
                   {safeUpper(ticker)}
                 </div>
               </div>
-              <TradingViewAdvancedChart ticker={safeUpper(ticker)} />
+              <TradingViewAdvancedChart symbol={safeUpper(ticker)} />
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">

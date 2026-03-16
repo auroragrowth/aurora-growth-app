@@ -31,9 +31,6 @@ export default function TradingViewAdvancedChart({ symbol }: Props) {
         theme: "dark",
         style: "1",
         locale: "en",
-        hide_top_toolbar: false,
-        hide_legend: false,
-        allow_symbol_change: true,
         container_id: container.current.id,
       });
     }
