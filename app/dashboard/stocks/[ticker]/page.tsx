@@ -1,12 +1,13 @@
-import StockIntelligenceClient from "@/components/stocks/StockIntelligenceClient"
+import StockIntelligenceClient from "@/components/stocks/StockIntelligenceClient";
 
-export default async function StockIntelligencePage({
-  params,
-}: {
-  params: Promise<{ ticker: string }>
-}) {
-  const resolved = await params
-  const ticker = decodeURIComponent(resolved.ticker || "AAPL").toUpperCase()
+type Props = {
+  params: Promise<{
+    ticker: string;
+  }>;
+};
 
-  return <StockIntelligenceClient ticker={ticker} />
+export default async function StockPage({ params }: Props) {
+  const { ticker } = await params;
+
+  return <StockIntelligenceClient ticker={ticker} />;
 }
