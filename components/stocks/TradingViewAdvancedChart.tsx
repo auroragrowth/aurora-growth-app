@@ -9,7 +9,7 @@ type Props = {
 declare global {
   interface Window {
     TradingView?: {
-      widget: (config: Record<string, unknown>) => unknown;
+      widget: new (config: Record<string, unknown>) => unknown;
     };
   }
 }
@@ -23,6 +23,8 @@ export default function TradingViewAdvancedChart({ symbol }: Props) {
     function createWidget() {
       if (!window.TradingView || !container.current) return;
 
+      container.current.innerHTML = "";
+
       new window.TradingView.widget({
         autosize: true,
         symbol,
@@ -32,13 +34,19 @@ export default function TradingViewAdvancedChart({ symbol }: Props) {
         style: "1",
         locale: "en",
         container_id: container.current.id,
+        hide_top_toolbar: false,
+        hide_legend: false,
+        allow_symbol_change: true,
       });
     }
 
-    if (!document.getElementById(scriptId)) {
+    const existing = document.getElementById(scriptId);
+
+    if (!existing) {
       const script = document.createElement("script");
       script.id = scriptId;
       script.src = "https://s3.tradingview.com/tv.js";
+      script.async = true;
       script.onload = createWidget;
       document.body.appendChild(script);
     } else {
