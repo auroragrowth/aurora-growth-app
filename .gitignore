@@ -37,3 +37,8 @@ Thumbs.db
 *.disabled
 *.tsxy
 page.backup.txt
+
+# Local junk
+aurora-app/
+aurora-app@*
+data/
