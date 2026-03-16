@@ -1,0 +1,41 @@
+{
+  "generated_at": "2026-03-16T16:45:04.403059+00:00",
+  "sectors": [
+    {
+      "sector": "Technology",
+      "count": 2,
+      "average_score": 80.0,
+      "average_change_percent": 1.4,
+      "leaders": [
+        {
+          "ticker": "META",
+          "company": "Meta Platforms Inc",
+          "score": 82
+        },
+        {
+          "ticker": "MSFT",
+          "company": "Microsoft Corp",
+          "score": 78
+        }
+      ]
+    },
+    {
+      "sector": "Healthcare",
+      "count": 2,
+      "average_score": 66.0,
+      "average_change_percent": 0.32,
+      "leaders": [
+        {
+          "ticker": "ISRG",
+          "company": "Intuitive Surgical Inc",
+          "score": 68
+        },
+        {
+          "ticker": "ABT",
+          "company": "Abbott Laboratories",
+          "score": 64
+        }
+      ]
+    }
+  ]
+}
