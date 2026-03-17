@@ -291,7 +291,7 @@ export default function StockTable() {
                       className="border-b border-white/5 text-sm text-white/80 transition hover:bg-white/[0.03]"
                     >
                       <td className="px-4 py-4">
-                        <WatchlistStar ticker={ticker} company={company} />
+                        <WatchlistStar ticker={ticker || row.ticker || ""} company={company || row.company || ""} />
                       </td>
                       <td className="px-4 py-4">
                         <Link

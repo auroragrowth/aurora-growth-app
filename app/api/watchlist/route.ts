@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-function cleanTicker(v: unknown) {
+function cleanSymbol(v: unknown) {
   return String(v || "").trim().toUpperCase();
 }
 
@@ -20,7 +20,7 @@ export async function GET() {
 
     const { data, error } = await supabase
       .from("watchlist_items")
-      .select("id,ticker,created_at")
+      .select("id,symbol,company_name,market,created_at,updated_at")
       .eq("user_id", auth.user.id)
       .order("created_at", { ascending: false });
 
@@ -32,8 +32,11 @@ export async function GET() {
       ok: true,
       items: (data || []).map((row) => ({
         id: row.id,
-        ticker: cleanTicker(row.ticker),
+        symbol: cleanSymbol(row.symbol),
+        company_name: row.company_name || null,
+        market: row.market || null,
         created_at: row.created_at,
+        updated_at: row.updated_at,
       })),
     });
   } catch (err: any) {

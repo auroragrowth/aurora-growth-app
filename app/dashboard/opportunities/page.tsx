@@ -424,7 +424,7 @@ export default function TopOpportunitiesPage() {
                     </div>
 
                     <div className="flex items-start gap-2">
-                      <WatchlistStar ticker={row.ticker} />
+                      <WatchlistStar ticker={row.ticker || ""} company={row.company || row.ticker || ""} />
                       <div className="text-right">
                         <div className="text-2xl font-semibold">{score}</div>
                         <div className="text-xs uppercase tracking-[0.2em] text-white/45">
@@ -554,7 +554,7 @@ export default function TopOpportunitiesPage() {
                         className="rounded-2xl bg-[#081824]/80 text-sm"
                       >
                         <td className="rounded-l-2xl px-3 py-4">
-                          <WatchlistStar ticker={row.ticker} />
+                          <WatchlistStar ticker={row.ticker || ""} company={row.company || row.ticker || ""} />
                         </td>
                         <td className="px-3 py-4 font-semibold text-cyan-300">
                           #{index + 1}

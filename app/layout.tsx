@@ -1,6 +1,7 @@
 import "./globals.css";
 import type { Metadata } from "next";
 import { WatchlistProvider } from "@/components/watchlist/WatchlistProvider";
+import AuroraToastHost from "@/components/ui/aurora-toast-host";
 
 export const metadata: Metadata = {
   title: "Aurora Growth",
@@ -15,7 +16,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body suppressHydrationWarning>
-        <WatchlistProvider>{children}</WatchlistProvider>
+        <WatchlistProvider>{children}<AuroraToastHost />
+        </WatchlistProvider>
       </body>
     </html>
   );

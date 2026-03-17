@@ -1,69 +1,112 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { Star } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { emitToast, useWatchlist } from "@/components/watchlist/WatchlistProvider";
+
+type Props = {
+  ticker?: string | null;
+  company?: string | null;
+  className?: string;
+};
+
+function normaliseTicker(input?: string | null) {
+  return String(input || "").trim().toUpperCase();
+}
 
 export default function WatchlistStar({
   ticker,
   company,
-}: {
-  ticker: string
-  company: string
-}) {
-  const [active, setActive] = useState(false)
-  const [loading, setLoading] = useState(false)
+  className = "",
+}: Props) {
+  const router = useRouter();
+  const { hasTicker, toggleTicker } = useWatchlist();
+  const [isPending, startTransition] = useTransition();
+  const [burst, setBurst] = useState(false);
+
+  const cleanTicker = useMemo(() => normaliseTicker(ticker), [ticker]);
+  const active = hasTicker(cleanTicker);
 
   useEffect(() => {
-    let mounted = true
+    if (!active) return;
+    const timer = window.setTimeout(() => setBurst(false), 380);
+    setBurst(true);
+    return () => window.clearTimeout(timer);
+  }, [active]);
 
-    async function load() {
-      const res = await fetch("/api/watchlist", { cache: "no-store" })
-      const json = await res.json()
-      if (!mounted || !json.ok) return
+  function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
+    e.preventDefault();
+    e.stopPropagation();
 
-      const found = (json.rows || []).some((r: { ticker: string }) => r.ticker === ticker)
-      setActive(found)
-    }
+    if (!cleanTicker || isPending) return;
 
-    load()
-    return () => {
-      mounted = false
-    }
-  }, [ticker])
+    startTransition(async () => {
+      const result = await toggleTicker(cleanTicker, company || null);
 
-  async function toggle() {
-    setLoading(true)
-
-    try {
-      if (active) {
-        await fetch(`/api/watchlist?ticker=${encodeURIComponent(ticker)}`, {
-          method: "DELETE",
-        })
-        setActive(false)
-      } else {
-        await fetch("/api/watchlist", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ticker, company }),
-        })
-        setActive(true)
+      if (!result.ok) {
+        emitToast("Watchlist update failed", result.error || "Please try again.", "error");
+        return;
       }
-    } finally {
-      setLoading(false)
-    }
+
+      if (result.active) {
+        emitToast(
+          `${cleanTicker} added`,
+          company ? `${company} is now in your watchlist.` : "Added to your watchlist.",
+          "success"
+        );
+      } else {
+        emitToast(
+          `${cleanTicker} removed`,
+          company ? `${company} was removed from your watchlist.` : "Removed from your watchlist.",
+          "info"
+        );
+      }
+
+      router.refresh();
+    });
   }
 
   return (
     <button
-      onClick={toggle}
-      disabled={loading}
-      className={`rounded-full border px-3 py-1 text-xs transition ${
+      type="button"
+      onClick={handleClick}
+      disabled={!cleanTicker || isPending}
+      aria-label={
         active
-          ? "border-amber-300/40 bg-amber-300/10 text-amber-200"
-          : "border-white/10 bg-white/5 text-white/60 hover:text-white"
-      }`}
-      title={active ? "Remove from watchlist" : "Add to watchlist"}
+          ? `Remove ${cleanTicker} from watchlist`
+          : `Add ${cleanTicker} to watchlist`
+      }
+      title={
+        !cleanTicker
+          ? "Ticker missing"
+          : active
+            ? `Remove ${cleanTicker}${company ? ` (${company})` : ""} from watchlist`
+            : `Add ${cleanTicker}${company ? ` (${company})` : ""} to watchlist`
+      }
+      className={[
+        "group relative inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border transition-all duration-200",
+        active
+          ? "border-cyan-400/70 bg-cyan-400/15 text-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.18)]"
+          : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-cyan-400/50 hover:bg-cyan-400/10 hover:text-cyan-300",
+        !cleanTicker || isPending ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:scale-[1.04] active:scale-95",
+        className,
+      ].join(" ")}
     >
-      {active ? "★ Watchlist" : "☆ Watchlist"}
+      <span
+        className={[
+          "pointer-events-none absolute inset-0 rounded-full transition-opacity duration-300",
+          active ? "opacity-100 bg-[radial-gradient(circle_at_center,rgba(34,211,238,0.18),transparent_65%)]" : "opacity-0",
+          burst ? "animate-ping" : "",
+        ].join(" ")}
+      />
+      <Star
+        className={[
+          "relative z-10 h-4 w-4 transition-all duration-200",
+          active ? "fill-current scale-110" : "",
+          isPending ? "animate-pulse" : "",
+        ].join(" ")}
+      />
     </button>
-  )
+  );
 }
