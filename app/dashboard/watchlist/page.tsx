@@ -1,64 +1,58 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import WatchlistStar from "@/components/dashboard/watchlist-star";
+import { useEffect, useMemo, useState } from "react";
+import { useWatchlist } from "@/components/watchlist/WatchlistProvider";
 
-type WatchlistItem = {
-  id: string;
-  user_id: string;
+type SourceFilter = "all" | "core" | "alternative";
+
+type WatchlistRow = {
+  id?: string;
   symbol: string;
-  company_name: string | null;
-  market: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-type ScannerRow = {
-  ticker?: string;
-  company?: string | null;
   company_name?: string | null;
-  market_cap?: string | null;
+  created_at?: string | null;
+  source?: string | null;
+  universe?: string | null;
+  scanner_source?: string | null;
+  market_cap?: number | string | null;
   score?: number | null;
-  change_percent?: string | number | null;
-  scanner_type?: string | null;
-  updated_at?: string | null;
-  volume?: string | number | null;
+  change_pct?: number | null;
+  change?: number | null;
 };
 
-type DisplayRow = {
-  id: string;
-  symbol: string;
-  company: string;
-  companySubtext: string;
-  marketCap: string;
-  score: number | null;
-  changeText: string;
-  changeValue: number | null;
-  addedText: string;
-  addedRaw: string;
-  scannerType: string;
-};
+function normaliseSource(row: WatchlistRow): "core" | "alternative" {
+  const raw = String(row.source ?? row.universe ?? row.scanner_source ?? "")
+    .trim()
+    .toLowerCase();
 
-type SortKey =
-  | "watch"
-  | "ticker"
-  | "company"
-  | "marketCap"
-  | "score"
-  | "change"
-  | "added"
-  | "action";
+  if (
+    raw === "core" ||
+    raw === "aurora core" ||
+    raw === "aurora_core" ||
+    raw === "aurora-core"
+  ) {
+    return "core";
+  }
 
-function normaliseTicker(input?: string | null) {
-  return String(input || "").trim().toUpperCase();
+  return "alternative";
 }
 
-function fmtAdded(value?: string | null) {
-  if (!value) return "-";
+function sourceLabel(row: WatchlistRow) {
+  return normaliseSource(row) === "core"
+    ? "AURORA CORE"
+    : "AURORA ALTERNATIVE";
+}
+
+function formatPercent(value?: number | null) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "0.00%";
+  return `${value >= 0 ? "" : "-"}${Math.abs(value).toFixed(2)}%`;
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "—";
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "-";
+  if (Number.isNaN(d.getTime())) return "—";
+
   return d.toLocaleString("en-GB", {
     day: "2-digit",
     month: "short",
@@ -68,492 +62,393 @@ function fmtAdded(value?: string | null) {
   });
 }
 
-function toNumber(value: unknown): number | null {
-  if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value === "string" && value.trim() !== "") {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : null;
-  }
-  return null;
-}
+function formatMarketCap(value?: number | string | null) {
+  if (value === null || value === undefined || value === "") return "—";
 
-function fmtChange(value: unknown) {
-  const n = toNumber(value);
-  if (n === null) return { text: "-", value: null };
-  return { text: `${n.toFixed(2)}%`, value: n };
-}
+  const n =
+    typeof value === "number"
+      ? value
+      : Number(String(value).replace(/[^0-9.-]/g, ""));
 
-function parseMarketCap(value?: string | null) {
-  if (!value) return null;
-  const clean = String(value).trim().toUpperCase();
-  const match = clean.match(/^([0-9.]+)\s*([KMBT])?$/);
-  if (!match) return null;
+  if (!Number.isFinite(n)) return String(value);
 
-  const num = Number(match[1]);
-  if (!Number.isFinite(num)) return null;
+  if (n >= 1_000_000_000_000) return `${(n / 1_000_000_000_000).toFixed(2)}T`;
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
 
-  const suffix = match[2] || "";
-  const mult =
-    suffix === "K" ? 1_000 :
-    suffix === "M" ? 1_000_000 :
-    suffix === "B" ? 1_000_000_000 :
-    suffix === "T" ? 1_000_000_000_000 :
-    1;
-
-  return num * mult;
-}
-
-function scoreBarWidth(score: number | null) {
-  if (score === null) return "0%";
-  const bounded = Math.max(0, Math.min(100, score));
-  return `${bounded}%`;
-}
-
-function SortHeader({
-  label,
-  column,
-  sortKey,
-  sortDir,
-  onClick,
-}: {
-  label: string;
-  column: SortKey;
-  sortKey: SortKey;
-  sortDir: "asc" | "desc";
-  onClick: (key: SortKey) => void;
-}) {
-  const active = sortKey === column;
-
-  return (
-    <button
-      type="button"
-      onClick={() => onClick(column)}
-      className={[
-        "inline-flex items-center gap-2 rounded px-1 py-1 transition",
-        active ? "text-cyan-300" : "text-white/40 hover:text-white/75",
-      ].join(" ")}
-    >
-      <span>{label}</span>
-      <span className="text-[10px]">{active ? (sortDir === "asc" ? "▲" : "▼") : "↕"}</span>
-    </button>
-  );
+  return n.toLocaleString("en-GB");
 }
 
 export default function WatchlistPage() {
-  const supabase = useMemo(() => createClient(), []);
-  const [items, setItems] = useState<WatchlistItem[]>([]);
-  const [scannerMap, setScannerMap] = useState<Record<string, ScannerRow>>({});
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [removing, setRemoving] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [listFilter, setListFilter] = useState("all");
-  const [errorText, setErrorText] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>("added");
+  const { items, loading, ready, toggleTicker } = useWatchlist();
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
+  const [sortKey, setSortKey] = useState<
+    "added" | "ticker" | "company" | "source" | "score"
+  >("added");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-
-  async function loadAll(showRefreshState = false) {
-    try {
-      if (showRefreshState) setRefreshing(true);
-      else setLoading(true);
-
-      setErrorText(null);
-
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) throw userError;
-
-      if (!user) {
-        setItems([]);
-        setScannerMap({});
-        return;
-      }
-
-      const { data: watchlistData, error: watchlistError } = await supabase
-        .from("watchlist_items")
-        .select("id, user_id, symbol, company_name, market, created_at, updated_at")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (watchlistError) throw watchlistError;
-
-      const watchItems = (watchlistData || []) as WatchlistItem[];
-      setItems(watchItems);
-
-      const symbols = watchItems.map((x) => normaliseTicker(x.symbol)).filter(Boolean);
-
-      if (!symbols.length) {
-        setScannerMap({});
-        return;
-      }
-
-      const { data: scannerData, error: scannerError } = await supabase
-        .from("scanner_results")
-        .select("ticker, company, company_name, market_cap, score, change_percent, scanner_type, updated_at, volume")
-        .in("ticker", symbols);
-
-      if (scannerError) {
-        console.error("Scanner enrichment failed:", scannerError);
-        setScannerMap({});
-        return;
-      }
-
-      const bestByTicker: Record<string, ScannerRow> = {};
-
-      for (const raw of (scannerData || []) as ScannerRow[]) {
-        const t = normaliseTicker(raw.ticker);
-        if (!t) continue;
-
-        const existing = bestByTicker[t];
-        const rawScore = toNumber(raw.score) ?? -1;
-        const existingScore = toNumber(existing?.score) ?? -1;
-
-        if (!existing || rawScore >= existingScore) {
-          bestByTicker[t] = raw;
-        }
-      }
-
-      setScannerMap(bestByTicker);
-    } catch (error) {
-      console.error("Watchlist page load error:", error);
-      setErrorText(error instanceof Error ? error.message : "Failed to load watchlist");
-      setItems([]);
-      setScannerMap({});
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    loadAll(false);
+    setMounted(true);
   }, []);
 
-  async function handleRemove(symbol: string) {
-    try {
-      setRemoving(symbol);
+  const rows: WatchlistRow[] = useMemo(() => {
+    return (items || []).map((item: any) => ({
+      id: item.id,
+      symbol: item.symbol || item.ticker || "",
+      company_name: item.company_name ?? item.name ?? null,
+      created_at: item.created_at ?? null,
+      source: item.source ?? null,
+      universe: item.universe ?? item.bucket ?? null,
+      scanner_source: item.scanner_source ?? null,
+      market_cap: item.market_cap ?? null,
+      score:
+        typeof item.score === "number"
+          ? item.score
+          : item.score !== undefined && item.score !== null
+            ? Number(item.score)
+            : null,
+      change_pct:
+        typeof item.change_pct === "number"
+          ? item.change_pct
+          : item.change_pct !== undefined && item.change_pct !== null
+            ? Number(item.change_pct)
+            : typeof item.change === "number"
+              ? item.change
+              : item.change !== undefined && item.change !== null
+                ? Number(item.change)
+                : null,
+      change:
+        typeof item.change === "number"
+          ? item.change
+          : item.change !== undefined && item.change !== null
+            ? Number(item.change)
+            : null,
+    }));
+  }, [items]);
 
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+  const coreCount = useMemo(
+    () => rows.filter((row) => normaliseSource(row) === "core").length,
+    [rows]
+  );
 
-      if (userError) throw userError;
-      if (!user) throw new Error("You must be signed in.");
+  const alternativeCount = useMemo(
+    () => rows.filter((row) => normaliseSource(row) === "alternative").length,
+    [rows]
+  );
 
-      const { error } = await supabase
-        .from("watchlist_items")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("symbol", normaliseTicker(symbol));
+  const filteredRows = useMemo(() => {
+    let next = [...rows];
 
-      if (error) throw error;
-
-      setItems((prev) =>
-        prev.filter((item) => normaliseTicker(item.symbol) !== normaliseTicker(symbol))
-      );
-
-      setScannerMap((prev) => {
-        const next = { ...prev };
-        delete next[normaliseTicker(symbol)];
-        return next;
-      });
-    } catch (error) {
-      console.error("Remove watchlist item error:", error);
-      window.alert(error instanceof Error ? error.message : "Failed to remove from watchlist");
-    } finally {
-      setRemoving(null);
-    }
-  }
-
-  function handleSort(column: SortKey) {
-    if (sortKey === column) {
-      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(column);
-      setSortDir(column === "added" ? "desc" : "asc");
-    }
-  }
-
-  const baseRows = useMemo<DisplayRow[]>(() => {
-    let result = items.map((item) => {
-      const symbol = normaliseTicker(item.symbol);
-      const scan = scannerMap[symbol];
-      const company = scan?.company || scan?.company_name || item.company_name || symbol;
-      const change = fmtChange(scan?.change_percent);
-
-      return {
-        id: item.id,
-        symbol,
-        company,
-        companySubtext: item.company_name || "",
-        marketCap: scan?.market_cap || "-",
-        score: toNumber(scan?.score),
-        changeText: change.text,
-        changeValue: change.value,
-        addedText: fmtAdded(item.created_at),
-        addedRaw: item.created_at,
-        scannerType:
-          scan?.scanner_type === "alternative"
-            ? "Aurora Alternative"
-            : scan?.scanner_type === "core"
-            ? "Aurora Core"
-            : "Manual Watchlist",
-      };
-    });
-
-    if (listFilter !== "all") {
-      result = result.filter((row) => {
-        if (listFilter === "core") return row.scannerType === "Aurora Core";
-        if (listFilter === "alternative") return row.scannerType === "Aurora Alternative";
-        if (listFilter === "manual") return row.scannerType === "Manual Watchlist";
-        return true;
-      });
+    if (sourceFilter !== "all") {
+      next = next.filter((row) => normaliseSource(row) === sourceFilter);
     }
 
-    const q = search.trim().toLowerCase();
-    if (q) {
-      result = result.filter((row) =>
-        [row.symbol, row.company, row.scannerType].join(" ").toLowerCase().includes(q)
-      );
-    }
+    next.sort((a, b) => {
+      let aVal: string | number = "";
+      let bVal: string | number = "";
 
-    return result;
-  }, [items, scannerMap, search, listFilter]);
-
-  const rows = useMemo(() => {
-    const sorted = [...baseRows].sort((a, b) => {
-      let av: string | number = "";
-      let bv: string | number = "";
-
-      switch (sortKey) {
-        case "watch":
-        case "ticker":
-        case "action":
-          av = a.symbol;
-          bv = b.symbol;
-          break;
-        case "company":
-          av = a.company;
-          bv = b.company;
-          break;
-        case "marketCap":
-          av = parseMarketCap(a.marketCap) ?? -1;
-          bv = parseMarketCap(b.marketCap) ?? -1;
-          break;
-        case "score":
-          av = a.score ?? -1;
-          bv = b.score ?? -1;
-          break;
-        case "change":
-          av = a.changeValue ?? -9999;
-          bv = b.changeValue ?? -9999;
-          break;
-        case "added":
-          av = new Date(a.addedRaw || 0).getTime();
-          bv = new Date(b.addedRaw || 0).getTime();
-          break;
+      if (sortKey === "ticker") {
+        aVal = a.symbol || "";
+        bVal = b.symbol || "";
+      } else if (sortKey === "company") {
+        aVal = a.company_name || "";
+        bVal = b.company_name || "";
+      } else if (sortKey === "source") {
+        aVal = normaliseSource(a);
+        bVal = normaliseSource(b);
+      } else if (sortKey === "score") {
+        aVal = a.score ?? -9999;
+        bVal = b.score ?? -9999;
+      } else {
+        aVal = a.created_at ? new Date(a.created_at).getTime() : 0;
+        bVal = b.created_at ? new Date(b.created_at).getTime() : 0;
       }
 
-      if (typeof av === "number" && typeof bv === "number") {
-        return sortDir === "asc" ? av - bv : bv - av;
+      if (typeof aVal === "number" && typeof bVal === "number") {
+        return sortDir === "asc" ? aVal - bVal : bVal - aVal;
       }
 
       return sortDir === "asc"
-        ? String(av).localeCompare(String(bv))
-        : String(bv).localeCompare(String(av));
+        ? String(aVal).localeCompare(String(bVal))
+        : String(bVal).localeCompare(String(aVal));
     });
 
-    return sorted;
-  }, [baseRows, sortKey, sortDir]);
+    return next;
+  }, [rows, sourceFilter, sortKey, sortDir]);
 
-  const totalSaved = items.length;
-  const coreCount = baseRows.filter((r) => r.scannerType === "Aurora Core").length;
-  const altCount = baseRows.filter((r) => r.scannerType === "Aurora Alternative").length;
-  const manualCount = baseRows.filter((r) => r.scannerType === "Manual Watchlist").length;
+  function handleSort(
+    key: "added" | "ticker" | "company" | "source" | "score"
+  ) {
+    if (sortKey === key) {
+      setSortDir((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(key);
+    setSortDir(key === "added" ? "desc" : "asc");
+  }
+
+  async function handleRemove(symbol?: string | null) {
+    if (!symbol) return;
+    try {
+      await toggleTicker(symbol, null);
+    } catch (error) {
+      console.error("Failed to remove from watchlist:", error);
+    }
+  }
 
   return (
-    <div className="px-6 py-6 text-white">
-      <div className="mb-8">
-        <h1 className="text-2xl font-semibold">Watchlist</h1>
-        <div className="mt-1 text-sm text-white/45">Aurora platform workspace</div>
-      </div>
-
-      <div className="mb-6 rounded-[28px] border border-cyan-500/10 bg-[#06152d]/80 p-6 shadow-[0_0_60px_rgba(0,80,180,0.12)]">
-        <div className="mb-3 inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.35em] text-cyan-300">
-          Aurora Growth
-        </div>
-        <h2 className="max-w-4xl text-4xl font-semibold tracking-tight">
-          Your saved companies, in one cleaner premium view.
-        </h2>
-        <p className="mt-4 max-w-4xl text-xl leading-relaxed text-white/60">
-          Review companies saved from Aurora Core and Aurora Alternative, search quickly, and jump straight into each stock page.
+    <div className="space-y-6 p-6">
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight text-white">
+          Watchlist
+        </h1>
+        <p className="mt-2 text-sm text-white/60">
+          Saved companies from Aurora Market Scanner and your platform watchlists.
         </p>
       </div>
 
-      <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5">
-          <div className="text-xs uppercase tracking-[0.35em] text-white/35">Total Saved</div>
-          <div className="mt-3 text-5xl font-semibold">{totalSaved}</div>
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="rounded-3xl border border-cyan-500/20 bg-[#07152f]/90 p-5 shadow-[0_0_30px_rgba(0,180,255,0.08)]">
+          <div className="text-xs uppercase tracking-[0.28em] text-white/45">
+            Total Saved
+          </div>
+          <div className="mt-3 text-3xl font-semibold text-cyan-300">
+            {rows.length}
+          </div>
+          <div className="mt-2 text-sm text-white/55">
+            All saved watchlist stocks
+          </div>
         </div>
-        <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5">
-          <div className="text-xs uppercase tracking-[0.35em] text-white/35">Aurora Core</div>
-          <div className="mt-3 text-5xl font-semibold">{coreCount}</div>
+
+        <div className="rounded-3xl border border-emerald-400/20 bg-[#07152f]/90 p-5 shadow-[0_0_30px_rgba(16,185,129,0.08)]">
+          <div className="text-xs uppercase tracking-[0.28em] text-white/45">
+            Aurora Core
+          </div>
+          <div className="mt-3 text-3xl font-semibold text-emerald-300">
+            {coreCount}
+          </div>
+          <div className="mt-2 text-sm text-white/55">
+            Core setup watchlist names
+          </div>
         </div>
-        <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5">
-          <div className="text-xs uppercase tracking-[0.35em] text-white/35">Aurora Alternative</div>
-          <div className="mt-3 text-5xl font-semibold">{altCount}</div>
+
+        <div className="rounded-3xl border border-fuchsia-400/20 bg-[#07152f]/90 p-5 shadow-[0_0_30px_rgba(217,70,239,0.08)]">
+          <div className="text-xs uppercase tracking-[0.28em] text-white/45">
+            Aurora Alternative
+          </div>
+          <div className="mt-3 text-3xl font-semibold text-fuchsia-300">
+            {alternativeCount}
+          </div>
+          <div className="mt-2 text-sm text-white/55">
+            Alternative setup watchlist names
+          </div>
         </div>
-        <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-5">
-          <div className="text-xs uppercase tracking-[0.35em] text-white/35">Manual Watchlist</div>
-          <div className="mt-3 text-5xl font-semibold">{manualCount}</div>
+
+        <div className="rounded-3xl border border-white/10 bg-[#07152f]/90 p-5">
+          <div className="text-xs uppercase tracking-[0.28em] text-white/45">
+            Status
+          </div>
+          <div className="mt-3 text-lg font-semibold text-white">
+            {!mounted ? "Loading..." : loading ? "Syncing..." : ready ? "Ready" : "Starting"}
+          </div>
+          <div className="mt-2 text-sm text-white/55">
+            Watchlist connected
+          </div>
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[28px] border border-cyan-500/10 bg-[#07122b]/90 shadow-[0_0_60px_rgba(0,80,180,0.12)]">
-        <div className="flex flex-col gap-4 border-b border-white/5 p-6 xl:flex-row xl:items-end xl:justify-between">
-          <div>
-            <div className="text-xs uppercase tracking-[0.35em] text-white/35">Aurora Market Table</div>
-            <h3 className="mt-2 text-2xl font-semibold">Aurora Watchlist</h3>
-            <p className="mt-2 text-white/50">
-              Saved companies from Aurora Market Scanner and your platform watchlist.
-            </p>
-          </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => setSourceFilter("all")}
+          className={`rounded-full px-5 py-2.5 text-sm font-medium transition ${
+            sourceFilter === "all"
+              ? "border border-cyan-400/40 bg-cyan-500/15 text-cyan-300 shadow-[0_0_20px_rgba(0,200,255,0.15)]"
+              : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+          }`}
+        >
+          All ({rows.length})
+        </button>
 
-          <div className="flex flex-col gap-3 md:flex-row">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search ticker, company"
-              className="h-12 rounded-full border border-white/10 bg-white/[0.05] px-5 text-white outline-none placeholder:text-white/35"
-            />
-            <select
-              value={listFilter}
-              onChange={(e) => setListFilter(e.target.value)}
-              className="h-12 rounded-full border border-white/10 bg-[#13284e] px-5 text-white outline-none"
-            >
-              <option value="all">All lists</option>
-              <option value="core">Aurora Core</option>
-              <option value="alternative">Aurora Alternative</option>
-              <option value="manual">Manual Watchlist</option>
-            </select>
-            <button
-              type="button"
-              onClick={() => loadAll(true)}
-              className="h-12 rounded-full border border-cyan-400/30 bg-cyan-400/10 px-6 text-cyan-200 transition hover:bg-cyan-400/20"
-            >
-              {refreshing ? "Refreshing..." : "Refresh"}
-            </button>
-          </div>
-        </div>
+        <button
+          onClick={() => setSourceFilter("core")}
+          className={`rounded-full px-5 py-2.5 text-sm font-medium transition ${
+            sourceFilter === "core"
+              ? "border border-emerald-400/40 bg-emerald-500/15 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.15)]"
+              : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+          }`}
+        >
+          Core ({coreCount})
+        </button>
 
-        {errorText ? (
-          <div className="p-6 text-rose-300">{errorText}</div>
-        ) : loading ? (
-          <div className="p-10 text-center text-white/45">Loading watchlist...</div>
-        ) : rows.length === 0 ? (
-          <div className="p-10 text-center text-white/45">No saved companies found.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-sm">
-              <thead className="border-b border-white/5 text-white/40">
-                <tr className="text-left text-xs uppercase tracking-[0.25em]">
-                  <th className="px-5 py-4"><SortHeader label="Watch" column="watch" sortKey={sortKey} sortDir={sortDir} onClick={handleSort} /></th>
-                  <th className="px-5 py-4"><SortHeader label="Ticker" column="ticker" sortKey={sortKey} sortDir={sortDir} onClick={handleSort} /></th>
-                  <th className="px-5 py-4"><SortHeader label="Company" column="company" sortKey={sortKey} sortDir={sortDir} onClick={handleSort} /></th>
-                  <th className="px-5 py-4"><SortHeader label="Market Cap" column="marketCap" sortKey={sortKey} sortDir={sortDir} onClick={handleSort} /></th>
-                  <th className="px-5 py-4"><SortHeader label="Score" column="score" sortKey={sortKey} sortDir={sortDir} onClick={handleSort} /></th>
-                  <th className="px-5 py-4"><SortHeader label="Change" column="change" sortKey={sortKey} sortDir={sortDir} onClick={handleSort} /></th>
-                  <th className="px-5 py-4"><SortHeader label="Added" column="added" sortKey={sortKey} sortDir={sortDir} onClick={handleSort} /></th>
-                  <th className="px-5 py-4"><SortHeader label="Action" column="action" sortKey={sortKey} sortDir={sortDir} onClick={handleSort} /></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="border-b border-white/5 text-white/80 transition hover:bg-white/[0.03]"
+        <button
+          onClick={() => setSourceFilter("alternative")}
+          className={`rounded-full px-5 py-2.5 text-sm font-medium transition ${
+            sourceFilter === "alternative"
+              ? "border border-fuchsia-400/40 bg-fuchsia-500/15 text-fuchsia-300 shadow-[0_0_20px_rgba(217,70,239,0.15)]"
+              : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+          }`}
+        >
+          Alternative ({alternativeCount})
+        </button>
+      </div>
+
+      <div className="overflow-hidden rounded-3xl border border-cyan-500/10 bg-[#041225]/95">
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-white/[0.03]">
+              <tr className="border-b border-white/5 text-left text-[11px] uppercase tracking-[0.28em] text-white/45">
+                <th className="px-6 py-4">Watch</th>
+
+                <th className="px-6 py-4">
+                  <button
+                    onClick={() => handleSort("ticker")}
+                    className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
                   >
-                    <td className="px-5 py-4">
-                      <WatchlistStar ticker={row.symbol} company={row.company} />
-                    </td>
+                    Ticker
+                    <span className="text-white/30">↕</span>
+                  </button>
+                </th>
 
-                    <td className="px-5 py-4">
-                      <Link
-                        href={`/dashboard/chart?ticker=${encodeURIComponent(row.symbol)}`}
-                        className="font-semibold tracking-wide text-white hover:text-cyan-200"
-                      >
-                        {row.symbol}
-                      </Link>
-                    </td>
+                <th className="px-6 py-4">
+                  <button
+                    onClick={() => handleSort("company")}
+                    className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
+                  >
+                    Company
+                    <span className="text-white/30">↕</span>
+                  </button>
+                </th>
 
-                    <td className="px-5 py-4">
-                      <Link
-                        href={`/dashboard/chart?ticker=${encodeURIComponent(row.symbol)}`}
-                        className="block hover:text-cyan-200"
-                      >
-                        <div className="text-white">{row.company}</div>
-                        <div className="mt-1 text-xs text-white/35">{row.companySubtext || row.scannerType}</div>
-                      </Link>
-                    </td>
+                <th className="px-6 py-4">
+                  <button
+                    onClick={() => handleSort("source")}
+                    className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
+                  >
+                    Source
+                    <span className="text-white/30">↕</span>
+                  </button>
+                </th>
 
-                    <td className="px-5 py-4">{row.marketCap}</td>
+                <th className="px-6 py-4">Market Cap</th>
 
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="h-2 w-28 overflow-hidden rounded-full bg-white/10">
-                          <div
-                            className="h-full rounded-full bg-cyan-400"
-                            style={{ width: scoreBarWidth(row.score) }}
-                          />
-                        </div>
-                        <div className="min-w-[2rem] text-cyan-300">
-                          {row.score === null ? "-" : row.score}
-                        </div>
-                      </div>
-                    </td>
+                <th className="px-6 py-4">
+                  <button
+                    onClick={() => handleSort("score")}
+                    className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
+                  >
+                    Score
+                    <span className="text-white/30">↕</span>
+                  </button>
+                </th>
 
-                    <td
-                      className={`px-5 py-4 font-medium ${
-                        row.changeValue === null
-                          ? "text-white/50"
-                          : row.changeValue >= 0
-                          ? "text-emerald-300"
-                          : "text-rose-300"
-                      }`}
+                <th className="px-6 py-4">Change</th>
+
+                <th className="px-6 py-4">
+                  <button
+                    onClick={() => handleSort("added")}
+                    className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
+                  >
+                    Added
+                    <span className="text-white/30">↕</span>
+                  </button>
+                </th>
+
+                <th className="px-6 py-4">Action</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {filteredRows.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-6 py-16 text-center text-white/55">
+                    No watchlist stocks found for this filter.
+                  </td>
+                </tr>
+              ) : (
+                filteredRows.map((row, idx) => {
+                  const source = normaliseSource(row);
+
+                  return (
+                    <tr
+                      key={`${row.id ?? row.symbol}-${idx}`}
+                      className="border-b border-white/5 text-white/88 transition hover:bg-white/[0.025]"
                     >
-                      {row.changeText}
-                    </td>
-
-                    <td className="px-5 py-4 text-white/55">{row.addedText}</td>
-
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <Link
-                          href={`/dashboard/chart?ticker=${encodeURIComponent(row.symbol)}`}
-                          className="inline-flex items-center rounded-full border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-200 transition hover:border-cyan-300 hover:bg-cyan-400/20"
-                        >
-                          View Chart
-                        </Link>
+                      <td className="px-6 py-5">
                         <button
-                          type="button"
                           onClick={() => handleRemove(row.symbol)}
-                          disabled={removing === row.symbol}
-                          className="inline-flex items-center rounded-full border border-rose-400/25 bg-rose-500/10 px-4 py-2 text-sm text-rose-200 transition hover:bg-rose-500/20 disabled:opacity-50"
+                          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-cyan-400/35 bg-cyan-500/10 text-cyan-300 shadow-[0_0_18px_rgba(0,200,255,0.10)] transition hover:scale-105 hover:bg-cyan-500/20"
+                          title="Remove from watchlist"
                         >
-                          {removing === row.symbol ? "Removing..." : "Remove"}
+                          ★
                         </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                      </td>
+
+                      <td className="px-6 py-5">
+                        <Link
+                          href={`/dashboard/investments/calculator?ticker=${encodeURIComponent(row.symbol)}`}
+                          className="font-semibold tracking-wide text-white transition hover:text-cyan-300"
+                        >
+                          {row.symbol}
+                        </Link>
+                      </td>
+
+                      <td className="px-6 py-5 text-white/85">
+                        {row.company_name || "—"}
+                      </td>
+
+                      <td className="px-6 py-5">
+                        <span
+                          className={`inline-flex rounded-full border px-4 py-2 text-[11px] uppercase tracking-[0.24em] ${
+                            source === "core"
+                              ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-300"
+                              : "border-cyan-400/35 bg-cyan-500/10 text-cyan-300"
+                          }`}
+                        >
+                          {sourceLabel(row)}
+                        </span>
+                      </td>
+
+                      <td className="px-6 py-5 text-white/80">
+                        {formatMarketCap(row.market_cap)}
+                      </td>
+
+                      <td className="px-6 py-5 font-medium text-cyan-300">
+                        {row.score ?? "—"}
+                      </td>
+
+                      <td className="px-6 py-5 text-emerald-300">
+                        {formatPercent(row.change_pct)}
+                      </td>
+
+                      <td className="px-6 py-5 text-white/65">
+                        {formatDate(row.created_at)}
+                      </td>
+
+                      <td className="px-6 py-5">
+                        <div className="flex items-center gap-3">
+                          <Link
+                            href={`/dashboard/investments/calculator?ticker=${encodeURIComponent(row.symbol)}`}
+                            className="inline-flex items-center rounded-full border border-cyan-400/35 bg-cyan-500/10 px-5 py-3 text-sm font-medium text-cyan-300 transition hover:bg-cyan-500/20"
+                          >
+                            View Chart
+                          </Link>
+
+                          <button
+                            onClick={() => handleRemove(row.symbol)}
+                            className="inline-flex items-center rounded-full border border-fuchsia-400/25 bg-fuchsia-500/10 px-5 py-3 text-sm font-medium text-fuchsia-200 transition hover:bg-fuchsia-500/20"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

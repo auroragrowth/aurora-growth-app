@@ -1,97 +1,76 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
-import { Star } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { addToWatchlist, removeFromWatchlist } from "@/app/actions/watchlist";
+import { useState } from "react";
+import { useWatchlist } from "@/components/watchlist/WatchlistProvider";
 
 type Props = {
   ticker?: string | null;
-  initialActive?: boolean;
+  companyName?: string | null;
+  source?: string | null;
   className?: string;
 };
 
-function normaliseTicker(input?: string | null) {
-  return String(input || "").trim().toUpperCase();
-}
-
 export default function WatchlistStarButton({
   ticker,
-  initialActive = false,
+  companyName,
+  source,
   className = "",
 }: Props) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [active, setActive] = useState(initialActive);
+  const { hasTicker, toggleTicker } = useWatchlist();
+  const [busy, setBusy] = useState(false);
 
-  const cleanTicker = useMemo(() => normaliseTicker(ticker), [ticker]);
-  const isDisabled = !cleanTicker;
+  const cleanTicker = String(ticker ?? "").trim().toUpperCase();
+  const active = hasTicker(cleanTicker);
 
-  useEffect(() => {
-    setActive(initialActive);
-  }, [initialActive, cleanTicker]);
-
-  function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
+  async function onClick(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
     e.stopPropagation();
 
-    if (!cleanTicker) {
-      window.alert("No ticker found for this row.");
-      return;
-    }
+    if (!cleanTicker || busy) return;
 
-    if (isPending) return;
+    try {
+      setBusy(true);
 
-    const previous = active;
-    setActive(!previous);
-
-    startTransition(async () => {
-      const result = previous
-        ? await removeFromWatchlist(cleanTicker)
-        : await addToWatchlist(cleanTicker);
+      const result = await toggleTicker(
+        cleanTicker,
+        companyName ?? null,
+        source ?? null
+      );
 
       if (!result?.ok) {
-        setActive(previous);
-        window.alert(result?.error || "Failed to update watchlist.");
-        return;
+        alert(result?.error || "Watchlist update failed");
       }
-
-      router.refresh();
-    });
+    } catch (error: any) {
+      console.error("watchlist star click failed:", error);
+      alert(error?.message || "Watchlist update failed");
+    } finally {
+      setBusy(false);
+    }
   }
+
+  const baseClasses =
+    "inline-flex h-10 w-10 items-center justify-center rounded-full border transition duration-200";
+
+  const stateClasses = active
+    ? "border-cyan-300 bg-cyan-400/20 text-cyan-200 shadow-[0_0_18px_rgba(34,211,238,0.22)]"
+    : "border-cyan-400/30 bg-cyan-500/8 text-cyan-300 hover:bg-cyan-500/15 hover:border-cyan-300/50";
 
   return (
     <button
       type="button"
-      onClick={handleClick}
-      disabled={isDisabled}
-      aria-label={
-        active
-          ? `Remove ${cleanTicker} from watchlist`
-          : `Add ${cleanTicker} to watchlist`
-      }
+      onClick={onClick}
+      disabled={busy || !cleanTicker}
+      className={`${baseClasses} ${stateClasses} ${busy ? "opacity-70" : ""} ${className}`}
       title={
-        isDisabled
-          ? "Ticker missing"
-          : active
-          ? `Remove ${cleanTicker} from watchlist`
-          : `Add ${cleanTicker} to watchlist`
+        active ? "Remove from Watchlist" : "Add to Watchlist"
       }
-      className={[
-        "inline-flex h-10 w-10 items-center justify-center rounded-full border transition-all duration-200",
-        active
-          ? "border-cyan-400/70 bg-cyan-400/15 text-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.18)]"
-          : "border-white/10 bg-white/[0.03] text-slate-300 hover:border-cyan-400/50 hover:bg-cyan-400/10 hover:text-cyan-300",
-        isDisabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
-        className,
-      ].join(" ")}
+      aria-label={
+        active ? "Remove from Watchlist" : "Add to Watchlist"
+      }
     >
-      <Star
-        className={[
-          "h-4 w-4 transition-all duration-200",
-          active ? "fill-current scale-110" : "",
-        ].join(" ")}
-      />
+      <span className="text-lg leading-none">
+        {busy ? "…" : "★"}
+      </span>
     </button>
   );
 }
