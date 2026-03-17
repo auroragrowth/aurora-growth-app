@@ -2,30 +2,35 @@
 
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
-  useMemo,
   useState,
-  type ReactNode,
+  ReactNode,
 } from "react";
+
 import {
   addWatchlistItem,
   getWatchlistItems,
   removeWatchlistItem,
-} from "@/aurora-app/app/actions/watchlist";
+} from "@/app/actions/watchlist";
 
 type WatchlistItem = {
   id?: string;
   symbol: string;
   company_name?: string | null;
   created_at?: string | null;
-  source?: string | null;
+  source_list?: string | null;
+};
+
+type ActionResult = {
+  ok: boolean;
+  error?: string;
 };
 
 type ToggleResult = {
   ok: boolean;
-  action?: "added" | "removed";
+  added?: boolean;
+  removed?: boolean;
   error?: string;
 };
 
@@ -34,19 +39,30 @@ type WatchlistContextType = {
   tickers: string[];
   loading: boolean;
   ready: boolean;
-  refresh: () => Promise<void>;
   hasTicker: (ticker?: string | null) => boolean;
+  add: (
+    ticker?: string | null,
+    companyName?: string | null,
+    source?: string | null
+  ) => Promise<ActionResult>;
+  remove: (ticker?: string | null) => Promise<ActionResult>;
+  toggle: (
+    ticker?: string | null,
+    companyName?: string | null,
+    source?: string | null
+  ) => Promise<ActionResult>;
   toggleTicker: (
     ticker?: string | null,
     companyName?: string | null,
     source?: string | null
   ) => Promise<ToggleResult>;
+  refresh: () => Promise<void>;
 };
 
 const WatchlistContext = createContext<WatchlistContextType | undefined>(undefined);
 
-function normaliseTicker(value?: string | null) {
-  return String(value ?? "").trim().toUpperCase();
+function normalise(t?: string | null) {
+  return (t || "").trim().toUpperCase();
 }
 
 export function WatchlistProvider({ children }: { children: ReactNode }) {
@@ -54,92 +70,96 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);
 
-  const refresh = useCallback(async () => {
+  const tickers = items.map((i) => normalise(i.symbol));
+
+  const hasTicker = (ticker?: string | null) => {
+    const t = normalise(ticker);
+    return tickers.includes(t);
+  };
+
+  const refresh = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const rows = await getWatchlistItems();
-      setItems(Array.isArray(rows) ? rows : []);
-    } catch (error) {
-      console.error("Watchlist refresh failed:", error);
-      setItems([]);
+      const data = await getWatchlistItems();
+      setItems(data || []);
+    } catch (err) {
+      console.error("Watchlist refresh failed:", err);
     } finally {
       setLoading(false);
       setReady(true);
     }
-  }, []);
+  };
 
   useEffect(() => {
     refresh();
-  }, [refresh]);
+  }, []);
 
-  const tickers = useMemo(() => {
-    return items.map((item) => normaliseTicker(item.symbol)).filter(Boolean);
-  }, [items]);
+  const add = async (
+    ticker?: string | null,
+    companyName?: string | null,
+    _source?: string | null
+  ): Promise<ActionResult> => {
+    const t = normalise(ticker);
+    if (!t) return { ok: false, error: "Missing ticker" };
 
-  const hasTicker = useCallback(
-    (ticker?: string | null) => {
-      const clean = normaliseTicker(ticker);
-      if (!clean) return false;
-      return tickers.includes(clean);
-    },
-    [tickers]
-  );
+    const result = await addWatchlistItem(t, companyName);
 
-  const toggleTicker = useCallback(
-    async (
-      ticker?: string | null,
-      companyName?: string | null,
-      source?: string | null
-    ): Promise<ToggleResult> => {
-      const cleanTicker = normaliseTicker(ticker);
+    if (!result.ok) {
+      console.error("addWatchlistItem failed:", result);
+      return { ok: false, error: result.message || "Add failed" };
+    }
 
-      if (!cleanTicker) {
-        return { ok: false, error: "Ticker is required" };
-      }
+    await refresh();
+    return { ok: true };
+  };
 
-      const exists = tickers.includes(cleanTicker);
+  const remove = async (ticker?: string | null): Promise<ActionResult> => {
+    const t = normalise(ticker);
+    if (!t) return { ok: false, error: "Missing ticker" };
 
-      if (exists) {
-        const result = await removeWatchlistItem(cleanTicker);
+    const result = await removeWatchlistItem(t);
 
-        if (!result?.ok) {
-          console.error("removeWatchlistItem failed:", result);
-          return { ok: false, error: result?.error || "Remove failed" };
-        }
+    if (!result.ok) {
+      console.error("removeWatchlistItem failed:", result);
+      return { ok: false, error: result.message || "Remove failed" };
+    }
 
-        setItems((prev) =>
-          prev.filter((item) => normaliseTicker(item.symbol) !== cleanTicker)
-        );
+    await refresh();
+    return { ok: true };
+  };
 
-        return { ok: true, action: "removed" };
-      }
+  const toggle = async (
+    ticker?: string | null,
+    companyName?: string | null,
+    source?: string | null
+  ): Promise<ActionResult> => {
+    if (hasTicker(ticker)) {
+      return remove(ticker);
+    }
+    return add(ticker, companyName, source);
+  };
 
-      const result = await addWatchlistItem({
-        symbol: cleanTicker,
-        company_name: companyName ?? null,
-        source: source ?? null,
-      });
+  const toggleTicker = async (
+    ticker?: string | null,
+    companyName?: string | null,
+    source?: string | null
+  ): Promise<ToggleResult> => {
+    if (hasTicker(ticker)) {
+      const result = await remove(ticker);
+      return {
+        ok: result.ok,
+        removed: result.ok,
+        error: result.error,
+      };
+    }
 
-      if (!result?.ok) {
-        console.error("addWatchlistItem failed:", result);
-        return { ok: false, error: result?.error || "Add failed" };
-      }
-
-      if (result.item) {
-        setItems((prev) => {
-          const withoutOld = prev.filter(
-            (item) => normaliseTicker(item.symbol) !== cleanTicker
-          );
-          return [result.item, ...withoutOld];
-        });
-      } else {
-        await refresh();
-      }
-
-      return { ok: true, action: "added" };
-    },
-    [tickers, refresh]
-  );
+    const result = await add(ticker, companyName, source);
+    return {
+      ok: result.ok,
+      added: result.ok,
+      error: result.error,
+    };
+  };
 
   return (
     <WatchlistContext.Provider
@@ -148,9 +168,12 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
         tickers,
         loading,
         ready,
-        refresh,
         hasTicker,
+        add,
+        remove,
+        toggle,
         toggleTicker,
+        refresh,
       }}
     >
       {children}
@@ -159,11 +182,9 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
 }
 
 export function useWatchlist() {
-  const context = useContext(WatchlistContext);
-
-  if (!context) {
-    throw new Error("useWatchlist must be used inside WatchlistProvider");
+  const ctx = useContext(WatchlistContext);
+  if (!ctx) {
+    throw new Error("useWatchlist must be used within WatchlistProvider");
   }
-
-  return context;
+  return ctx;
 }

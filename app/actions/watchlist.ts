@@ -1,124 +1,165 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import { revalidatePath } from "next/cache";
 
-function normaliseTicker(input: string) {
-  return String(input || "").trim().toUpperCase();
+const TABLE = "watchlist_items";
+
+export type WatchlistItem = {
+  id?: string;
+  symbol: string;
+  company_name?: string | null;
+  created_at?: string | null;
+};
+
+function normaliseSymbol(symbol?: string | null) {
+  return (symbol || "").trim().toUpperCase();
 }
 
-export async function addToWatchlist(tickerInput: string, companyName?: string) {
-  const symbol = normaliseTicker(tickerInput);
+export async function getWatchlistItems(): Promise<WatchlistItem[]> {
+  const supabase = await createClient();
 
-  if (!symbol) {
-    return { ok: false, error: "Missing symbol" };
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select("id, symbol, company_name, created_at")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("getWatchlistItems error:", error);
+    return [];
   }
 
-  try {
-    const supabase = await createClient();
+  return (data || []).map((row) => ({
+    id: row.id,
+    symbol: row.symbol,
+    company_name: row.company_name,
+    created_at: row.created_at,
+  }));
+}
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+export async function addWatchlistItem(
+  symbol?: string | null,
+  companyName?: string | null
+): Promise<{ ok: boolean; message?: string }> {
+  const cleanSymbol = normaliseSymbol(symbol);
 
-    if (userError) {
-      console.error("addToWatchlist auth error:", userError);
-      return { ok: false, error: userError.message };
-    }
+  if (!cleanSymbol) {
+    return { ok: false, message: "Missing symbol" };
+  }
 
-    if (!user) {
-      return { ok: false, error: "You must be signed in to use the watchlist." };
-    }
+  const supabase = await createClient();
 
-    const { data: existing, error: existingError } = await supabase
-      .from("watchlist_items")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("symbol", symbol)
-      .maybeSingle();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    if (existingError) {
-      console.error("addToWatchlist check existing error:", existingError);
-      return { ok: false, error: existingError.message };
-    }
+  if (!user) {
+    return { ok: false, message: "Not signed in" };
+  }
 
-    if (existing) {
-      return { ok: true, alreadyExists: true };
-    }
-
-    const { error: insertError } = await supabase.from("watchlist_items").insert({
+  const { error } = await supabase.from(TABLE).upsert(
+    {
       user_id: user.id,
-      symbol,
-      company_name: companyName || null,
-    });
-
-    if (insertError) {
-      console.error("addToWatchlist insert error:", insertError);
-      return { ok: false, error: insertError.message };
+      symbol: cleanSymbol,
+      company_name: companyName?.trim() || null,
+    },
+    {
+      onConflict: "user_id,symbol",
     }
+  );
 
-    revalidatePath("/dashboard/watchlist");
-    revalidatePath("/dashboard/market-scanner");
-    revalidatePath("/dashboard/opportunities");
-    revalidatePath("/dashboard/investments/calculator");
-
-    return { ok: true, added: true };
-  } catch (error) {
-    console.error("addToWatchlist unexpected error:", error);
-    return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Failed to add to watchlist",
-    };
+  if (error) {
+    console.error("addWatchlistItem error:", error);
+    return { ok: false, message: error.message };
   }
+
+  return { ok: true };
 }
 
-export async function removeFromWatchlist(tickerInput: string) {
-  const symbol = normaliseTicker(tickerInput);
+export async function removeWatchlistItem(
+  symbol?: string | null
+): Promise<{ ok: boolean; message?: string }> {
+  const cleanSymbol = normaliseSymbol(symbol);
 
-  if (!symbol) {
-    return { ok: false, error: "Missing symbol" };
+  if (!cleanSymbol) {
+    return { ok: false, message: "Missing symbol" };
   }
 
-  try {
-    const supabase = await createClient();
+  const supabase = await createClient();
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    if (userError) {
-      console.error("removeFromWatchlist auth error:", userError);
-      return { ok: false, error: userError.message };
-    }
+  if (!user) {
+    return { ok: false, message: "Not signed in" };
+  }
 
-    if (!user) {
-      return { ok: false, error: "You must be signed in to use the watchlist." };
-    }
+  const { error } = await supabase
+    .from(TABLE)
+    .delete()
+    .eq("user_id", user.id)
+    .eq("symbol", cleanSymbol);
 
-    const { error: deleteError } = await supabase
-      .from("watchlist_items")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("symbol", symbol);
+  if (error) {
+    console.error("removeWatchlistItem error:", error);
+    return { ok: false, message: error.message };
+  }
 
-    if (deleteError) {
-      console.error("removeFromWatchlist delete error:", deleteError);
-      return { ok: false, error: deleteError.message };
-    }
+  return { ok: true };
+}
 
-    revalidatePath("/dashboard/watchlist");
-    revalidatePath("/dashboard/market-scanner");
-    revalidatePath("/dashboard/opportunities");
-    revalidatePath("/dashboard/investments/calculator");
+export async function toggleWatchlist(
+  symbol?: string | null,
+  companyName?: string | null
+): Promise<{ ok: boolean; added?: boolean; removed?: boolean; message?: string }> {
+  const cleanSymbol = normaliseSymbol(symbol);
 
-    return { ok: true, removed: true };
-  } catch (error) {
-    console.error("removeFromWatchlist unexpected error:", error);
+  if (!cleanSymbol) {
+    return { ok: false, message: "Missing symbol" };
+  }
+
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { ok: false, message: "Not signed in" };
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from(TABLE)
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("symbol", cleanSymbol)
+    .maybeSingle();
+
+  if (existingError) {
+    console.error("toggleWatchlist lookup error:", existingError);
+    return { ok: false, message: existingError.message };
+  }
+
+  if (existing?.id) {
+    const removed = await removeWatchlistItem(cleanSymbol);
     return {
-      ok: false,
-      error: error instanceof Error ? error.message : "Failed to remove from watchlist",
+      ok: removed.ok,
+      removed: removed.ok,
+      message: removed.message,
     };
   }
+
+  const added = await addWatchlistItem(cleanSymbol, companyName);
+  return {
+    ok: added.ok,
+    added: added.ok,
+    message: added.message,
+  };
 }
