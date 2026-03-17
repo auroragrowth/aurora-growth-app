@@ -24,12 +24,14 @@ type ScannerRow = {
   change_percent?: string | number | null;
   scanner_type?: string | null;
   updated_at?: string | null;
+  volume?: string | number | null;
 };
 
 type DisplayRow = {
   id: string;
   symbol: string;
   company: string;
+  companySubtext: string;
   marketCap: string;
   score: number | null;
   changeText: string;
@@ -101,6 +103,12 @@ function parseMarketCap(value?: string | null) {
   return num * mult;
 }
 
+function scoreBarWidth(score: number | null) {
+  if (score === null) return "0%";
+  const bounded = Math.max(0, Math.min(100, score));
+  return `${bounded}%`;
+}
+
 function SortHeader({
   label,
   column,
@@ -115,6 +123,7 @@ function SortHeader({
   onClick: (key: SortKey) => void;
 }) {
   const active = sortKey === column;
+
   return (
     <button
       type="button"
@@ -183,7 +192,7 @@ export default function WatchlistPage() {
 
       const { data: scannerData, error: scannerError } = await supabase
         .from("scanner_results")
-        .select("ticker, company, company_name, market_cap, score, change_percent, scanner_type, updated_at")
+        .select("ticker, company, company_name, market_cap, score, change_percent, scanner_type, updated_at, volume")
         .in("ticker", symbols);
 
       if (scannerError) {
@@ -280,6 +289,7 @@ export default function WatchlistPage() {
         id: item.id,
         symbol,
         company,
+        companySubtext: item.company_name || "",
         marketCap: scan?.market_cap || "-",
         score: toNumber(scan?.score),
         changeText: change.text,
@@ -406,8 +416,8 @@ export default function WatchlistPage() {
       <div className="overflow-hidden rounded-[28px] border border-cyan-500/10 bg-[#07122b]/90 shadow-[0_0_60px_rgba(0,80,180,0.12)]">
         <div className="flex flex-col gap-4 border-b border-white/5 p-6 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <div className="text-xs uppercase tracking-[0.35em] text-white/35">Aurora Watchlist</div>
-            <h3 className="mt-2 text-2xl font-semibold">Watchlist</h3>
+            <div className="text-xs uppercase tracking-[0.35em] text-white/35">Aurora Market Table</div>
+            <h3 className="mt-2 text-2xl font-semibold">Aurora Watchlist</h3>
             <p className="mt-2 text-white/50">
               Saved companies from Aurora Market Scanner and your platform watchlist.
             </p>
@@ -463,26 +473,63 @@ export default function WatchlistPage() {
               </thead>
               <tbody>
                 {rows.map((row) => (
-                  <tr key={row.id} className="border-b border-white/5 text-white/80 transition hover:bg-white/[0.03]">
+                  <tr
+                    key={row.id}
+                    className="border-b border-white/5 text-white/80 transition hover:bg-white/[0.03]"
+                  >
                     <td className="px-5 py-4">
                       <WatchlistStar ticker={row.symbol} company={row.company} />
                     </td>
+
                     <td className="px-5 py-4">
-                      <Link href={`/dashboard/chart?ticker=${encodeURIComponent(row.symbol)}`} className="font-semibold tracking-wide text-cyan-300 hover:text-cyan-200">
+                      <Link
+                        href={`/dashboard/chart?ticker=${encodeURIComponent(row.symbol)}`}
+                        className="font-semibold tracking-wide text-white hover:text-cyan-200"
+                      >
                         {row.symbol}
                       </Link>
                     </td>
-                    <td className="px-5 py-4 text-white">
-                      <Link href={`/dashboard/chart?ticker=${encodeURIComponent(row.symbol)}`} className="hover:text-cyan-200">
-                        {row.company}
+
+                    <td className="px-5 py-4">
+                      <Link
+                        href={`/dashboard/chart?ticker=${encodeURIComponent(row.symbol)}`}
+                        className="block hover:text-cyan-200"
+                      >
+                        <div className="text-white">{row.company}</div>
+                        <div className="mt-1 text-xs text-white/35">{row.companySubtext || row.scannerType}</div>
                       </Link>
                     </td>
+
                     <td className="px-5 py-4">{row.marketCap}</td>
-                    <td className="px-5 py-4 text-cyan-300">{row.score === null ? "-" : row.score}</td>
-                    <td className={`px-5 py-4 font-medium ${row.changeValue === null ? "text-white/50" : row.changeValue >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
+
+                    <td className="px-5 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-2 w-28 overflow-hidden rounded-full bg-white/10">
+                          <div
+                            className="h-full rounded-full bg-cyan-400"
+                            style={{ width: scoreBarWidth(row.score) }}
+                          />
+                        </div>
+                        <div className="min-w-[2rem] text-cyan-300">
+                          {row.score === null ? "-" : row.score}
+                        </div>
+                      </div>
+                    </td>
+
+                    <td
+                      className={`px-5 py-4 font-medium ${
+                        row.changeValue === null
+                          ? "text-white/50"
+                          : row.changeValue >= 0
+                          ? "text-emerald-300"
+                          : "text-rose-300"
+                      }`}
+                    >
                       {row.changeText}
                     </td>
+
                     <td className="px-5 py-4 text-white/55">{row.addedText}</td>
+
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <Link
