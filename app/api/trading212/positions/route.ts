@@ -1,27 +1,77 @@
-import { badRequest, ok, serverError } from "@/lib/api/json";
-import { supabaseAdmin } from "@/lib/supabase/admin";
-import { getCurrentUser, getUserConnectionByMode, getUserTradingMode } from "@/lib/trading212/connections";
-import { trading212Fetch } from "@/lib/trading212/client";
+import { NextResponse } from "next/server";
+
+function buildTrading212AuthHeader() {
+  const apiKey = process.env.TRADING212_API_KEY;
+  const apiSecret = process.env.TRADING212_API_SECRET;
+
+  if (!apiKey || !apiSecret) return null;
+
+  const encoded = Buffer.from(`${apiKey}:${apiSecret}`).toString("base64");
+  return `Basic ${encoded}`;
+}
 
 export async function GET() {
   try {
-    const user = await getCurrentUser();
-    const mode = await getUserTradingMode(user.id);
-    const connection = await getUserConnectionByMode(user.id, mode);
+    const authHeader = buildTrading212AuthHeader();
 
-    if (!connection) {
-      return badRequest(`No active Trading 212 ${mode} connection found.`);
+    if (!authHeader) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Trading 212 credentials missing",
+          positions: [],
+        },
+        { status: 401 }
+      );
     }
 
-    const positions = await trading212Fetch<any[]>(connection, "/equity/positions");
+    const response = await fetch(
+      "https://live.trading212.com/api/v0/equity/positions",
+      {
+        method: "GET",
+        headers: {
+          Authorization: authHeader,
+          Accept: "application/json",
+        },
+        cache: "no-store",
+      }
+    );
 
-    await supabaseAdmin
-      .from("broker_connections")
-      .update({ last_sync_at: new Date().toISOString() })
-      .eq("id", connection.id);
+    const text = await response.text();
 
-    return ok({ mode, positions });
+    let data: unknown = [];
+    try {
+      data = text ? JSON.parse(text) : [];
+    } catch {
+      data = [];
+    }
+
+    if (!response.ok) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            typeof data === "object" && data && "error" in data
+              ? String((data as { error?: unknown }).error)
+              : text || `Trading 212 request failed (${response.status})`,
+          positions: [],
+        },
+        { status: response.status }
+      );
+    }
+
+    return NextResponse.json({
+      ok: true,
+      positions: Array.isArray(data) ? data : [],
+    });
   } catch (error) {
-    return serverError(error instanceof Error ? error.message : "Failed to fetch positions.");
+    return NextResponse.json(
+      {
+        ok: false,
+        error: error instanceof Error ? error.message : "Unknown server error",
+        positions: [],
+      },
+      { status: 500 }
+    );
   }
 }

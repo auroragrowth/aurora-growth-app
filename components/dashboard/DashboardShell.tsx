@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import NextLevelHeader from "@/components/layout/NextLevelHeader";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
@@ -19,8 +20,10 @@ import {
 
 type DashboardShellProps = {
   children: React.ReactNode;
+  title?: string;
+  subtitle?: string;
   userName: string;
-  userEmail: string;
+  userEmail?: string;
   lastLogin?: string | null;
   planName?: string;
   brokerStatus?: string;
@@ -86,11 +89,13 @@ function getPageTitle(pathname: string) {
 
 export default function DashboardShell({
   children,
+  title,
+  subtitle,
   userName,
-  userEmail,
+  userEmail = "",
   lastLogin,
-  planName = "Aurora Free",
-  brokerStatus = "Not connected to Trading 212",
+  planName,
+  brokerStatus,
 }: DashboardShellProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(true);
@@ -98,9 +103,7 @@ export default function DashboardShell({
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
 
-  const firstName = useMemo(() => getFirstName(userName, userEmail), [userName, userEmail]);
-  const initials = useMemo(() => getInitials(userName, userEmail), [userName, userEmail]);
-  const pageTitle = useMemo(() => getPageTitle(pathname), [pathname]);
+  const pageTitle = useMemo(() => title || getPageTitle(pathname), [title, pathname]);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("aurora-sidebar-collapsed");
@@ -234,89 +237,23 @@ export default function DashboardShell({
 
         <div className={`flex min-h-screen flex-1 flex-col transition-all duration-300 ${collapsed ? "lg:pl-[88px]" : "lg:pl-[220px]"}`}>
           <header className="sticky top-0 z-20 border-b border-cyan-300/10 bg-[linear-gradient(180deg,rgba(6,18,38,0.94),rgba(7,18,35,0.92))] backdrop-blur-xl">
-            <div className="mx-auto flex h-[76px] w-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-              <div className="flex items-center gap-3">
+            <div className="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-6 lg:px-8">
+              <div className="flex items-start gap-4">
                 <button
                   type="button"
                   aria-label="Open sidebar"
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/85 transition hover:bg-white/10 lg:hidden"
+                  className="mt-2 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/85 transition hover:bg-white/10 lg:hidden"
                   onClick={() => setMobileOpen(true)}
                 >
                   <Menu className="h-[18px] w-[18px]" />
                 </button>
 
-                <div>
-                  <div className="bg-gradient-to-r from-cyan-300 via-sky-300 to-violet-300 bg-clip-text text-[1.28rem] font-semibold tracking-tight text-transparent sm:text-[1.45rem]">
-                    {pageTitle}
-                  </div>
-                  <div className="mt-0.5 text-[11px] text-white/42">
-                    Aurora platform workspace
-                  </div>
-                </div>
-              </div>
-
-              <div className="ml-auto flex items-center gap-2 sm:gap-3">
-                <div className="hidden rounded-full border border-rose-300/18 bg-rose-400/10 px-3 py-2 text-xs font-medium text-rose-100 xl:block">
-                  {brokerStatus}
-                </div>
-
-                <div className="hidden rounded-full border border-white/10 bg-white/6 px-3 py-2 text-xs font-medium text-white/88 lg:block">
-                  {planName}
-                </div>
-
-                <div ref={profileRef} className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setProfileOpen((v) => !v)}
-                    className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-2.5 py-2 pr-3 transition hover:bg-white/10"
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(61,209,255,.24),rgba(112,91,255,.20))] text-sm font-semibold text-white ring-1 ring-white/10 shadow-[0_0_20px_rgba(87,211,243,0.12)]">
-                      {initials}
-                    </div>
-
-                    <div className="hidden text-left md:block">
-                      <div className="text-sm font-semibold text-white">{firstName}</div>
-                      <div className="text-[11px] text-white/50">
-                        Last login: {formatLastLogin(lastLogin)}
-                      </div>
-                    </div>
-
-                    <ChevronDown className="h-4 w-4 text-white/55" />
-                  </button>
-
-                  {profileOpen && (
-                    <div className="absolute right-0 top-[calc(100%+10px)] w-[250px] rounded-3xl border border-cyan-300/10 bg-[#091425]/95 p-3 shadow-2xl backdrop-blur-xl">
-                      <div className="mb-2 rounded-2xl border border-white/8 bg-white/[0.03] p-3">
-                        <div className="text-sm font-semibold text-white">{userName || firstName}</div>
-                        <div className="truncate text-xs text-white/45">{userEmail}</div>
-                      </div>
-
-                      <div className="space-y-1.5">
-                        <Link
-                          href="/dashboard/account"
-                          className="block rounded-2xl px-3 py-2.5 text-sm text-white/78 transition hover:bg-white/6 hover:text-white"
-                        >
-                          Account
-                        </Link>
-
-                        <Link
-                          href="/dashboard/upgrade"
-                          className="block rounded-2xl px-3 py-2.5 text-sm text-white/78 transition hover:bg-white/6 hover:text-white"
-                        >
-                          Upgrade Plan
-                        </Link>
-
-                        <form action="/auth/signout" method="post">
-                          <button
-                            type="submit"
-                            className="block w-full rounded-2xl px-3 py-2.5 text-left text-sm text-red-200 transition hover:bg-red-400/10 hover:text-red-100"
-                          >
-                            Log out
-                          </button>
-                        </form>
-                      </div>
-                    </div>
-                  )}
+                <div className="min-w-0 flex-1">
+                  <NextLevelHeader
+                    title={pageTitle}
+                    subtitle={subtitle || "Aurora platform workspace"}
+                    userName={userName}
+                  />
                 </div>
               </div>
             </div>
