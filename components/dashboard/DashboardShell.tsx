@@ -15,14 +15,13 @@ import {
   User,
   LogOut,
   Menu,
-  ChevronDown,
 } from "lucide-react";
 
 type DashboardShellProps = {
   children: React.ReactNode;
   title?: string;
   subtitle?: string;
-  userName: string;
+  userName?: string;
   userEmail?: string;
   lastLogin?: string | null;
   planName?: string;
@@ -46,36 +45,8 @@ const navItems: NavItem[] = [
   { label: "Account", href: "/dashboard/account", icon: User },
 ];
 
-function formatLastLogin(value?: string | null) {
-  if (!value) return "No login data";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "No login data";
-
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date).replace(",", " at ");
-}
-
-function getInitials(name: string, email: string) {
-  const source = name?.trim() || email?.trim() || "U";
-  const parts = source.split(" ").filter(Boolean);
-  if (parts.length >= 2) return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-  return source.slice(0, 1).toUpperCase();
-}
-
-function getFirstName(name: string, email: string) {
-  const clean = name?.trim();
-  if (clean) return clean.split(" ")[0];
-  const mail = email?.split("@")[0] || "User";
-  return mail.charAt(0).toUpperCase() + mail.slice(1);
-}
-
 function getPageTitle(pathname: string) {
-  if (pathname === "/dashboard") return "Dashboard";
+  if (pathname === "/dashboard") return "Investments";
   if (pathname.startsWith("/dashboard/market-scanner")) return "Market Scanner";
   if (pathname.startsWith("/dashboard/watchlist")) return "Watchlist";
   if (pathname.startsWith("/dashboard/investments/calculator")) return "Investment Calculator";
@@ -91,16 +62,11 @@ export default function DashboardShell({
   children,
   title,
   subtitle,
-  userName,
-  userEmail = "",
-  lastLogin,
-  planName,
-  brokerStatus,
+  userName = "paulrudland",
 }: DashboardShellProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
 
   const pageTitle = useMemo(() => title || getPageTitle(pathname), [title, pathname]);
@@ -120,14 +86,12 @@ export default function DashboardShell({
 
   useEffect(() => {
     setMobileOpen(false);
-    setProfileOpen(false);
   }, [pathname]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (!profileRef.current) return;
       if (!profileRef.current.contains(event.target as Node)) {
-        setProfileOpen(false);
       }
     }
 

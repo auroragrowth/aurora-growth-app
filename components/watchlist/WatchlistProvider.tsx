@@ -2,189 +2,246 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
-  ReactNode,
+  type ReactNode,
 } from "react";
+import { createClient } from "@/lib/supabase/client";
 
-import {
-  addWatchlistItem,
-  getWatchlistItems,
-  removeWatchlistItem,
-} from "@/app/actions/watchlist";
-
-type WatchlistItem = {
+export type WatchlistItem = {
   id?: string;
   symbol: string;
   company_name?: string | null;
   created_at?: string | null;
-  source_list?: string | null;
-};
-
-type ActionResult = {
-  ok: boolean;
-  error?: string;
 };
 
 type ToggleResult = {
   ok: boolean;
-  added?: boolean;
-  removed?: boolean;
-  error?: string;
+  active: boolean;
 };
 
 type WatchlistContextType = {
   items: WatchlistItem[];
   tickers: string[];
-  loading: boolean;
   ready: boolean;
+  loading: boolean;
+  isGuestMode: boolean;
   hasTicker: (ticker?: string | null) => boolean;
-  add: (
-    ticker?: string | null,
-    companyName?: string | null,
-    source?: string | null
-  ) => Promise<ActionResult>;
-  remove: (ticker?: string | null) => Promise<ActionResult>;
-  toggle: (
-    ticker?: string | null,
-    companyName?: string | null,
-    source?: string | null
-  ) => Promise<ActionResult>;
+  refresh: () => Promise<void>;
   toggleTicker: (
     ticker?: string | null,
-    companyName?: string | null,
-    source?: string | null
+    companyName?: string | null
   ) => Promise<ToggleResult>;
-  refresh: () => Promise<void>;
 };
 
 const WatchlistContext = createContext<WatchlistContextType | undefined>(undefined);
 
-function normalise(t?: string | null) {
-  return (t || "").trim().toUpperCase();
+const GUEST_KEY = "aurora_guest_watchlist";
+
+function normalizeTicker(value?: string | null) {
+  return (value || "").trim().toUpperCase();
+}
+
+function readGuestWatchlist(): WatchlistItem[] {
+  if (typeof window === "undefined") return [];
+
+  try {
+    const raw = localStorage.getItem(GUEST_KEY);
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .map((item) => ({
+        symbol: normalizeTicker(item?.symbol),
+        company_name: item?.company_name || null,
+      }))
+      .filter((item) => item.symbol);
+  } catch {
+    return [];
+  }
+}
+
+function writeGuestWatchlist(items: WatchlistItem[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(GUEST_KEY, JSON.stringify(items));
 }
 
 export function WatchlistProvider({ children }: { children: ReactNode }) {
+  const supabase = useMemo(() => createClient(), []);
+
   const [items, setItems] = useState<WatchlistItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [ready, setReady] = useState(false);
+  const [isGuestMode, setIsGuestMode] = useState(false);
 
-  const tickers = items.map((i) => normalise(i.symbol));
-
-  const hasTicker = (ticker?: string | null) => {
-    const t = normalise(ticker);
-    return tickers.includes(t);
-  };
-
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
+
     try {
-      const data = await getWatchlistItems();
-      setItems(data || []);
-    } catch (err) {
-      console.error("Watchlist refresh failed:", err);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        const guestItems = readGuestWatchlist();
+        setItems(guestItems);
+        setIsGuestMode(true);
+        setReady(true);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("watchlist_items")
+        .select("id,symbol,company_name,created_at")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Failed to load watchlist:", error);
+        setItems([]);
+      } else {
+        setItems(
+          (data || []).map((row) => ({
+            id: row.id,
+            symbol: normalizeTicker(row.symbol),
+            company_name: row.company_name || null,
+            created_at: row.created_at || null,
+          }))
+        );
+      }
+
+      setIsGuestMode(false);
+      setReady(true);
+    } catch (error) {
+      console.error("Watchlist refresh error:", error);
+      setItems([]);
+      setReady(true);
     } finally {
       setLoading(false);
-      setReady(true);
     }
-  };
+  }, [supabase]);
 
   useEffect(() => {
     refresh();
-  }, []);
+  }, [refresh]);
 
-  const add = async (
-    ticker?: string | null,
-    companyName?: string | null,
-    _source?: string | null
-  ): Promise<ActionResult> => {
-    const t = normalise(ticker);
-    if (!t) return { ok: false, error: "Missing ticker" };
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      refresh();
+    });
 
-    const result = await addWatchlistItem(t, companyName);
+    return () => subscription.unsubscribe();
+  }, [supabase, refresh]);
 
-    if (!result.ok) {
-      console.error("addWatchlistItem failed:", result);
-      return { ok: false, error: result.message || "Add failed" };
-    }
+  const toggleTicker = useCallback(
+    async (ticker?: string | null, companyName?: string | null) => {
+      const symbol = normalizeTicker(ticker);
+      if (!symbol) return { ok: false, active: false };
 
-    await refresh();
-    return { ok: true };
-  };
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-  const remove = async (ticker?: string | null): Promise<ActionResult> => {
-    const t = normalise(ticker);
-    if (!t) return { ok: false, error: "Missing ticker" };
+      if (!user) {
+        const current = readGuestWatchlist();
+        const exists = current.some((item) => item.symbol === symbol);
 
-    const result = await removeWatchlistItem(t);
+        const next = exists
+          ? current.filter((item) => item.symbol !== symbol)
+          : [{ symbol, company_name: companyName || null }, ...current];
 
-    if (!result.ok) {
-      console.error("removeWatchlistItem failed:", result);
-      return { ok: false, error: result.message || "Remove failed" };
-    }
+        writeGuestWatchlist(next);
+        setItems(next);
+        setIsGuestMode(true);
 
-    await refresh();
-    return { ok: true };
-  };
+        return { ok: true, active: !exists };
+      }
 
-  const toggle = async (
-    ticker?: string | null,
-    companyName?: string | null,
-    source?: string | null
-  ): Promise<ActionResult> => {
-    if (hasTicker(ticker)) {
-      return remove(ticker);
-    }
-    return add(ticker, companyName, source);
-  };
+      const existing = items.find((item) => item.symbol === symbol);
 
-  const toggleTicker = async (
-    ticker?: string | null,
-    companyName?: string | null,
-    source?: string | null
-  ): Promise<ToggleResult> => {
-    if (hasTicker(ticker)) {
-      const result = await remove(ticker);
-      return {
-        ok: result.ok,
-        removed: result.ok,
-        error: result.error,
-      };
-    }
+      if (existing?.id) {
+        const { error } = await supabase
+          .from("watchlist_items")
+          .delete()
+          .eq("id", existing.id);
 
-    const result = await add(ticker, companyName, source);
-    return {
-      ok: result.ok,
-      added: result.ok,
-      error: result.error,
-    };
-  };
+        if (error) {
+          console.error("Failed removing watchlist item:", error);
+          return { ok: false, active: true };
+        }
 
-  return (
-    <WatchlistContext.Provider
-      value={{
-        items,
-        tickers,
-        loading,
-        ready,
-        hasTicker,
-        add,
-        remove,
-        toggle,
-        toggleTicker,
-        refresh,
-      }}
-    >
-      {children}
-    </WatchlistContext.Provider>
+        const next = items.filter((item) => item.symbol !== symbol);
+        setItems(next);
+        return { ok: true, active: false };
+      }
+
+      const { data, error } = await supabase
+        .from("watchlist_items")
+        .insert({
+          symbol,
+          company_name: companyName || null,
+        })
+        .select("id,symbol,company_name,created_at")
+        .single();
+
+      if (error) {
+        console.error("Failed adding watchlist item:", error);
+        return { ok: false, active: false };
+      }
+
+      const next = [
+        {
+          id: data.id,
+          symbol: normalizeTicker(data.symbol),
+          company_name: data.company_name || null,
+          created_at: data.created_at || null,
+        },
+        ...items,
+      ];
+
+      setItems(next);
+      setIsGuestMode(false);
+      return { ok: true, active: true };
+    },
+    [items, supabase]
   );
+
+  const tickers = useMemo(() => items.map((item) => item.symbol), [items]);
+
+  const hasTicker = useCallback(
+    (ticker?: string | null) => tickers.includes(normalizeTicker(ticker)),
+    [tickers]
+  );
+
+  const value = useMemo<WatchlistContextType>(
+    () => ({
+      items,
+      tickers,
+      ready,
+      loading,
+      isGuestMode,
+      refresh,
+      hasTicker,
+      toggleTicker,
+    }),
+    [items, tickers, ready, loading, isGuestMode, refresh, hasTicker, toggleTicker]
+  );
+
+  return <WatchlistContext.Provider value={value}>{children}</WatchlistContext.Provider>;
 }
 
 export function useWatchlist() {
-  const ctx = useContext(WatchlistContext);
-  if (!ctx) {
-    throw new Error("useWatchlist must be used within WatchlistProvider");
+  const context = useContext(WatchlistContext);
+
+  if (!context) {
+    throw new Error("useWatchlist must be used within a WatchlistProvider");
   }
-  return ctx;
+
+  return context;
 }

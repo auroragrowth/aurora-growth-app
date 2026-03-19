@@ -1,109 +1,184 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
-import { useAccountStatus } from "@/hooks/useAccountStatus";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ChevronDown,
+  TrendingDown,
+  TrendingUp,
+  User,
+  CreditCard,
+  LogOut,
+} from "lucide-react";
+import { usePortfolio } from "@/components/providers/PortfolioProvider";
 
-type Props = {
+type NextLevelHeaderProps = {
   title?: string;
   subtitle?: string;
-  userName?: string | null;
+  userName?: string;
 };
 
-function formatMoney(value: number | null, currency = "USD") {
-  if (value === null || Number.isNaN(value)) return "—";
+function formatMoney(value: number) {
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
-    currency,
+    currency: "USD",
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value);
+  }).format(value || 0);
 }
 
-function formatSignedMoney(value: number | null, currency = "USD") {
-  if (value === null || Number.isNaN(value)) return "—";
-  const abs = Math.abs(value);
-  const formatted = new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(abs);
-  return value >= 0 ? `+${formatted}` : `-${formatted}`;
-}
+function getUsMarketStatus() {
+  const now = new Date();
 
-function formatPct(value: number | null) {
-  if (value === null || Number.isNaN(value)) return "—";
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
-}
-
-function formatDateTime(date: Date) {
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    weekday: "short",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(date);
+    hour12: false,
+  }).formatToParts(now);
+
+  const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
+  const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
+  const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
+
+  if (weekday === "Sat" || weekday === "Sun") {
+    return {
+      label: "Weekend",
+      tone: "text-slate-300",
+      dot: "bg-slate-500",
+    };
+  }
+
+  const totalMinutes = hour * 60 + minute;
+
+  const preMarketStart = 4 * 60;
+  const regularOpen = 9 * 60 + 30;
+  const regularClose = 16 * 60;
+
+  if (totalMinutes >= preMarketStart && totalMinutes < regularOpen) {
+    return {
+      label: "Pre-market",
+      tone: "text-amber-300",
+      dot: "bg-amber-400",
+    };
+  }
+
+  if (totalMinutes >= regularOpen && totalMinutes < regularClose) {
+    return {
+      label: "US Market OPEN",
+      tone: "text-emerald-400",
+      dot: "bg-emerald-400",
+    };
+  }
+
+  return {
+    label: "Closed",
+    tone: "text-rose-300",
+    dot: "bg-rose-400",
+  };
 }
 
-function InlineMetric({
+function Sparkline({ values }: { values: number[] }) {
+  const width = 120;
+  const height = 24;
+  const padding = 2;
+
+  if (!values.length) {
+    return (
+      <div className="flex h-6 w-[120px] items-center">
+        <div className="h-px w-full bg-cyan-400/30" />
+      </div>
+    );
+  }
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+
+  const points = values
+    .map((value, index) => {
+      const x =
+        padding + (index * (width - padding * 2)) / Math.max(values.length - 1, 1);
+      const y =
+        height - padding - ((value - min) / range) * (height - padding * 2);
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  const up = values[values.length - 1] >= values[0];
+
+  return (
+    <svg
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      className="overflow-visible"
+      aria-hidden="true"
+    >
+      <polyline
+        fill="none"
+        stroke={up ? "rgba(16,185,129,0.95)" : "rgba(244,63,94,0.95)"}
+        strokeWidth="2"
+        points={points}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function MetricItem({
   label,
   value,
-  tone = "default",
+  positive,
 }: {
   label: string;
   value: string;
-  tone?: "default" | "positive" | "negative";
+  positive?: boolean;
 }) {
-  const toneClass =
-    tone === "positive"
-      ? "text-emerald-300"
-      : tone === "negative"
-      ? "text-rose-300"
-      : "text-white";
+  const UpDownIcon = positive ? TrendingUp : TrendingDown;
 
   return (
-    <div className="flex min-w-[110px] items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5">
-      <span className="text-[10px] uppercase tracking-[0.22em] text-white/40">
-        {label}
+    <div className="flex items-center gap-2">
+      <span className="text-slate-300">{label}</span>
+      <span
+        className={`inline-flex items-center gap-1 font-medium ${
+          positive ? "text-emerald-400" : "text-rose-400"
+        }`}
+      >
+        <UpDownIcon className="h-3.5 w-3.5" />
+        {value}
       </span>
-      <span className={`text-sm font-semibold ${toneClass}`}>{value}</span>
     </div>
   );
 }
 
 export default function NextLevelHeader({
   title = "Investments",
-  subtitle = "Aurora workspace",
+  subtitle = "Aurora platform workspace",
   userName = "paulrudland",
-}: Props) {
-  const {
-    connected,
-    plan,
-    portfolioValue,
-    todayPnL,
-    totalPnL,
-    totalReturnPct,
-    positionsCount,
-    marketStatus,
-    loading,
-  } = useAccountStatus();
-
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [now, setNow] = useState(new Date());
+}: NextLevelHeaderProps) {
+  const { data } = usePortfolio();
+  const marketStatus = useMemo(() => getUsMarketStatus(), []);
+  const [history, setHistory] = useState<number[]>([]);
+  const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setNow(new Date());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
+    if (!data.portfolioValue) return;
+
+    setHistory((prev) => {
+      const next = [...prev, data.portfolioValue];
+      return next.slice(-18);
+    });
+  }, [data.portfolioValue]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (!profileRef.current) return;
       if (!profileRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
+        setProfileOpen(false);
       }
     }
 
@@ -111,157 +186,122 @@ export default function NextLevelHeader({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const initial = String(userName || "A").charAt(0).toUpperCase();
+  const portfolioUp = data.portfolioValue >= data.openValue;
+  const todayUp = data.todayPnl >= 0;
+  const openUp = data.openValue <= data.portfolioValue;
 
   return (
-    <div className="rounded-2xl border border-cyan-400/10 bg-[linear-gradient(135deg,rgba(5,12,31,0.98),rgba(8,18,38,0.97),rgba(6,16,34,0.98))] px-4 py-3 backdrop-blur-xl shadow-[0_12px_40px_rgba(2,8,23,0.35)]">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="flex min-w-0 flex-1 flex-col gap-3 xl:flex-row xl:items-center">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/10">
-              <div className="grid h-4 w-4 grid-cols-2 gap-0.5">
-                <span className="rounded-[2px] bg-cyan-300/90" />
-                <span className="rounded-[2px] bg-white/90" />
-                <span className="rounded-[2px] bg-white/90" />
-                <span className="rounded-[2px] bg-indigo-300/90" />
-              </div>
-            </div>
-
-            <div className="min-w-0">
-              <div className="text-[9px] uppercase tracking-[0.34em] text-cyan-200/60">
-                Aurora Growth
-              </div>
-              <div className="truncate text-xl font-semibold text-white">
-                {title}
-              </div>
-              <div className="truncate text-[11px] text-white/42">
-                {subtitle}
-              </div>
-            </div>
+    <div className="rounded-[26px] border border-cyan-500/20 bg-[#071a33]/90 px-5 py-4 shadow-[0_16px_60px_rgba(0,0,0,0.28)]">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-[11px] uppercase tracking-[0.30em] text-cyan-300">
+            Aurora Growth
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 xl:ml-4">
-            <div
-              className={[
-                "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium",
-                loading
-                  ? "border-white/10 bg-white/5 text-white/50"
-                  : connected
-                  ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-300"
-                  : "border-rose-400/20 bg-rose-500/10 text-rose-300",
-              ].join(" ")}
+          <div className="mt-1 flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight text-white">
+              {title}
+            </h1>
+            <span className="text-base text-slate-400">{subtitle}</span>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
+            <span
+              className={data.connected ? "text-emerald-400" : "text-rose-400"}
             >
-              <span
-                className={[
-                  "h-2 w-2 rounded-full",
-                  loading
-                    ? "bg-white/30"
-                    : connected
-                    ? "bg-emerald-400"
-                    : "bg-rose-400",
-                ].join(" ")}
-              />
-              {connected ? "Connected" : "Disconnected"}
+              {data.connected ? "Connected" : "Disconnected"}
+            </span>
+
+            <span className="text-slate-500">|</span>
+
+            <span className={`inline-flex items-center gap-2 font-medium ${marketStatus.tone}`}>
+              <span className={`h-2.5 w-2.5 rounded-full ${marketStatus.dot}`} />
+              {marketStatus.label}
+            </span>
+
+            <span className="text-slate-500">|</span>
+
+            <MetricItem
+              label="Portfolio"
+              value={formatMoney(data.portfolioValue)}
+              positive={portfolioUp}
+            />
+
+            <div className="hidden md:flex items-center px-1">
+              <Sparkline values={history} />
             </div>
 
-            <div className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-white/60">
-              Market {marketStatus}
-            </div>
+            <span className="text-slate-500">|</span>
 
-            <div className="inline-flex items-center rounded-full border border-indigo-400/15 bg-indigo-500/10 px-3 py-1.5 text-sm font-medium text-indigo-200">
-              {plan}
-            </div>
+            <MetricItem
+              label="Today"
+              value={formatMoney(data.todayPnl)}
+              positive={todayUp}
+            />
 
-            <div className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-white/55">
-              {positionsCount} positions
-            </div>
+            <span className="text-slate-500">|</span>
 
-            <div className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-white/45">
-              {formatDateTime(now)}
-            </div>
+            <MetricItem
+              label="Open"
+              value={formatMoney(data.openValue)}
+              positive={openUp}
+            />
           </div>
         </div>
 
-        <div ref={profileRef} className="relative self-start xl:self-center">
+        <div ref={profileRef} className="relative flex shrink-0 items-start gap-3">
           <button
             type="button"
-            onClick={() => setMenuOpen((v) => !v)}
-            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-2 py-1.5 pl-3 text-left transition hover:bg-white/[0.08]"
+            onClick={() => setProfileOpen((prev) => !prev)}
+            className="flex items-center gap-3 rounded-2xl border border-cyan-400/10 px-2 py-1.5 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
           >
-            <div className="hidden sm:block">
-              <div className="text-sm font-medium text-white">{userName}</div>
-              <div className="text-[11px] text-white/40">{formatDateTime(now)}</div>
+            <div className="text-right">
+              <div className="text-sm text-cyan-300">Welcome</div>
+              <div className="flex items-center justify-end gap-1 text-2xl text-white">
+                <span>{userName}</span>
+                <ChevronDown
+                  className={`h-4 w-4 text-slate-400 transition ${
+                    profileOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </div>
             </div>
 
-            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-cyan-400/20 bg-cyan-400/10 text-sm font-semibold text-cyan-200">
-              {initial}
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-500/20 text-cyan-300">
+              {userName?.charAt(0)?.toUpperCase() || "U"}
             </div>
-
-            <ChevronDown
-              className={[
-                "mr-1 h-4 w-4 text-white/40 transition",
-                menuOpen ? "rotate-180" : "",
-              ].join(" ")}
-            />
           </button>
 
-          {menuOpen && (
-            <div className="absolute right-0 top-[calc(100%+8px)] z-30 w-[210px] rounded-2xl border border-cyan-300/10 bg-[#091425]/95 p-2 shadow-2xl backdrop-blur-xl">
-              <div className="mb-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2">
-                <div className="text-sm font-semibold text-white">{userName}</div>
-                <div className="text-[11px] text-white/45">{formatDateTime(now)}</div>
-              </div>
+          {profileOpen && (
+            <div className="absolute right-0 top-[calc(100%+10px)] z-50 min-w-[220px] overflow-hidden rounded-2xl border border-cyan-400/20 bg-[#0a1c36]/98 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+              <Link
+                href="/dashboard/account"
+                className="flex items-center gap-3 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/[0.05]"
+              >
+                <User className="h-4 w-4 text-cyan-300" />
+                Account
+              </Link>
 
-              <div className="space-y-1">
-                <Link
-                  href="/dashboard/account"
-                  className="block rounded-xl px-3 py-2 text-sm text-white/78 transition hover:bg-white/6 hover:text-white"
-                  onClick={() => setMenuOpen(false)}
+              <Link
+                href="/dashboard/upgrade"
+                className="flex items-center gap-3 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/[0.05]"
+              >
+                <CreditCard className="h-4 w-4 text-cyan-300" />
+                Upgrade plan
+              </Link>
+
+              <form action="/auth/signout" method="post" className="border-t border-white/10">
+                <button
+                  type="submit"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-rose-300 transition hover:bg-rose-500/10"
                 >
-                  Account
-                </Link>
-
-                <Link
-                  href="/dashboard/upgrade"
-                  className="block rounded-xl px-3 py-2 text-sm text-white/78 transition hover:bg-white/6 hover:text-white"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  Upgrade Plan
-                </Link>
-
-                <form action="/auth/signout" method="post">
-                  <button
-                    type="submit"
-                    className="block w-full rounded-xl px-3 py-2 text-left text-sm text-red-200 transition hover:bg-red-400/10 hover:text-red-100"
-                  >
-                    Log out
-                  </button>
-                </form>
-              </div>
+                  <LogOut className="h-4 w-4" />
+                  Log out
+                </button>
+              </form>
             </div>
           )}
         </div>
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <InlineMetric label="Portfolio" value={formatMoney(portfolioValue)} />
-        <InlineMetric
-          label="Today"
-          value={formatSignedMoney(todayPnL)}
-          tone={todayPnL !== null && todayPnL < 0 ? "negative" : "positive"}
-        />
-        <InlineMetric
-          label="Open"
-          value={formatSignedMoney(totalPnL)}
-          tone={totalPnL !== null && totalPnL < 0 ? "negative" : "positive"}
-        />
-        <InlineMetric
-          label="Return"
-          value={formatPct(totalReturnPct)}
-          tone={
-            totalReturnPct !== null && totalReturnPct < 0 ? "negative" : "default"
-          }
-        />
       </div>
     </div>
   );

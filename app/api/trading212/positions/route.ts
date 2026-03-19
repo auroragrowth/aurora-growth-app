@@ -1,41 +1,71 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
 
-function buildTrading212AuthHeader() {
-  const apiKey = process.env.TRADING212_API_KEY;
-  const apiSecret = process.env.TRADING212_API_SECRET;
+const TRADING212_BASE =
+  process.env.TRADING212_BASE_URL || "https://live.trading212.com/api/v0";
 
-  if (!apiKey || !apiSecret) return null;
-
-  const encoded = Buffer.from(`${apiKey}:${apiSecret}`).toString("base64");
-  return `Basic ${encoded}`;
+function buildBasicAuth(apiKey: string, apiSecret: string) {
+  return `Basic ${Buffer.from(`${apiKey}:${apiSecret}`).toString("base64")}`;
 }
 
 export async function GET() {
   try {
-    const authHeader = buildTrading212AuthHeader();
+    const supabase = await createClient();
 
-    if (!authHeader) {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
       return NextResponse.json(
         {
           ok: false,
-          error: "Trading 212 credentials missing",
+          error: "Not authenticated",
           positions: [],
         },
         { status: 401 }
       );
     }
 
-    const response = await fetch(
-      "https://live.trading212.com/api/v0/equity/positions",
-      {
-        method: "GET",
-        headers: {
-          Authorization: authHeader,
-          Accept: "application/json",
+    const { data: connection, error: connectionError } = await supabase
+      .from("user_broker_connections")
+      .select("*")
+      .eq("user_id", user.id)
+      .eq("broker", "trading212")
+      .eq("is_connected", true)
+      .maybeSingle();
+
+    if (connectionError) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: connectionError.message,
+          positions: [],
         },
-        cache: "no-store",
-      }
-    );
+        { status: 500 }
+      );
+    }
+
+    if (!connection?.api_key || !connection?.api_secret) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "No active Trading 212 connection found.",
+          positions: [],
+        },
+        { status: 400 }
+      );
+    }
+
+    const response = await fetch(`${TRADING212_BASE}/equity/positions`, {
+      method: "GET",
+      headers: {
+        Authorization: buildBasicAuth(connection.api_key, connection.api_secret),
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
 
     const text = await response.text();
 
@@ -60,6 +90,14 @@ export async function GET() {
       );
     }
 
+    await supabase
+      .from("user_broker_connections")
+      .update({
+        last_sync_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", connection.id);
+
     return NextResponse.json({
       ok: true,
       positions: Array.isArray(data) ? data : [],
@@ -68,7 +106,10 @@ export async function GET() {
     return NextResponse.json(
       {
         ok: false,
-        error: error instanceof Error ? error.message : "Unknown server error",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to fetch Trading 212 positions.",
         positions: [],
       },
       { status: 500 }

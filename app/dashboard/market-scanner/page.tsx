@@ -1,11 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Star } from "lucide-react";
 import { useWatchlist } from "@/components/watchlist/WatchlistProvider";
-
-type Universe = "core" | "alternative";
 
 type ScannerRow = {
   id?: string;
@@ -13,288 +10,463 @@ type ScannerRow = {
   symbol?: string | null;
   company_name?: string | null;
   sector?: string | null;
-  industry?: string | null;
   market_cap?: string | number | null;
   price?: string | number | null;
   change_percent?: string | number | null;
-  change_pct?: string | number | null;
+  aurora_score?: string | number | null;
   score?: string | number | null;
+  trend?: string | null;
   source_list?: string | null;
+  updated_at?: string | null;
 };
 
-function toNumber(value: unknown, fallback = 0) {
-  if (typeof value === "number") return Number.isFinite(value) ? value : fallback;
+type UniverseFilter = "all" | "core" | "alternative";
+type SortKey =
+  | "ticker"
+  | "company_name"
+  | "sector"
+  | "market_cap"
+  | "price"
+  | "change_percent"
+  | "score"
+  | "trend";
+
+type SortDirection = "asc" | "desc";
+
+function toTicker(row: ScannerRow) {
+  return String(row.ticker || row.symbol || "").toUpperCase();
+}
+
+function toCompany(row: ScannerRow) {
+  return String(row.company_name || toTicker(row) || "Unknown Company");
+}
+
+function toNumber(value: unknown) {
+  if (typeof value === "number") return value;
   if (typeof value === "string") {
-    const cleaned = value.replace(/[%,$\s]/g, "");
-    const parsed = Number(cleaned);
-    return Number.isFinite(parsed) ? parsed : fallback;
+    const cleaned = value.replace(/[%,$£,\s,]/g, "");
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : 0;
   }
-  return fallback;
+  return 0;
+}
+
+function formatMoney(value: unknown) {
+  const n = toNumber(value);
+  if (!n) return "—";
+
+  if (Math.abs(n) >= 1_000_000_000_000) {
+    return `$${(n / 1_000_000_000_000).toFixed(2)}T`;
+  }
+  if (Math.abs(n) >= 1_000_000_000) {
+    return `$${(n / 1_000_000_000).toFixed(2)}B`;
+  }
+  if (Math.abs(n) >= 1_000_000) {
+    return `$${(n / 1_000_000).toFixed(2)}M`;
+  }
+  return `$${n.toFixed(2)}`;
 }
 
 function formatPrice(value: unknown) {
-  return `$${toNumber(value, 0).toFixed(2)}`;
+  const n = toNumber(value);
+  if (!n) return "—";
+  return `$${n.toFixed(2)}`;
 }
 
-function formatChange(value: unknown) {
-  const num = toNumber(value, 0);
-  return `${num > 0 ? "+" : ""}${num.toFixed(2)}%`;
+function formatPercent(value: unknown) {
+  const n = toNumber(value);
+  if (!n) return "0.00%";
+  return `${n > 0 ? "+" : ""}${n.toFixed(2)}%`;
 }
 
-function scoreBarWidth(score: unknown) {
-  return Math.max(0, Math.min(100, toNumber(score, 0) * 3.33));
+function formatUpdatedAt(value?: string | null) {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(d);
 }
 
 export default function MarketScannerPage() {
-  const router = useRouter();
-  const [activeUniverse, setActiveUniverse] = useState<Universe>("core");
+  const { hasTicker, toggleTicker, ready } = useWatchlist();
+
   const [rows, setRows] = useState<ScannerRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [query, setQuery] = useState("");
+  const [universe, setUniverse] = useState<UniverseFilter>("all");
+  const [sortKey, setSortKey] = useState<SortKey>("score");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
-  const { hasTicker, toggleTicker, ready, loading: watchlistLoading } = useWatchlist();
+  async function loadScanner(showRefreshState = false) {
+    try {
+      if (showRefreshState) setRefreshing(true);
+      else setLoading(true);
+
+      const qs =
+        universe === "all" ? "" : `?universe=${encodeURIComponent(universe)}`;
+
+      const res = await fetch(`/api/scanner${qs}`, {
+        method: "GET",
+        cache: "no-store",
+      });
+
+      const data = await res.json().catch(() => null);
+
+      const nextRows = Array.isArray(data?.rows) ? data.rows : [];
+      setRows(nextRows);
+
+      const newest = nextRows
+        .map((row: ScannerRow) => row.updated_at)
+        .filter(Boolean)
+        .sort()
+        .reverse()[0];
+
+      setLastUpdated(newest || null);
+    } catch (error) {
+      console.error("Failed to load scanner:", error);
+      setRows([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadScanner() {
-      try {
-        setLoading(true);
-        setFetchError(null);
-
-        const res = await fetch(`/api/scanner?universe=${activeUniverse}`, {
-          cache: "no-store",
-        });
-
-        const data = await res.json();
-
-        if (!res.ok) {
-          throw new Error(data?.error || "Failed to load scanner");
-        }
-
-        if (!cancelled) {
-          setRows(Array.isArray(data?.rows) ? data.rows : []);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setRows([]);
-          setFetchError(
-            error instanceof Error ? error.message : "Failed to load scanner"
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    }
-
     loadScanner();
+  }, [universe]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [activeUniverse]);
+  const filteredRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
 
-  const title = useMemo(
-    () => (activeUniverse === "core" ? "Aurora Core" : "Aurora Alternative"),
-    [activeUniverse]
-  );
+    let result = rows.filter((row) => {
+      if (!q) return true;
 
-  async function handleToggleWatch(stock: ScannerRow) {
-    const ticker = stock.ticker || stock.symbol || "";
-    const companyName = stock.company_name || "";
+      return (
+        toTicker(row).toLowerCase().includes(q) ||
+        toCompany(row).toLowerCase().includes(q) ||
+        String(row.sector || "")
+          .toLowerCase()
+          .includes(q)
+      );
+    });
 
+    result = [...result].sort((a, b) => {
+      let aValue: string | number = "";
+      let bValue: string | number = "";
+
+      switch (sortKey) {
+        case "ticker":
+          aValue = toTicker(a);
+          bValue = toTicker(b);
+          break;
+        case "company_name":
+          aValue = toCompany(a);
+          bValue = toCompany(b);
+          break;
+        case "sector":
+          aValue = String(a.sector || "");
+          bValue = String(b.sector || "");
+          break;
+        case "market_cap":
+          aValue = toNumber(a.market_cap);
+          bValue = toNumber(b.market_cap);
+          break;
+        case "price":
+          aValue = toNumber(a.price);
+          bValue = toNumber(b.price);
+          break;
+        case "change_percent":
+          aValue = toNumber(a.change_percent);
+          bValue = toNumber(b.change_percent);
+          break;
+        case "score":
+          aValue = toNumber(a.aurora_score ?? a.score);
+          bValue = toNumber(b.aurora_score ?? b.score);
+          break;
+        case "trend":
+          aValue = String(a.trend || "");
+          bValue = String(b.trend || "");
+          break;
+      }
+
+      if (typeof aValue === "number" && typeof bValue === "number") {
+        return sortDirection === "asc" ? aValue - bValue : bValue - aValue;
+      }
+
+      return sortDirection === "asc"
+        ? String(aValue).localeCompare(String(bValue))
+        : String(bValue).localeCompare(String(aValue));
+    });
+
+    return result;
+  }, [rows, query, sortKey, sortDirection]);
+
+  async function handleToggleWatchlist(ticker?: string | null, companyName?: string | null) {
     if (!ticker) return;
 
     try {
       const result = await toggleTicker(ticker, companyName);
       if (!result?.ok) {
-        throw new Error(result?.error || "Unable to update watchlist");
+        throw new Error("Unable to update watchlist");
       }
     } catch (error) {
       alert(error instanceof Error ? error.message : "Unable to update watchlist");
     }
   }
 
+  function handleSort(nextKey: SortKey) {
+    if (sortKey === nextKey) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+      return;
+    }
+
+    setSortKey(nextKey);
+    setSortDirection(nextKey === "ticker" || nextKey === "company_name" ? "asc" : "desc");
+  }
+
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(24,98,255,0.18),_transparent_30%),linear-gradient(180deg,#020817_0%,#031225_45%,#04162d_100%)] px-6 py-8 text-white">
-      <div className="mx-auto max-w-[1400px] space-y-8">
-        <section className="space-y-6">
+    <div className="space-y-6 p-4 md:p-6">
+      <div className="rounded-3xl border border-cyan-400/20 bg-[linear-gradient(180deg,rgba(6,12,24,.96),rgba(8,16,32,.92))] p-5 shadow-[0_0_45px_rgba(0,180,255,.08)]">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <div className="text-[12px] uppercase tracking-[0.35em] text-cyan-300/80">
-              Aurora Market Scanner
+            <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-300/75">
+              Aurora Scanner
             </div>
-            <h1 className="mt-2 text-4xl font-semibold text-white md:text-5xl">
-              {title}
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
+              Market Scanner
             </h1>
-            <p className="mt-2 text-sm text-white/45">Aurora platform workspace</p>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-white/60">
+              Scan Aurora core and alternative ideas, sort by score, and add names
+              straight into your watchlist.
+            </p>
           </div>
 
-          <div className="flex gap-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">
+                Universe
+              </div>
+              <div className="mt-2 text-sm font-medium text-white">
+                {universe === "all" ? "All" : universe === "core" ? "Core" : "Alternative"}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">
+                Loaded
+              </div>
+              <div className="mt-2 text-sm font-medium text-white">
+                {filteredRows.length} stocks
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">
+                Watchlist
+              </div>
+              <div className="mt-2 text-sm font-medium text-white">
+                {ready ? "Connected" : "Loading"}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+              <div className="text-[11px] uppercase tracking-[0.18em] text-white/40">
+                Updated
+              </div>
+              <div className="mt-2 text-sm font-medium text-white">
+                {formatUpdatedAt(lastUpdated)}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-3 xl:flex-row">
+          <input
+            type="text"
+            placeholder="Search ticker, company, sector..."
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-cyan-400/40 xl:max-w-md"
+          />
+
+          <div className="flex flex-wrap gap-2">
+            {(["all", "core", "alternative"] as UniverseFilter[]).map((value) => {
+              const active = universe === value;
+
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setUniverse(value)}
+                  className={[
+                    "rounded-2xl border px-4 py-2 text-sm font-semibold transition",
+                    active
+                      ? "border-cyan-400/40 bg-cyan-400/15 text-cyan-200"
+                      : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/[0.06]",
+                  ].join(" ")}
+                >
+                  {value === "all" ? "All" : value === "core" ? "Core" : "Alternative"}
+                </button>
+              );
+            })}
+
             <button
               type="button"
-              onClick={() => setActiveUniverse("core")}
-              className={`rounded-xl border px-5 py-3 text-base transition ${
-                activeUniverse === "core"
-                  ? "border-cyan-400/70 bg-cyan-400/10 text-cyan-200 shadow-[0_0_25px_rgba(34,211,238,0.12)]"
-                  : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
-              }`}
+              onClick={() => loadScanner(true)}
+              className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/[0.06]"
             >
-              Core
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveUniverse("alternative")}
-              className={`rounded-xl border px-5 py-3 text-base transition ${
-                activeUniverse === "alternative"
-                  ? "border-cyan-400/70 bg-cyan-400/10 text-cyan-200 shadow-[0_0_25px_rgba(34,211,238,0.12)]"
-                  : "border-white/10 bg-white/5 text-white/60 hover:bg-white/10"
-              }`}
-            >
-              Alternative
+              {refreshing ? "Refreshing..." : "Refresh"}
             </button>
           </div>
-        </section>
+        </div>
+      </div>
 
-        <section className="rounded-[28px] border border-cyan-500/15 bg-[rgba(5,12,30,0.78)] shadow-[0_0_60px_rgba(0,150,255,0.08)] backdrop-blur-xl">
-          <div className="flex items-center justify-between border-b border-cyan-500/10 px-6 py-5">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.35em] text-cyan-300/80">
-                Aurora Market Table
-              </div>
-              <h2 className="mt-2 text-3xl font-semibold text-white">{title}</h2>
-            </div>
+      <div className="overflow-hidden rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(8,12,20,.98),rgba(8,14,26,.95))]">
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-left">
+            <thead className="border-b border-white/10 bg-white/[0.03]">
+              <tr className="text-[11px] uppercase tracking-[0.18em] text-white/45">
+                <th className="px-4 py-4">Watch</th>
+                <th className="px-4 py-4">
+                  <button type="button" onClick={() => handleSort("ticker")} className="hover:text-white">
+                    Ticker
+                  </button>
+                </th>
+                <th className="px-4 py-4">
+                  <button type="button" onClick={() => handleSort("company_name")} className="hover:text-white">
+                    Company
+                  </button>
+                </th>
+                <th className="px-4 py-4">
+                  <button type="button" onClick={() => handleSort("sector")} className="hover:text-white">
+                    Sector
+                  </button>
+                </th>
+                <th className="px-4 py-4">
+                  <button type="button" onClick={() => handleSort("market_cap")} className="hover:text-white">
+                    Market Cap
+                  </button>
+                </th>
+                <th className="px-4 py-4">
+                  <button type="button" onClick={() => handleSort("score")} className="hover:text-white">
+                    Score
+                  </button>
+                </th>
+                <th className="px-4 py-4">
+                  <button type="button" onClick={() => handleSort("trend")} className="hover:text-white">
+                    Trend
+                  </button>
+                </th>
+                <th className="px-4 py-4">
+                  <button type="button" onClick={() => handleSort("price")} className="hover:text-white">
+                    Price
+                  </button>
+                </th>
+                <th className="px-4 py-4">
+                  <button type="button" onClick={() => handleSort("change_percent")} className="hover:text-white">
+                    Change
+                  </button>
+                </th>
+              </tr>
+            </thead>
 
-            <div className="text-right">
-              <div className="text-sm text-white/45">
-                {loading ? "Loading..." : `${rows.length} stocks loaded`}
-              </div>
-              <div className="mt-1 text-xs text-white/30">
-                {watchlistLoading || !ready ? "Watchlist syncing..." : "Watchlist ready"}
-              </div>
-            </div>
-          </div>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={9} className="px-4 py-10 text-center text-sm text-white/50">
+                    Loading market scanner...
+                  </td>
+                </tr>
+              ) : filteredRows.length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="px-4 py-10 text-center text-sm text-white/50">
+                    No scanner results found.
+                  </td>
+                </tr>
+              ) : (
+                filteredRows.map((row) => {
+                  const ticker = toTicker(row);
+                  const company = toCompany(row);
+                  const onWatchlist = hasTicker(ticker);
+                  const score = toNumber(row.aurora_score ?? row.score);
+                  const change = toNumber(row.change_percent);
 
-          {fetchError ? (
-            <div className="px-6 py-10">
-              <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-rose-200">
-                {fetchError}
-              </div>
-            </div>
-          ) : loading ? (
-            <div className="px-6 py-12 text-white/50">Loading scanner...</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full">
-                <thead className="bg-white/5">
-                  <tr className="text-left text-xs uppercase tracking-[0.25em] text-white/45">
-                    <th className="w-[76px] px-4 py-4">Watch</th>
-                    <th className="px-4 py-4">Ticker</th>
-                    <th className="px-4 py-4">Company</th>
-                    <th className="px-4 py-4">Sector</th>
-                    <th className="px-4 py-4">Score</th>
-                    <th className="px-4 py-4">Price</th>
-                    <th className="px-4 py-4">Change</th>
-                    <th className="px-4 py-4 text-right">Chart</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {rows.map((stock, index) => {
-                    const ticker = stock.ticker || stock.symbol || "";
-                    const inWatchlist = ticker ? hasTicker(ticker) : false;
-                    const changeValue = stock.change_percent ?? stock.change_pct ?? 0;
-                    const isPositive = toNumber(changeValue, 0) >= 0;
-
-                    return (
-                      <tr
-                        key={`${ticker}-${index}`}
-                        className="group border-t border-cyan-500/10 transition-all duration-200 hover:bg-cyan-500/5 hover:shadow-[inset_0_0_0_1px_rgba(34,211,238,0.14)]"
-                      >
-                        <td className="px-4 py-4">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleWatch(stock)}
-                            className={`flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-200 ${
-                              inWatchlist
-                                ? "border-amber-300/70 bg-amber-400/20 text-amber-300 shadow-[0_0_22px_rgba(251,191,36,0.28)] hover:bg-amber-400/28"
-                                : "border-cyan-400/40 bg-cyan-500/10 text-cyan-300 hover:scale-105 hover:border-cyan-300/70 hover:bg-cyan-400/18 hover:text-cyan-200"
-                            }`}
-                            title={inWatchlist ? "Remove from watchlist" : "Add to watchlist"}
-                          >
-                            <Star className={`h-5 w-5 ${inWatchlist ? "fill-current" : ""}`} />
-                          </button>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              router.push(
-                                `/dashboard/investments/calculator?ticker=${encodeURIComponent(ticker)}`
-                              )
-                            }
-                            className="font-semibold tracking-wide text-cyan-300 transition hover:text-cyan-200"
-                          >
-                            {ticker}
-                          </button>
-                        </td>
-
-                        <td className="px-4 py-4 text-white/80">
-                          <div className="font-medium">
-                            {stock.company_name || "Unknown company"}
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 text-white/55">{stock.sector || "—"}</td>
-
-                        <td className="px-4 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="h-2 w-24 overflow-hidden rounded-full bg-white/10">
-                              <div
-                                className="h-full rounded-full bg-cyan-400"
-                                style={{ width: `${scoreBarWidth(stock.score)}%` }}
-                              />
-                            </div>
-                            <span className="min-w-[24px] text-sm text-white/70">
-                              {toNumber(stock.score, 0)}
-                            </span>
-                          </div>
-                        </td>
-
-                        <td className="px-4 py-4 text-white/85">{formatPrice(stock.price)}</td>
-
-                        <td
-                          className={`px-4 py-4 font-medium ${
-                            isPositive ? "text-emerald-400" : "text-rose-400"
-                          }`}
+                  return (
+                    <tr
+                      key={row.id || ticker}
+                      className="border-b border-white/6 text-sm text-white/80 transition hover:bg-cyan-400/[0.06] hover:shadow-[inset_0_0_0_1px_rgba(34,211,238,0.14)]"
+                    >
+                      <td className="px-4 py-4">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleWatchlist(ticker, company)}
+                          className={[
+                            "rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
+                            onWatchlist
+                              ? "border-amber-400/40 bg-amber-400/15 text-amber-200"
+                              : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]",
+                          ].join(" ")}
                         >
-                          {formatChange(changeValue)}
-                        </td>
+                          {onWatchlist ? "Saved" : "Add"}
+                        </button>
+                      </td>
 
-                        <td className="px-4 py-4 text-right">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              router.push(
-                                `/dashboard/investments/calculator?ticker=${encodeURIComponent(ticker)}`
-                              )
-                            }
-                            className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-4 py-2 text-sm text-cyan-200 transition hover:border-cyan-400/60 hover:bg-cyan-400/15"
-                          >
-                            View Chart
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+                      <td className="px-4 py-4 font-semibold text-cyan-200">
+                        <Link href={`/dashboard/investments/calculator?ticker=${ticker}`} className="hover:text-cyan-100">
+                          {ticker}
+                        </Link>
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <div className="min-w-[220px]">
+                          <div className="font-medium text-white">{company}</div>
+                          <div className="mt-1 text-xs text-white/40">
+                            {row.source_list || "scanner"}
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-4 text-white/65">
+                        {row.sector || "—"}
+                      </td>
+
+                      <td className="px-4 py-4 text-white/80">
+                        {formatMoney(row.market_cap)}
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <span className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-1 text-xs font-semibold text-cyan-200">
+                          {score ? score.toFixed(1) : "—"}
+                        </span>
+                      </td>
+
+                      <td className="px-4 py-4 text-white/75">
+                        {row.trend || "—"}
+                      </td>
+
+                      <td className="px-4 py-4 text-white/90">
+                        {formatPrice(row.price)}
+                      </td>
+
+                      <td
+                        className={[
+                          "px-4 py-4 font-medium",
+                          change >= 0 ? "text-emerald-300" : "text-red-300",
+                        ].join(" ")}
+                      >
+                        {formatPercent(row.change_percent)}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

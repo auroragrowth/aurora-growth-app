@@ -1,18 +1,18 @@
-import type { ReactNode } from "react";
+"use client";
+
 import DashboardShell from "@/components/dashboard/DashboardShell";
+import { PortfolioProvider } from "@/components/providers/PortfolioProvider";
 
 export default function DashboardLayout({
   children,
 }: {
-  children: ReactNode;
+  children: React.ReactNode;
 }) {
   return (
-    <DashboardShell
-      title="Investments"
-      subtitle="Aurora platform workspace"
-      userName="paulrudland"
-    >
-      {children}
-    </DashboardShell>
+    <PortfolioProvider>
+      <DashboardShell userName="paulrudland">
+        {children}
+      </DashboardShell>
+    </PortfolioProvider>
   );
 }

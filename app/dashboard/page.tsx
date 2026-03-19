@@ -1,303 +1,167 @@
+"use client";
+
 import Link from "next/link";
-
-const strategySteps = [
-  {
-    step: "01",
-    title: "Find quality first",
-    text: "Aurora scans for stronger businesses with better fundamentals, profitability, returns and institutional quality so weaker names are filtered out early.",
-  },
-  {
-    step: "02",
-    title: "Enter in stages",
-    text: "Rather than buying all at once, Aurora is built around staged entries so you can plan buy-in points and improve your blended average price with structure.",
-  },
-  {
-    step: "03",
-    title: "Plan profit before emotion",
-    text: "Aurora helps you map profit levels in advance so you can see target prices and potential cash returns before making a decision.",
-  },
-];
-
-const dashboardFeatures = [
-  {
-    title: "Live market scanner",
-    text: "See quality-growth stocks that match the Aurora filtering model.",
-    href: "/dashboard/market-scanner",
-    cta: "Open scanner",
-  },
-  {
-    title: "Watchlist",
-    text: "Save and track the stocks you want to monitor more closely.",
-    href: "/dashboard/watchlist",
-    cta: "View watchlist",
-  },
-  {
-    title: "Investment calculator",
-    text: "Plan staged entries, blended averages and structured profit levels.",
-    href: "/dashboard/investments/calculator",
-    cta: "Open calculator",
-  },
-  {
-    title: "Chart analysis",
-    text: "Review price structure and line up buying zones with more confidence.",
-    href: "/dashboard/chart",
-    cta: "Open charts",
-  },
-];
-
-const gettingStarted = [
-  "Review the live scanner to spot quality-growth opportunities.",
-  "Save the strongest ideas to your watchlist.",
-  "Open a stock in the calculator and plan your staged entry points.",
-  "Use the chart page to review structure and levels visually.",
-  "Map profit targets before entering so your plan is already clear.",
-];
+import { RefreshCw, ShieldCheck, Wifi, WifiOff } from "lucide-react";
+import { usePortfolio } from "@/components/providers/PortfolioProvider";
 
 export default function DashboardPage() {
+  const { data, refresh } = usePortfolio();
+  const Icon = data.connected ? Wifi : WifiOff;
+
   return (
-    <main className="min-h-screen bg-[#020817] text-white">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 py-8 md:px-8 lg:px-10">
-        <section className="overflow-hidden rounded-[28px] border border-cyan-500/15 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_34%),linear-gradient(135deg,rgba(3,7,18,0.96),rgba(2,6,23,0.92))] shadow-[0_0_0_1px_rgba(14,165,233,0.04),0_20px_80px_rgba(2,6,23,0.65)]">
-          <div className="grid gap-8 px-6 py-8 md:px-8 md:py-10 lg:grid-cols-[1.35fr_0.85fr] lg:px-10">
-            <div className="flex flex-col justify-center">
-              <div className="mb-4 inline-flex w-fit items-center rounded-full border border-cyan-400/25 bg-cyan-500/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-cyan-300">
-                Welcome to Aurora
-              </div>
+    <div className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-6 lg:px-8">
+      <div className="grid gap-6 xl:grid-cols-[1.6fr_0.9fr]">
+        <section className="rounded-[32px] border border-cyan-500/15 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.10),transparent_28%),linear-gradient(180deg,rgba(5,17,38,0.98),rgba(2,10,25,0.98))] px-8 py-9 shadow-[0_30px_80px_rgba(0,0,0,0.32)]">
+          <div className="mb-4 inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-1.5 text-[11px] uppercase tracking-[0.30em] text-cyan-300">
+            Aurora Growth Workspace
+          </div>
 
-              <h1 className="max-w-4xl text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                Invest with more clarity, more structure, and less emotion.
-              </h1>
+          <h1 className="max-w-4xl text-5xl font-semibold leading-[1.08] tracking-tight text-white md:text-6xl">
+            Invest with more clarity, stronger alignment, and better structure.
+          </h1>
 
-              <p className="mt-5 max-w-3xl text-base leading-8 text-slate-300 md:text-lg">
-                Aurora Growth is built to help you discover stronger quality-growth
-                opportunities, plan staged entries, calculate blended average prices,
-                and map profit targets before you commit capital.
-              </p>
+          <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-300">
+            Aurora helps you move from ideas to decisions with a structured process.
+          </p>
 
-              <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-400 md:text-base">
-                The aim is simple: reduce guesswork, improve discipline, and give
-                you a repeatable framework for how to review opportunities across
-                the market.
-              </p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link
+              href="/dashboard/market-scanner"
+              className="inline-flex items-center rounded-2xl border border-cyan-400/30 bg-cyan-400/10 px-5 py-3 text-sm font-medium text-cyan-200 transition hover:border-cyan-300/50 hover:bg-cyan-400/15"
+            >
+              Open Scanner →
+            </Link>
 
-              <div className="mt-8 flex flex-wrap gap-3">
-                <Link
-                  href="/dashboard/market-scanner"
-                  className="inline-flex items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-500/15 px-5 py-3 text-sm font-semibold text-cyan-200 transition hover:border-cyan-300/50 hover:bg-cyan-500/20"
-                >
-                  Open Market Scanner
-                </Link>
+            <Link
+              href="/dashboard/investments/calculator"
+              className="inline-flex items-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/[0.07]"
+            >
+              Calculator
+            </Link>
 
-                <Link
-                  href="/dashboard/investments/calculator"
-                  className="inline-flex items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-800/80"
-                >
-                  Open Calculator
-                </Link>
-              </div>
-            </div>
+            <Link
+              href="/dashboard/watchlist"
+              className="inline-flex items-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/[0.07]"
+            >
+              View Watchlist
+            </Link>
+          </div>
 
-            <div className="grid gap-4">
-              <div className="rounded-[24px] border border-cyan-500/15 bg-slate-950/50 p-5 backdrop-blur">
-                <div className="text-[11px] uppercase tracking-[0.35em] text-slate-500">
-                  Aurora framework
+          <div className="mt-10 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {[
+              {
+                title: "Quality",
+                text: "Start by focusing on stronger businesses instead of chasing random noise.",
+              },
+              {
+                title: "Structure",
+                text: "Build staged entries with a clearer plan rather than guessing one price.",
+              },
+              {
+                title: "Alignment",
+                text: "Make sure the stock, setup, and market conditions are working together.",
+              },
+              {
+                title: "Discipline",
+                text: "Define the risk, average, and exit plan before emotion can take over.",
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                className="rounded-[24px] border border-white/8 bg-white/[0.03] p-5"
+              >
+                <div className="text-[11px] uppercase tracking-[0.25em] text-cyan-300">
+                  {item.title}
                 </div>
-                <div className="mt-3 text-2xl font-semibold text-white">
-                  Quality → Structure → Discipline
-                </div>
-                <p className="mt-3 text-sm leading-7 text-slate-400">
-                  Aurora helps you move from spotting stronger stocks to building a
-                  proper staged entry and profit plan with a clearer process.
+                <p className="mt-3 text-sm leading-7 text-slate-300">
+                  {item.text}
                 </p>
               </div>
-
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-                <div className="rounded-[22px] border border-slate-800 bg-slate-950/50 p-5">
-                  <div className="text-[11px] uppercase tracking-[0.35em] text-slate-500">
-                    Focus
-                  </div>
-                  <div className="mt-2 text-3xl font-semibold text-white">
-                    Quality
-                  </div>
-                  <p className="mt-2 text-sm text-slate-400">
-                    Filter for stronger companies.
-                  </p>
-                </div>
-
-                <div className="rounded-[22px] border border-slate-800 bg-slate-950/50 p-5">
-                  <div className="text-[11px] uppercase tracking-[0.35em] text-slate-500">
-                    Method
-                  </div>
-                  <div className="mt-2 text-3xl font-semibold text-white">
-                    Staged
-                  </div>
-                  <p className="mt-2 text-sm text-slate-400">
-                    Build entries with structure.
-                  </p>
-                </div>
-
-                <div className="rounded-[22px] border border-slate-800 bg-slate-950/50 p-5">
-                  <div className="text-[11px] uppercase tracking-[0.35em] text-slate-500">
-                    Outcome
-                  </div>
-                  <div className="mt-2 text-3xl font-semibold text-white">
-                    Clarity
-                  </div>
-                  <p className="mt-2 text-sm text-slate-400">
-                    Plan profit before emotion.
-                  </p>
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-[28px] border border-cyan-500/10 bg-[linear-gradient(180deg,rgba(8,15,35,0.95),rgba(2,6,23,0.98))] p-6 shadow-[0_10px_40px_rgba(2,6,23,0.45)] md:p-8">
-            <div className="text-[11px] uppercase tracking-[0.35em] text-cyan-300/80">
-              How the strategy works
-            </div>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">
-              The Aurora investment process
-            </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-400 md:text-base">
-              Aurora is designed to help you focus on better opportunities, build
-              positions more carefully, and define your next steps before emotion
-              gets involved.
-            </p>
+        <aside className="rounded-[28px] border border-cyan-500/20 bg-[#081a34]/95 p-6 shadow-[0_24px_70px_rgba(0,0,0,0.28)]">
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <h2 className="text-2xl font-semibold text-white">Trading 212</h2>
 
-            <div className="mt-8 space-y-4">
-              {strategySteps.map((item) => (
-                <div
-                  key={item.step}
-                  className="rounded-[22px] border border-slate-800 bg-slate-950/50 p-5"
-                >
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-                    <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-cyan-400/25 bg-cyan-500/10 text-sm font-semibold text-cyan-300">
-                      {item.step}
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-semibold text-white">
-                        {item.title}
-                      </h3>
-                      <p className="mt-2 text-sm leading-7 text-slate-400 md:text-base">
-                        {item.text}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <button
+              type="button"
+              onClick={() => refresh()}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-slate-200 transition hover:border-cyan-300/30 hover:bg-cyan-400/10"
+            >
+              <RefreshCw className={`h-4 w-4 ${data.loading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
+
+          <div className="mb-5 flex flex-wrap gap-2 text-sm">
+            <div
+              className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 ${
+                data.connected
+                  ? "border border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
+                  : "border border-rose-400/20 bg-rose-400/10 text-rose-300"
+              }`}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              {data.connected ? "Connected" : "Disconnected"}
+            </div>
+
+            <div className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-slate-300">
+              {data.count} positions
+            </div>
+
+            <div className="inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-slate-300">
+              {data.updatedAt
+                ? new Date(data.updatedAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })
+                : "--:--:--"}
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-cyan-500/10 bg-[linear-gradient(180deg,rgba(8,15,35,0.95),rgba(2,6,23,0.98))] p-6 shadow-[0_10px_40px_rgba(2,6,23,0.45)] md:p-8">
-            <div className="text-[11px] uppercase tracking-[0.35em] text-cyan-300/80">
-              What the dashboard gives you
-            </div>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">
-              Your Aurora tools
-            </h2>
-            <p className="mt-3 text-sm leading-7 text-slate-400 md:text-base">
-              Every area of the dashboard is designed to help you move from idea
-              to plan with more control.
-            </p>
-
-            <div className="mt-8 grid gap-4">
-              {dashboardFeatures.map((feature) => (
-                <div
-                  key={feature.title}
-                  className="rounded-[22px] border border-slate-800 bg-slate-950/50 p-5"
-                >
-                  <h3 className="text-lg font-semibold text-white">
-                    {feature.title}
-                  </h3>
-                  <p className="mt-2 text-sm leading-7 text-slate-400 md:text-base">
-                    {feature.text}
-                  </p>
-                  <Link
-                    href={feature.href}
-                    className="mt-4 inline-flex items-center text-sm font-semibold text-cyan-300 transition hover:text-cyan-200"
-                  >
-                    {feature.cta} →
-                  </Link>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="rounded-[28px] border border-cyan-500/10 bg-[linear-gradient(180deg,rgba(8,15,35,0.95),rgba(2,6,23,0.98))] p-6 shadow-[0_10px_40px_rgba(2,6,23,0.45)] md:p-8">
-            <div className="text-[11px] uppercase tracking-[0.35em] text-cyan-300/80">
-              Why it matters
-            </div>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">
-              Turn guesswork into a process
-            </h2>
-            <p className="mt-4 text-sm leading-7 text-slate-400 md:text-base">
-              Many investors struggle because they buy too early, buy too much at
-              once, or take decisions without a proper plan. Aurora is built to
-              reduce that.
-            </p>
-            <p className="mt-4 text-sm leading-7 text-slate-400 md:text-base">
-              By combining a filtered scanner, watchlist tools, staged entry
-              planning and profit mapping, the dashboard helps you build a more
-              repeatable investment framework.
-            </p>
-
-            <div className="mt-6 rounded-[22px] border border-cyan-500/15 bg-cyan-500/10 p-5">
-              <div className="text-sm font-semibold text-cyan-200">
-                Aurora process
+          <div className="grid gap-4">
+            <div className="rounded-[22px] border border-white/10 bg-white/[0.03] p-4">
+              <div className="text-[11px] uppercase tracking-[0.24em] text-slate-400">
+                Connection
               </div>
-              <p className="mt-2 text-sm leading-7 text-cyan-50/90">
-                Identify quality → review structure → plan entries → calculate
-                average price → set targets → act with discipline.
+              <div className="mt-2 text-2xl font-semibold text-white">
+                {data.connected ? "Connected" : "Disconnected"}
+              </div>
+            </div>
+
+            <div className="rounded-[22px] border border-cyan-400/20 bg-cyan-400/[0.05] p-4">
+              <div className="text-[11px] uppercase tracking-[0.24em] text-cyan-300">
+                Workspace
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-2xl font-semibold text-white">
+                <ShieldCheck className="h-5 w-5 text-cyan-300" />
+                Live integration
+              </div>
+              <p className="mt-3 text-sm leading-7 text-slate-300">
+                Scanner, planning, and portfolio tracking connected into one cleaner operating view.
               </p>
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-cyan-500/10 bg-[linear-gradient(180deg,rgba(8,15,35,0.95),rgba(2,6,23,0.98))] p-6 shadow-[0_10px_40px_rgba(2,6,23,0.45)] md:p-8">
-            <div className="text-[11px] uppercase tracking-[0.35em] text-cyan-300/80">
-              Getting started
+          {data.error ? (
+            <div className="mt-4 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+              {data.error}
             </div>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight text-white">
-              Start here
-            </h2>
+          ) : null}
 
-            <div className="mt-8 space-y-4">
-              {gettingStarted.map((item, index) => (
-                <div
-                  key={item}
-                  className="flex gap-4 rounded-[20px] border border-slate-800 bg-slate-950/50 p-4"
-                >
-                  <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-cyan-400/25 bg-cyan-500/10 text-sm font-semibold text-cyan-300">
-                    {index + 1}
-                  </div>
-                  <p className="text-sm leading-7 text-slate-300 md:text-base">
-                    {item}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                href="/dashboard/market-scanner"
-                className="inline-flex items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-500/15 px-5 py-3 text-sm font-semibold text-cyan-200 transition hover:border-cyan-300/50 hover:bg-cyan-500/20"
-              >
-                Go to Scanner
-              </Link>
-
-              <Link
-                href="/dashboard/watchlist"
-                className="inline-flex items-center justify-center rounded-full border border-slate-700 bg-slate-900/70 px-5 py-3 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:bg-slate-800/80"
-              >
-                Go to Watchlist
-              </Link>
-            </div>
+          <div className="mt-5">
+            <Link
+              href="/dashboard/settings/integrations"
+              className="text-sm font-medium text-cyan-300 transition hover:text-cyan-200"
+            >
+              Manage connection →
+            </Link>
           </div>
-        </section>
+        </aside>
       </div>
-    </main>
+    </div>
   );
 }
