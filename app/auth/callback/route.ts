@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { EmailOtpType } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+
+const EMAIL_OTP_TYPES: EmailOtpType[] = [
+  "signup",
+  "invite",
+  "magiclink",
+  "recovery",
+  "email_change",
+  "email",
+];
 
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
@@ -21,10 +31,11 @@ export async function GET(request: NextRequest) {
   const supabase = await createClient();
 
   // Email confirmation link (token_hash + type)
-  if (tokenHash && type) {
+  const otpType = EMAIL_OTP_TYPES.find((t) => t === type) ?? null;
+  if (tokenHash && otpType) {
     const { error: otpError } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
-      type: type as Parameters<typeof supabase.auth.verifyOtp>[0]["type"],
+      type: otpType,
     });
 
     if (otpError) {
