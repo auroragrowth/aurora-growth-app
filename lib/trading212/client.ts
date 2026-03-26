@@ -1,4 +1,4 @@
-import { decryptString, toBasicAuthHeader } from "@/lib/security/encryption";
+import { decryptString } from "@/lib/security/encryption";
 import type { BrokerConnectionRecord, TradingMode } from "@/lib/trading212/types";
 
 const BASE_URLS: Record<TradingMode, string> = {
@@ -11,9 +11,9 @@ export function getTrading212BaseUrl(mode: TradingMode) {
 }
 
 export function getTrading212AuthHeader(connection: BrokerConnectionRecord) {
+  // Trading 212 API uses a simple token header: Authorization: <api_key>
   const apiKey = decryptString(connection.api_key_encrypted);
-  const apiSecret = decryptString(connection.api_secret_encrypted);
-  return toBasicAuthHeader(apiKey, apiSecret);
+  return apiKey;
 }
 
 export async function trading212Fetch<T>(
