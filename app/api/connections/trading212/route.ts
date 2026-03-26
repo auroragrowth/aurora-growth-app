@@ -54,8 +54,8 @@ export async function POST(req: Request) {
       return badRequest("Mode must be paper or live.");
     }
 
-    if (!apiKey || !apiSecret) {
-      return badRequest("API key and API secret are required.");
+    if (!apiKey) {
+      return badRequest("API key is required.");
     }
 
     const payload = {
@@ -63,7 +63,7 @@ export async function POST(req: Request) {
       broker: "trading212",
       mode,
       api_key_encrypted: encryptString(apiKey),
-      api_secret_encrypted: encryptString(apiSecret),
+      api_secret_encrypted: apiSecret ? encryptString(apiSecret) : null,
       is_active: true,
     };
 
@@ -76,6 +76,12 @@ export async function POST(req: Request) {
     if (error) {
       return serverError(error.message);
     }
+
+    // Update profiles.trading_mode to match the saved connection mode
+    await supabaseAdmin
+      .from("profiles")
+      .update({ trading_mode: mode })
+      .eq("id", user.id);
 
     return ok({ success: true, connection: data });
   } catch (error) {

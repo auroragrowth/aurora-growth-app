@@ -1,17 +1,20 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { updateSession } from "@/lib/supabase/proxy"
 
-export function proxy(request: NextRequest) {
-  const requestHeaders = new Headers(request.headers)
-  requestHeaders.set("x-pathname", request.nextUrl.pathname)
-
-  return NextResponse.next({
-    request: {
-      headers: requestHeaders,
-    },
-  })
+export async function proxy(request: NextRequest) {
+  return await updateSession(request)
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: [
+    /*
+     * Match all request paths except:
+     * - _next/static (static files)
+     * - _next/image (image optimization)
+     * - favicon.ico, sitemap.xml, robots.txt
+     * - public assets (images, etc.)
+     */
+    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+  ],
 }

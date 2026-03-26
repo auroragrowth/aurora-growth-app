@@ -1,3 +1,8 @@
+/**
+ * Single source of truth for the broker_connections table schema.
+ * Must match: supabase/migrations/fix_broker_connections.sql
+ */
+
 export type TradingMode = "paper" | "live";
 
 export type BrokerConnectionRecord = {
@@ -6,7 +11,7 @@ export type BrokerConnectionRecord = {
   broker: string;
   mode: TradingMode;
   api_key_encrypted: string;
-  api_secret_encrypted: string;
+  api_secret_encrypted: string | null;
   account_id: string | null;
   account_currency: string | null;
   account_type: string | null;
