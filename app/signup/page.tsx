@@ -17,38 +17,18 @@ function getPasswordStrength(password: string) {
   if (/[^A-Za-z0-9]/.test(password)) score++;
 
   if (!password) {
-    return {
-      label: "",
-      width: "0%",
-      barClass: "bg-white/10",
-      textClass: "text-slate-400",
-    };
+    return { label: "", width: "0%", barClass: "bg-white/10", textClass: "text-slate-400" };
   }
 
   if (score <= 2) {
-    return {
-      label: "Weak",
-      width: "33%",
-      barClass: "bg-red-400",
-      textClass: "text-red-300",
-    };
+    return { label: "Weak", width: "33%", barClass: "bg-red-400", textClass: "text-red-300" };
   }
 
   if (score <= 4) {
-    return {
-      label: "Medium",
-      width: "66%",
-      barClass: "bg-amber-400",
-      textClass: "text-amber-300",
-    };
+    return { label: "Medium", width: "66%", barClass: "bg-amber-400", textClass: "text-amber-300" };
   }
 
-  return {
-    label: "Strong",
-    width: "100%",
-    barClass: "bg-emerald-400",
-    textClass: "text-emerald-300",
-  };
+  return { label: "Strong", width: "100%", barClass: "bg-emerald-400", textClass: "text-emerald-300" };
 }
 
 export default function SignupPage() {
@@ -57,22 +37,18 @@ export default function SignupPage() {
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [agree, setAgree] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
-  const passwordStrength = useMemo(
-    () => getPasswordStrength(password),
-    [password]
-  );
+  const passwordStrength = useMemo(() => getPasswordStrength(password), [password]);
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
-    setSuccess("");
 
     if (!agree) {
       setError("Please agree to the Terms & Conditions and Privacy Policy.");
@@ -82,32 +58,29 @@ export default function SignupPage() {
     setLoading(true);
 
     try {
-      const origin =
-        process.env.NEXT_PUBLIC_APP_URL?.trim() || window.location.origin;
+      const origin = process.env.NEXT_PUBLIC_APP_URL?.trim() || window.location.origin;
 
-      const { error } = await supabase.auth.signUp({
+      const { error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           emailRedirectTo: `${origin}/auth/callback`,
           data: {
             full_name: fullName,
+            phone: phone || undefined,
           },
         },
       });
 
-      if (error) {
-        setError(error.message);
+      if (signUpError) {
+        setError(signUpError.message);
         return;
       }
 
-      setSuccess(
-        "Account created. Please check your email and confirm your address before logging in."
-      );
-      setFullName("");
-      setEmail("");
-      setPassword("");
-      setAgree(false);
+      // Store phone in profiles via a server action would be ideal, but
+      // Supabase's auth trigger will handle profile creation from user_metadata.
+      // Redirect to check-email page.
+      router.push("/auth/check-email");
     } catch (err) {
       setError("Something went wrong creating your account.");
       console.error(err);
@@ -118,22 +91,20 @@ export default function SignupPage() {
 
   const handleGoogleSignup = async () => {
     setError("");
-    setSuccess("");
     setGoogleLoading(true);
 
     try {
-      const origin =
-        process.env.NEXT_PUBLIC_APP_URL?.trim() || window.location.origin;
+      const origin = process.env.NEXT_PUBLIC_APP_URL?.trim() || window.location.origin;
 
-      const { error } = await supabase.auth.signInWithOAuth({
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: `${origin}/auth/callback`,
         },
       });
 
-      if (error) {
-        setError(error.message);
+      if (oauthError) {
+        setError(oauthError.message);
       }
     } catch (err) {
       setError("Unable to start Google sign up.");
@@ -147,6 +118,7 @@ export default function SignupPage() {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(37,99,235,0.18),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(168,85,247,0.12),transparent_24%),linear-gradient(180deg,#020617_0%,#03122b_45%,#071b46_100%)] text-white">
       <div className="mx-auto flex min-h-screen max-w-7xl items-center justify-center px-6 py-16">
         <div className="grid w-full max-w-5xl gap-8 md:grid-cols-2">
+          {/* Left panel */}
           <div className="rounded-[32px] border border-cyan-400/20 bg-white/[0.04] p-10 shadow-[0_0_80px_rgba(37,99,235,0.18)] backdrop-blur-xl">
             <div className="mb-8">
               <Image
@@ -172,8 +144,8 @@ export default function SignupPage() {
             </h1>
 
             <p className="mt-8 max-w-xl text-lg leading-8 text-slate-300">
-              Create your account, confirm your email, then select the membership
-              level that fits your Aurora workflow.
+              Create your account, confirm your email, then select the
+              membership level that fits your Aurora workflow.
             </p>
 
             <div className="mt-10 space-y-4">
@@ -194,6 +166,7 @@ export default function SignupPage() {
             </div>
           </div>
 
+          {/* Right panel — form */}
           <div className="rounded-[32px] border border-cyan-400/20 bg-white/[0.04] p-10 shadow-[0_0_80px_rgba(37,99,235,0.18)] backdrop-blur-xl">
             <p className="text-xs uppercase tracking-[0.38em] text-cyan-300/85">
               Sign up
@@ -204,7 +177,7 @@ export default function SignupPage() {
             </h2>
 
             <p className="mt-4 text-base leading-7 text-slate-300">
-              After signup, we will send you an email confirmation link.
+              After signup we will send you a confirmation link.
             </p>
 
             <button
@@ -213,27 +186,11 @@ export default function SignupPage() {
               disabled={googleLoading}
               className="mt-8 flex w-full items-center justify-center gap-3 rounded-full border border-white/10 bg-white/5 px-6 py-4 text-base font-medium text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 48 48"
-                className="h-5 w-5"
-              >
-                <path
-                  fill="#FFC107"
-                  d="M43.611 20.083H42V20H24v8h11.303C33.651 32.657 29.24 36 24 36c-6.627 0-12-5.373-12-12S17.373 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.27 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z"
-                />
-                <path
-                  fill="#FF3D00"
-                  d="M6.306 14.691l6.571 4.819C14.655 16.108 19.009 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.27 4 24 4c-7.682 0-14.347 4.337-17.694 10.691z"
-                />
-                <path
-                  fill="#4CAF50"
-                  d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.191-5.238C29.143 35.091 26.715 36 24 36c-5.219 0-9.617-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z"
-                />
-                <path
-                  fill="#1976D2"
-                  d="M43.611 20.083H42V20H24v8h11.303c-.793 2.237-2.231 4.166-4.085 5.571l.003-.002 6.191 5.238C36.971 38.48 44 33 44 24c0-1.341-.138-2.65-.389-3.917z"
-                />
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" className="h-5 w-5">
+                <path fill="#FFC107" d="M43.611 20.083H42V20H24v8h11.303C33.651 32.657 29.24 36 24 36c-6.627 0-12-5.373-12-12S17.373 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.27 4 24 4 12.955 4 4 12.955 4 24s8.955 20 20 20 20-8.955 20-20c0-1.341-.138-2.65-.389-3.917z" />
+                <path fill="#FF3D00" d="M6.306 14.691l6.571 4.819C14.655 16.108 19.009 12 24 12c3.059 0 5.842 1.154 7.961 3.039l5.657-5.657C34.046 6.053 29.27 4 24 4c-7.682 0-14.347 4.337-17.694 10.691z" />
+                <path fill="#4CAF50" d="M24 44c5.166 0 9.86-1.977 13.409-5.192l-6.191-5.238C29.143 35.091 26.715 36 24 36c-5.219 0-9.617-3.317-11.283-7.946l-6.522 5.025C9.505 39.556 16.227 44 24 44z" />
+                <path fill="#1976D2" d="M43.611 20.083H42V20H24v8h11.303c-.793 2.237-2.231 4.166-4.085 5.571l.003-.002 6.191 5.238C36.971 38.48 44 33 44 24c0-1.341-.138-2.65-.389-3.917z" />
               </svg>
               {googleLoading ? "Connecting Google..." : "Sign up with Google"}
             </button>
@@ -275,6 +232,20 @@ export default function SignupPage() {
 
               <div>
                 <label className="mb-3 block text-sm font-medium text-white">
+                  Phone{" "}
+                  <span className="text-slate-500">(optional)</span>
+                </label>
+                <input
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+44 7700 000000"
+                  className="w-full rounded-full border border-white/10 bg-slate-950/50 px-5 py-4 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/50"
+                />
+              </div>
+
+              <div>
+                <label className="mb-3 block text-sm font-medium text-white">
                   Password
                 </label>
                 <input
@@ -295,14 +266,12 @@ export default function SignupPage() {
                   </div>
 
                   <div className="mt-2 flex items-center justify-between text-sm">
-                    <span className={`${passwordStrength.textClass}`}>
+                    <span className={passwordStrength.textClass}>
                       {passwordStrength.label
                         ? `Password strength: ${passwordStrength.label}`
                         : "Password strength"}
                     </span>
-                    <span className="text-slate-500">
-                      Use 8+ chars, upper, lower, number, symbol
-                    </span>
+                    <span className="text-slate-500">8+ chars, mixed case, number, symbol</span>
                   </div>
                 </div>
               </div>
@@ -322,19 +291,14 @@ export default function SignupPage() {
                   and{" "}
                   <Link href="/privacy" className="text-white underline underline-offset-4">
                     Privacy Policy
-                  </Link>.
+                  </Link>
+                  .
                 </span>
               </label>
 
               {error ? (
                 <div className="rounded-2xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                   {error}
-                </div>
-              ) : null}
-
-              {success ? (
-                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                  {success}
                 </div>
               ) : null}
 

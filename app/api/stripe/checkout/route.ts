@@ -41,15 +41,7 @@ export async function POST(req: NextRequest) {
       error: userError,
     } = await supabase.auth.getUser();
 
-    if (userError) {
-      console.error("Supabase auth error:", userError);
-      return NextResponse.json(
-        { error: "Unable to read user session" },
-        { status: 401 }
-      );
-    }
-
-    if (!user) {
+    if (userError || !user) {
       return NextResponse.json(
         { error: "You must be logged in" },
         { status: 401 }
@@ -71,6 +63,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Record the plan selection intent before going to Stripe
     await supabase
       .from("profiles")
       .update({
@@ -88,17 +81,12 @@ export async function POST(req: NextRequest) {
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       payment_method_types: ["card"],
-      line_items: [
-        {
-          price: priceId,
-          quantity: 1,
-        },
-      ],
+      line_items: [{ price: priceId, quantity: 1 }],
       ...(profile?.stripe_customer_id
         ? { customer: profile.stripe_customer_id }
         : { customer_email: user.email ?? undefined }),
-      success_url: `${appUrl}/dashboard/account?checkout=success`,
-      cancel_url: `${appUrl}/dashboard/upgrade?checkout=cancelled`,
+      success_url: `${appUrl}/checkout/success`,
+      cancel_url: `${appUrl}/select-plan`,
       metadata: {
         user_id: user.id,
         plan_key: planKey,
@@ -122,13 +110,10 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ url: session.url });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Stripe checkout error:", error);
-
     return NextResponse.json(
-      {
-        error: error?.message || "Something went wrong creating checkout",
-      },
+      { error: error instanceof Error ? error.message : "Something went wrong creating checkout" },
       { status: 500 }
     );
   }

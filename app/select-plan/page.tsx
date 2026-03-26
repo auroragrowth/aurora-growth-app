@@ -16,20 +16,27 @@ export default async function SelectPlanPage() {
   const { data: profile } = await supabase
     .from("profiles")
     .select(
-      "plan_key, billing_interval, subscription_status, has_completed_plan_selection"
+      "plan_key, billing_interval, subscription_status, has_seen_plan_selection"
     )
     .eq("id", user.id)
     .single();
 
+  // Already has an active subscription — never redirect back here
   const hasActiveSubscription =
     profile?.subscription_status === "active" ||
     profile?.subscription_status === "trialing";
 
-  const hasCompletedPlanSelection = !!profile?.has_completed_plan_selection;
-
-  if (hasCompletedPlanSelection && hasActiveSubscription) {
+  if (hasActiveSubscription && profile?.plan_key) {
     redirect("/dashboard");
   }
 
-  return <SelectPlanClient initialBillingInterval={profile?.billing_interval ?? "yearly"} />;
+  // Show the welcome popup on first visit (before they've seen plan selection)
+  const showWelcome = !profile?.has_seen_plan_selection;
+
+  return (
+    <SelectPlanClient
+      initialBillingInterval={profile?.billing_interval ?? "yearly"}
+      showWelcome={showWelcome}
+    />
+  );
 }

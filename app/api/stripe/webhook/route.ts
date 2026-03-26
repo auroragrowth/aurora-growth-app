@@ -27,8 +27,9 @@ export async function POST(req: NextRequest) {
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
-  } catch (error: any) {
-    console.error("Stripe webhook signature error:", error.message);
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    console.error("Stripe webhook signature error:", msg);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
@@ -45,7 +46,6 @@ export async function POST(req: NextRequest) {
       }
 
       const subscriptionId = session.subscription as string;
-
       const subscription = await stripe.subscriptions.retrieve(subscriptionId);
 
       const billingInterval =
@@ -57,23 +57,32 @@ export async function POST(req: NextRequest) {
           : Date.now()
       ).toISOString();
 
-      await supabaseAdmin.from("profiles").update({
-        plan: planKey,
-      }).eq("id", userId);
+      // Update profiles: activate plan and trigger the Trading 212 setup popup
+      await supabaseAdmin
+        .from("profiles")
+        .update({
+          plan: planKey,
+          subscription_status: subscription.status,
+          onboarding_step: "checkout_complete",
+        })
+        .eq("id", userId);
 
-      await supabaseAdmin.from("user_subscriptions").upsert({
-        user_id: userId,
-        stripe_customer_id: subscription.customer as string,
-        stripe_subscription_id: subscription.id,
-        plan_key: planKey,
-        billing_interval: billingInterval,
-        subscription_status: subscription.status,
-        current_period_end: currentPeriodEnd,
-        cancel_at_period_end: subscription.cancel_at_period_end,
-        has_completed_checkout: true,
-      }, {
-        onConflict: "user_id",
-      });
+      await supabaseAdmin
+        .from("user_subscriptions")
+        .upsert(
+          {
+            user_id: userId,
+            stripe_customer_id: subscription.customer as string,
+            stripe_subscription_id: subscription.id,
+            plan_key: planKey,
+            billing_interval: billingInterval,
+            subscription_status: subscription.status,
+            current_period_end: currentPeriodEnd,
+            cancel_at_period_end: subscription.cancel_at_period_end,
+            has_completed_checkout: true,
+          },
+          { onConflict: "user_id" }
+        );
     }
 
     if (event.type === "customer.subscription.updated") {
@@ -91,24 +100,28 @@ export async function POST(req: NextRequest) {
             : Date.now()
         ).toISOString();
 
-        await supabaseAdmin.from("user_subscriptions").upsert({
-          user_id: userId,
-          stripe_customer_id: subscription.customer as string,
-          stripe_subscription_id: subscription.id,
-          plan_key: planKey || null,
-          billing_interval: billingInterval,
-          subscription_status: subscription.status,
-          current_period_end: currentPeriodEnd,
-          cancel_at_period_end: subscription.cancel_at_period_end,
-          has_completed_checkout: true,
-        }, {
-          onConflict: "user_id",
-        });
+        await supabaseAdmin
+          .from("user_subscriptions")
+          .upsert(
+            {
+              user_id: userId,
+              stripe_customer_id: subscription.customer as string,
+              stripe_subscription_id: subscription.id,
+              plan_key: planKey || null,
+              billing_interval: billingInterval,
+              subscription_status: subscription.status,
+              current_period_end: currentPeriodEnd,
+              cancel_at_period_end: subscription.cancel_at_period_end,
+              has_completed_checkout: true,
+            },
+            { onConflict: "user_id" }
+          );
 
         if (planKey) {
-          await supabaseAdmin.from("profiles").update({
-            plan: planKey,
-          }).eq("id", userId);
+          await supabaseAdmin
+            .from("profiles")
+            .update({ plan: planKey, subscription_status: subscription.status })
+            .eq("id", userId);
         }
       }
     }
@@ -118,23 +131,27 @@ export async function POST(req: NextRequest) {
       const userId = subscription.metadata?.user_id;
 
       if (userId) {
-        await supabaseAdmin.from("user_subscriptions").upsert({
-          user_id: userId,
-          stripe_customer_id: subscription.customer as string,
-          stripe_subscription_id: subscription.id,
-          plan_key: null,
-          billing_interval: null,
-          subscription_status: "canceled",
-          current_period_end: null,
-          cancel_at_period_end: false,
-          has_completed_checkout: false,
-        }, {
-          onConflict: "user_id",
-        });
+        await supabaseAdmin
+          .from("user_subscriptions")
+          .upsert(
+            {
+              user_id: userId,
+              stripe_customer_id: subscription.customer as string,
+              stripe_subscription_id: subscription.id,
+              plan_key: null,
+              billing_interval: null,
+              subscription_status: "canceled",
+              current_period_end: null,
+              cancel_at_period_end: false,
+              has_completed_checkout: false,
+            },
+            { onConflict: "user_id" }
+          );
 
-        await supabaseAdmin.from("profiles").update({
-          plan: "free",
-        }).eq("id", userId);
+        await supabaseAdmin
+          .from("profiles")
+          .update({ plan: "free", subscription_status: "canceled" })
+          .eq("id", userId);
       }
     }
 

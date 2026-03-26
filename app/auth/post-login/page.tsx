@@ -16,32 +16,35 @@ export default async function PostLoginPage() {
     redirect("/login");
   }
 
+  // Fetch or create the user's profile
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, email, full_name, role")
+    .select("plan_key, plan, subscription_status")
     .eq("id", user.id)
     .maybeSingle();
 
   if (!profile) {
+    // First login — create a bare profile and send to plan selection
     await supabase.from("profiles").upsert(
       {
         id: user.id,
         email: user.email,
         full_name: user.user_metadata?.full_name || "",
+        phone: user.user_metadata?.phone || null,
         role: "member",
       },
       { onConflict: "id" }
     );
+
+    redirect("/select-plan");
   }
 
-  const { data: subscription } = await supabase
-    .from("user_subscriptions")
-    .select("plan_key, subscription_status")
-    .eq("user_id", user.id)
-    .maybeSingle();
+  const hasPlan =
+    (profile.plan_key || profile.plan) &&
+    isActive(profile.subscription_status);
 
-  if (!subscription || !isActive(subscription.subscription_status) || !subscription.plan_key) {
-    redirect("/dashboard/upgrade");
+  if (!hasPlan) {
+    redirect("/select-plan");
   }
 
   redirect("/dashboard");

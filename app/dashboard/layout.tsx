@@ -2,6 +2,7 @@
 
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import { PortfolioProvider } from "@/components/providers/PortfolioProvider";
+import OnboardingChecker from "@/components/onboarding/OnboardingChecker";
 
 export default function DashboardLayout({
   children,
@@ -13,6 +14,7 @@ export default function DashboardLayout({
       <DashboardShell userName="paulrudland">
         {children}
       </DashboardShell>
+      <OnboardingChecker />
     </PortfolioProvider>
   );
 }

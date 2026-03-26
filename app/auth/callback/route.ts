@@ -20,10 +20,11 @@ export async function GET(request: NextRequest) {
 
   const supabase = await createClient();
 
+  // Email confirmation link (token_hash + type)
   if (tokenHash && type) {
     const { error: otpError } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
-      type: type as any,
+      type: type as Parameters<typeof supabase.auth.verifyOtp>[0]["type"],
     });
 
     if (otpError) {
@@ -33,6 +34,7 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // OAuth code exchange
   if (code) {
     const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
@@ -43,26 +45,6 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.redirect(`${appUrl}/login`);
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("plan")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const plan = profile?.plan?.toLowerCase?.() ?? null;
-  const paidPlans = ["core", "pro", "elite"];
-
-  if (!plan || !paidPlans.includes(plan)) {
-    return NextResponse.redirect(`${appUrl}/dashboard/upgrade`);
-  }
-
-  return NextResponse.redirect(`${appUrl}/dashboard`);
+  // Delegate all routing decisions to post-login
+  return NextResponse.redirect(`${appUrl}/auth/post-login`);
 }
