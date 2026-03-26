@@ -1,4 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { decryptString, toBasicAuthHeader } from "@/lib/security/encryption";
+import { getCurrentUser, getUserConnectionByMode, getUserTradingMode } from "@/lib/trading212/connections";
+import type { TradingMode } from "@/lib/trading212/types";
 
 const TRADING212_BASE =
   process.env.TRADING212_BASE_URL || "https://live.trading212.com/api/v0";
@@ -12,24 +15,28 @@ export type Trading212Summary = {
   total?: number | null;
 };
 
-export async function getTrading212ConnectionForUser() {
-  const supabase = await createClient();
+function sanitizeConnection(connection: any) {
+  if (!connection) return null;
 
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    api_key,
+    api_secret,
+    api_key_encrypted,
+    api_secret_encrypted,
+    access_token,
+    refresh_token,
+    ...safe
+  } = connection;
 
-  if (!user) return null;
+  return safe;
+}
 
-  const { data } = await supabase
-    .from("user_broker_connections")
-    .select("*")
-    .eq("user_id", user.id)
-    .eq("broker", "trading212")
-    .eq("is_connected", true)
-    .maybeSingle();
+export async function getTrading212ConnectionForUser() {
+  const user = await getCurrentUser();
+  const mode = await getUserTradingMode(user.id);
+  const connection = await getUserConnectionByMode(user.id, mode);
 
-  return data || null;
+  return connection || null;
 }
 
 export async function fetchTrading212Summary(): Promise<{
@@ -39,22 +46,21 @@ export async function fetchTrading212Summary(): Promise<{
 }> {
   const connection = await getTrading212ConnectionForUser();
 
-  if (!connection?.api_key || !connection?.api_secret) {
+  if (!connection?.api_key_encrypted || !connection?.api_secret_encrypted) {
     return {
       connected: false,
       summary: null,
-      connection,
+      connection: sanitizeConnection(connection),
     };
   }
 
-  const credentials = Buffer.from(
-    `${connection.api_key}:${connection.api_secret}`
-  ).toString("base64");
+  const apiKey = decryptString(connection.api_key_encrypted);
+  const apiSecret = decryptString(connection.api_secret_encrypted);
 
   const res = await fetch(`${TRADING212_BASE}/equity/account/summary`, {
     method: "GET",
     headers: {
-      Authorization: `Basic ${credentials}`,
+      Authorization: toBasicAuthHeader(apiKey, apiSecret),
       Accept: "application/json",
     },
     cache: "no-store",
@@ -70,6 +76,6 @@ export async function fetchTrading212Summary(): Promise<{
   return {
     connected: true,
     summary,
-    connection,
+    connection: sanitizeConnection(connection),
   };
 }

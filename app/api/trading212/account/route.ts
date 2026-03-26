@@ -1,135 +1,93 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import {
+  fetchTrading212Summary,
+  getTrading212ConnectionForUser,
+} from "@/lib/trading212/server";
 
-const TRADING212_BASE =
-  process.env.TRADING212_BASE_URL || "https://live.trading212.com/api/v0";
+type CachedAccount = {
+  connected: boolean;
+  data: any;
+  connection: any;
+  cachedAt: number;
+};
 
-function buildBasicAuth(apiKey: string, apiSecret: string) {
-  return `Basic ${Buffer.from(`${apiKey}:${apiSecret}`).toString("base64")}`;
+const CACHE_TTL_MS = 30000;
+
+declare global {
+  // eslint-disable-next-line no-var
+  var __auroraTrading212AccountCache: CachedAccount | undefined;
+}
+
+function getCache() {
+  const cache = globalThis.__auroraTrading212AccountCache;
+  if (!cache) return null;
+
+  const isFresh = Date.now() - cache.cachedAt < CACHE_TTL_MS;
+  return {
+    ...cache,
+    isFresh,
+  };
 }
 
 export async function GET() {
+  const cached = getCache();
+
+  if (cached?.isFresh) {
+    return NextResponse.json({
+      ok: true,
+      connected: cached.connected,
+      cached: true,
+      stale: false,
+      connection: cached.connection,
+      data: cached.data,
+    });
+  }
+
   try {
-    const supabase = await createClient();
+    const result = await fetchTrading212Summary();
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      return NextResponse.json(
-        { ok: false, error: "Not authenticated" },
-        { status: 401 }
-      );
-    }
-
-    const { data: connection, error: connectionError } = await supabase
-      .from("user_broker_connections")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("broker", "trading212")
-      .eq("is_connected", true)
-      .maybeSingle();
-
-    if (connectionError) {
-      return NextResponse.json(
-        { ok: false, error: connectionError.message },
-        { status: 500 }
-      );
-    }
-
-    if (!connection?.api_key || !connection?.api_secret) {
-      return NextResponse.json(
-        { ok: false, error: "No active Trading 212 connection found." },
-        { status: 400 }
-      );
-    }
-
-    const authHeader = buildBasicAuth(connection.api_key, connection.api_secret);
-
-    const [summaryRes, cashRes] = await Promise.all([
-      fetch(`${TRADING212_BASE}/equity/account/summary`, {
-        method: "GET",
-        headers: {
-          Authorization: authHeader,
-          Accept: "application/json",
-        },
-        cache: "no-store",
-      }),
-      fetch(`${TRADING212_BASE}/equity/account/cash`, {
-        method: "GET",
-        headers: {
-          Authorization: authHeader,
-          Accept: "application/json",
-        },
-        cache: "no-store",
-      }),
-    ]);
-
-    const summaryText = await summaryRes.text();
-    const cashText = await cashRes.text();
-
-    let summary: unknown = null;
-    let cash: unknown = null;
-
-    try {
-      summary = summaryText ? JSON.parse(summaryText) : null;
-    } catch {
-      summary = null;
-    }
-
-    try {
-      cash = cashText ? JSON.parse(cashText) : null;
-    } catch {
-      cash = null;
-    }
-
-    if (!summaryRes.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            typeof summary === "object" && summary && "error" in summary
-              ? String((summary as { error?: unknown }).error)
-              : summaryText || `Trading 212 summary failed (${summaryRes.status})`,
-        },
-        { status: summaryRes.status }
-      );
-    }
-
-    if (!cashRes.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            typeof cash === "object" && cash && "error" in cash
-              ? String((cash as { error?: unknown }).error)
-              : cashText || `Trading 212 cash failed (${cashRes.status})`,
-        },
-        { status: cashRes.status }
-      );
-    }
-
-    await supabase
-      .from("user_broker_connections")
-      .update({
-        last_sync_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", connection.id);
+    globalThis.__auroraTrading212AccountCache = {
+      connected: result.connected,
+      data: result.summary,
+      connection: result.connection,
+      cachedAt: Date.now(),
+    };
 
     return NextResponse.json({
       ok: true,
-      account: summary,
-      cash,
+      connected: result.connected,
+      cached: false,
+      stale: false,
+      connection: result.connection,
+      data: result.summary,
     });
   } catch (error) {
+    const stale = getCache();
+
+    if (stale) {
+      return NextResponse.json({
+        ok: true,
+        connected: stale.connected,
+        cached: true,
+        stale: true,
+        warning: "Using cached Trading 212 account data",
+        connection: stale.connection,
+        data: stale.data,
+      });
+    }
+
+    const connection = await getTrading212ConnectionForUser();
+
     return NextResponse.json(
       {
         ok: false,
+        connected: Boolean(connection?.is_active),
         error:
-          error instanceof Error ? error.message : "Failed to fetch account data.",
+          error instanceof Error
+            ? error.message
+            : "Trading 212 account request failed",
+        connection,
+        data: null,
       },
       { status: 500 }
     );

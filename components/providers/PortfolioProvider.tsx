@@ -1,6 +1,14 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 export type Position = {
   ticker?: string | null;
@@ -41,6 +49,9 @@ export type Overview = {
   total_return_pct?: number | string | null;
   today_change?: number | string | null;
   open_value?: number | string | null;
+  positions_count?: number | string | null;
+  free_cash?: number | string | null;
+  invested?: number | string | null;
 };
 
 type Snapshot = {
@@ -57,6 +68,15 @@ type Snapshot = {
   overview: Overview | null;
 };
 
+type StatusResponse = {
+  ok?: boolean;
+  authenticated?: boolean;
+  trading212?: {
+    mode?: "paper" | "live";
+    is_connected?: boolean;
+  } | null;
+};
+
 const defaultState: Snapshot = {
   connected: false,
   loading: true,
@@ -71,9 +91,11 @@ const defaultState: Snapshot = {
   overview: null,
 };
 
+const REFRESH_COOLDOWN_MS = 180_000;
+
 const PortfolioContext = createContext<{
   data: Snapshot;
-  refresh: () => Promise<void>;
+  refresh: (force?: boolean) => Promise<void>;
 }>({
   data: defaultState,
   refresh: async () => {},
@@ -129,98 +151,173 @@ function getReturn(row: Position): number {
   return (getPnL(row) / cost) * 100;
 }
 
+async function safeJson(res: Response) {
+  const text = await res.text();
+
+  if (!text) return null;
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(
+      `Expected JSON from ${res.url}, received non-JSON response`
+    );
+  }
+}
+
 export function PortfolioProvider({ children }: { children: React.ReactNode }) {
   const [data, setData] = useState<Snapshot>(defaultState);
 
-  async function load() {
-    setData((prev) => ({ ...prev, loading: true, error: null }));
+  const lastLoadedAtRef = useRef<number>(0);
+  const inflightRef = useRef<Promise<void> | null>(null);
+  const mountedRef = useRef<boolean>(true);
 
-    try {
-      const [positionsRes, overviewRes] = await Promise.all([
-        fetch("/api/trading212/positions", { cache: "no-store" }),
-        fetch("/api/trading212/overview", { cache: "no-store" }),
-      ]);
-
-      if (!positionsRes.ok) {
-        throw new Error(`Trading 212 positions API returned ${positionsRes.status}`);
-      }
-
-      const positionsJson = await positionsRes.json();
-      const overviewJson = overviewRes.ok ? await overviewRes.json() : null;
-
-      const positions =
-        positionsJson?.positions ||
-        positionsJson?.rows ||
-        positionsJson?.data ||
-        (Array.isArray(positionsJson) ? positionsJson : []);
-
-      const overview =
-        overviewJson?.overview ||
-        overviewJson?.data ||
-        overviewJson ||
-        null;
-
-      const safePositions = Array.isArray(positions) ? positions : [];
-
-      const totalCost =
-        toNumber(overview?.total_cost) ||
-        safePositions.reduce((sum, row) => sum + getCost(row), 0);
-
-      const totalValue =
-        toNumber(overview?.portfolio_value ?? overview?.total_value) ||
-        safePositions.reduce((sum, row) => sum + getValue(row), 0);
-
-      const totalPnL =
-        toNumber(overview?.total_pnl) ||
-        (totalValue - totalCost);
-
-      const totalReturn =
-        toNumber(overview?.total_return_pct) ||
-        (totalCost ? (totalPnL / totalCost) * 100 : 0);
-
-      const todayPnl = toNumber(overview?.today_change);
-      const openValue =
-        toNumber(overview?.open_value) ||
-        (todayPnl ? totalValue - todayPnl : totalCost);
-
-      setData({
-        connected: true,
-        loading: false,
-        error: null,
-        count: safePositions.length,
-        portfolioValue: totalValue,
-        todayPnl,
-        openValue,
-        returnPct: totalReturn,
-        updatedAt: new Date().toISOString(),
-        positions: safePositions,
-        overview,
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Unable to load Trading 212 data";
-
-      setData({
-        ...defaultState,
-        connected: false,
-        loading: false,
-        error: message,
-      });
+  const load = useCallback(async function load(force = false) {
+    if (inflightRef.current) {
+      return inflightRef.current;
     }
-  }
+
+    const now = Date.now();
+    const withinCooldown =
+      !force &&
+      lastLoadedAtRef.current > 0 &&
+      now - lastLoadedAtRef.current < REFRESH_COOLDOWN_MS;
+
+    if (withinCooldown) {
+      return;
+    }
+
+    const request = (async () => {
+      setData((prev) => ({
+        ...prev,
+        loading: true,
+        error: null,
+      }));
+
+      try {
+        const statusRes = await fetch("/api/connections/status", {
+          cache: "no-store",
+          credentials: "include",
+        });
+
+        const statusJson = (await safeJson(statusRes)) as StatusResponse | null;
+        const sqlConnected = Boolean(statusJson?.trading212?.is_connected);
+
+        if (!mountedRef.current) return;
+
+        if (!sqlConnected) {
+          setData((prev) => ({
+            ...prev,
+            connected: false,
+            loading: false,
+            error: null,
+          }));
+          lastLoadedAtRef.current = Date.now();
+          return;
+        }
+
+        const [overviewRes, positionsRes] = await Promise.all([
+          fetch("/api/trading212/overview", {
+            cache: "no-store",
+            credentials: "include",
+          }),
+          fetch("/api/trading212/positions", {
+            cache: "no-store",
+            credentials: "include",
+          }),
+        ]);
+
+        const overviewJson = overviewRes.ok ? await safeJson(overviewRes) : null;
+        const positionsJson = positionsRes.ok ? await safeJson(positionsRes) : null;
+
+        const overview =
+          (overviewJson as any)?.overview ||
+          (overviewJson as any)?.data ||
+          null;
+
+        const positions =
+          (positionsJson as any)?.positions ||
+          (positionsJson as any)?.rows ||
+          (positionsJson as any)?.data ||
+          (Array.isArray(positionsJson) ? positionsJson : []);
+
+        const safePositions = Array.isArray(positions) ? positions : [];
+
+        const totalCost =
+          toNumber(overview?.total_cost ?? overview?.invested) ||
+          safePositions.reduce((sum, row) => sum + getCost(row), 0);
+
+        const totalValue =
+          toNumber(overview?.portfolio_value ?? overview?.total_value) ||
+          safePositions.reduce((sum, row) => sum + getValue(row), 0);
+
+        const totalPnL =
+          toNumber(overview?.total_pnl) ||
+          (totalValue - totalCost);
+
+        const totalReturn =
+          toNumber(overview?.total_return_pct) ||
+          (totalCost ? (totalPnL / totalCost) * 100 : 0);
+
+        const todayPnl = toNumber(overview?.today_change);
+        const openValue =
+          toNumber(overview?.open_value) ||
+          totalValue;
+
+        if (!mountedRef.current) return;
+
+        setData({
+          connected: true,
+          loading: false,
+          error: null,
+          count: toNumber(overview?.positions_count) || safePositions.length,
+          portfolioValue: totalValue,
+          todayPnl,
+          openValue,
+          returnPct: totalReturn,
+          updatedAt: new Date().toISOString(),
+          positions: safePositions,
+          overview,
+        });
+
+        lastLoadedAtRef.current = Date.now();
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Unable to load Trading 212 data";
+
+        if (!mountedRef.current) return;
+
+        setData((prev) => ({
+          ...prev,
+          loading: false,
+          error: message,
+        }));
+      } finally {
+        inflightRef.current = null;
+      }
+    })();
+
+    inflightRef.current = request;
+    return request;
+  // setData and refs are stable — empty deps is correct here
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
-    load();
-    const timer = window.setInterval(load, 30000);
-    return () => window.clearInterval(timer);
-  }, []);
+    mountedRef.current = true;
+    load(true);
+
+    return () => {
+      mountedRef.current = false;
+    };
+  }, [load]);
 
   const value = useMemo(
     () => ({
       data,
       refresh: load,
     }),
-    [data]
+    [data, load]
   );
 
   return (

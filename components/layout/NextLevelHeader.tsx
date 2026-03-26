@@ -2,32 +2,76 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import {
-  ChevronDown,
-  TrendingDown,
-  TrendingUp,
-  User,
-  CreditCard,
-  LogOut,
-} from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { usePortfolio } from "@/components/providers/PortfolioProvider";
 
-type NextLevelHeaderProps = {
-  title?: string;
+type Props = {
+  title: string;
   subtitle?: string;
   userName?: string;
 };
 
-function formatMoney(value: number) {
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value || 0);
+type AccountStatusResponse = Record<string, any>;
+
+function toTitleCase(value: string) {
+  return value
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(" ");
 }
 
-function getUsMarketStatus() {
+function getFirstName(name?: string | null) {
+  if (!name) return "User";
+
+  const cleaned = String(name)
+    .replace(/[_\-.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return "User";
+
+  return toTitleCase(cleaned.split(" ")[0] || "User");
+}
+
+function getPlanTheme(plan?: string | null) {
+  const value = String(plan || "").toLowerCase();
+
+  if (value === "core") {
+    return {
+      pill: "border-cyan-400/25 bg-cyan-500/10",
+      name: "text-cyan-300",
+    };
+  }
+
+  if (value === "pro") {
+    return {
+      pill: "border-fuchsia-400/25 bg-fuchsia-500/10",
+      name: "text-fuchsia-300",
+    };
+  }
+
+  if (value === "elite") {
+    return {
+      pill: "border-amber-300/25 bg-amber-400/10",
+      name: "text-amber-300",
+    };
+  }
+
+  return {
+    pill: "border-white/10 bg-white/5",
+    name: "text-white",
+  };
+}
+
+function formatMoney(value: number) {
+  return `US$${Math.abs(value).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function getMarketLabel() {
   const now = new Date();
 
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -41,144 +85,85 @@ function getUsMarketStatus() {
   const weekday = parts.find((p) => p.type === "weekday")?.value ?? "";
   const hour = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
   const minute = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
-
-  if (weekday === "Sat" || weekday === "Sun") {
-    return {
-      label: "Weekend",
-      tone: "text-slate-300",
-      dot: "bg-slate-500",
-    };
-  }
-
   const totalMinutes = hour * 60 + minute;
 
-  const preMarketStart = 4 * 60;
-  const regularOpen = 9 * 60 + 30;
-  const regularClose = 16 * 60;
+  const isWeekday = ["Mon", "Tue", "Wed", "Thu", "Fri"].includes(weekday);
 
-  if (totalMinutes >= preMarketStart && totalMinutes < regularOpen) {
-    return {
-      label: "Pre-market",
-      tone: "text-amber-300",
-      dot: "bg-amber-400",
-    };
+  if (!isWeekday) {
+    return { label: "Closed", color: "text-rose-300" };
   }
 
-  if (totalMinutes >= regularOpen && totalMinutes < regularClose) {
-    return {
-      label: "US Market OPEN",
-      tone: "text-emerald-400",
-      dot: "bg-emerald-400",
-    };
+  // NYSE: 09:30–16:00 ET; pre-market from 04:00 ET
+  if (totalMinutes >= 570 && totalMinutes < 960) {
+    return { label: "US Market OPEN", color: "text-emerald-300" };
   }
 
-  return {
-    label: "Closed",
-    tone: "text-rose-300",
-    dot: "bg-rose-400",
-  };
-}
-
-function Sparkline({ values }: { values: number[] }) {
-  const width = 120;
-  const height = 24;
-  const padding = 2;
-
-  if (!values.length) {
-    return (
-      <div className="flex h-6 w-[120px] items-center">
-        <div className="h-px w-full bg-cyan-400/30" />
-      </div>
-    );
+  if (totalMinutes >= 240 && totalMinutes < 570) {
+    return { label: "Pre-market", color: "text-amber-300" };
   }
 
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-
-  const points = values
-    .map((value, index) => {
-      const x =
-        padding + (index * (width - padding * 2)) / Math.max(values.length - 1, 1);
-      const y =
-        height - padding - ((value - min) / range) * (height - padding * 2);
-      return `${x},${y}`;
-    })
-    .join(" ");
-
-  const up = values[values.length - 1] >= values[0];
-
-  return (
-    <svg
-      width={width}
-      height={height}
-      viewBox={`0 0 ${width} ${height}`}
-      className="overflow-visible"
-      aria-hidden="true"
-    >
-      <polyline
-        fill="none"
-        stroke={up ? "rgba(16,185,129,0.95)" : "rgba(244,63,94,0.95)"}
-        strokeWidth="2"
-        points={points}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function MetricItem({
-  label,
-  value,
-  positive,
-}: {
-  label: string;
-  value: string;
-  positive?: boolean;
-}) {
-  const UpDownIcon = positive ? TrendingUp : TrendingDown;
-
-  return (
-    <div className="flex items-center gap-2">
-      <span className="text-slate-300">{label}</span>
-      <span
-        className={`inline-flex items-center gap-1 font-medium ${
-          positive ? "text-emerald-400" : "text-rose-400"
-        }`}
-      >
-        <UpDownIcon className="h-3.5 w-3.5" />
-        {value}
-      </span>
-    </div>
-  );
+  return { label: "Closed", color: "text-rose-300" };
 }
 
 export default function NextLevelHeader({
-  title = "Investments",
-  subtitle = "Aurora platform workspace",
-  userName = "paulrudland",
-}: NextLevelHeaderProps) {
+  title,
+  userName = "User",
+}: Props) {
   const { data } = usePortfolio();
-  const marketStatus = useMemo(() => getUsMarketStatus(), []);
-  const [history, setHistory] = useState<number[]>([]);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const profileRef = useRef<HTMLDivElement | null>(null);
+
+  const [plan, setPlan] = useState<string | null>(null);
+  const [resolvedName, setResolvedName] = useState<string>(userName);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [marketTick, setMarketTick] = useState(0);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!data.portfolioValue) return;
+    let mounted = true;
 
-    setHistory((prev) => {
-      const next = [...prev, data.portfolioValue];
-      return next.slice(-18);
-    });
-  }, [data.portfolioValue]);
+    async function loadAccountStatus() {
+      try {
+        const accountRes = await fetch("/api/account/status", {
+          cache: "no-store",
+          credentials: "include",
+        });
+
+        if (!mounted || !accountRes.ok) return;
+
+        const account = (await accountRes.json()) as AccountStatusResponse;
+
+        setPlan(account?.plan ?? account?.plan_name ?? null);
+
+        const bestName =
+          account?.first_name ||
+          account?.full_name ||
+          account?.name ||
+          account?.user_name ||
+          account?.username ||
+          userName;
+
+        setResolvedName(bestName || userName);
+      } catch (error) {
+        console.error("Failed to load account status", error);
+      }
+    }
+
+    loadAccountStatus();
+
+    return () => {
+      mounted = false;
+    };
+  }, [userName]);
+
+  useEffect(() => {
+    const id = setInterval(() => setMarketTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (!profileRef.current) return;
-      if (!profileRef.current.contains(event.target as Node)) {
-        setProfileOpen(false);
+      if (!menuRef.current) return;
+      if (!menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
       }
     }
 
@@ -186,122 +171,110 @@ export default function NextLevelHeader({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const portfolioUp = data.portfolioValue >= data.openValue;
-  const todayUp = data.todayPnl >= 0;
-  const openUp = data.openValue <= data.portfolioValue;
+  const firstName = useMemo(() => getFirstName(resolvedName), [resolvedName]);
+  const planTheme = useMemo(() => getPlanTheme(plan), [plan]);
+  const market = useMemo(() => getMarketLabel(), [marketTick]);
+
+  const connected = data.connected;
+  const portfolioValue = data.portfolioValue;
+  const todayValue = data.todayPnl;
+  const openValue = data.openValue;
+
+  const connectionText = connected ? "Connected" : "Disconnected";
+  const connectionColor = connected ? "text-emerald-300" : "text-rose-300";
+
+  const pnlColor = (value: number) =>
+    value > 0 ? "text-emerald-300" : value < 0 ? "text-rose-300" : "text-cyan-300";
 
   return (
-    <div className="rounded-[26px] border border-cyan-500/20 bg-[#071a33]/90 px-5 py-4 shadow-[0_16px_60px_rgba(0,0,0,0.28)]">
+    <div className="w-full rounded-[28px] border border-cyan-400/14 bg-[linear-gradient(180deg,rgba(4,21,45,0.92),rgba(2,14,31,0.94))] px-5 py-4 shadow-[0_0_40px_rgba(4,20,50,0.25)]">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="text-[11px] uppercase tracking-[0.30em] text-cyan-300">
-            Aurora Growth
-          </div>
-
-          <div className="mt-1 flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl font-semibold tracking-tight text-white">
-              {title}
-            </h1>
-            <span className="text-base text-slate-400">{subtitle}</span>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center gap-3 text-sm">
-            <span
-              className={data.connected ? "text-emerald-400" : "text-rose-400"}
-            >
-              {data.connected ? "Connected" : "Disconnected"}
+          <div className="mb-2 text-[12px] font-medium uppercase tracking-[0.34em]">
+            <span className="bg-[linear-gradient(90deg,#3dd9ff_0%,#5b8cff_35%,#a855f7_68%,#ec4899_100%)] bg-clip-text text-transparent">
+              AURORA GROWTH ACADEMY
             </span>
-
-            <span className="text-slate-500">|</span>
-
-            <span className={`inline-flex items-center gap-2 font-medium ${marketStatus.tone}`}>
-              <span className={`h-2.5 w-2.5 rounded-full ${marketStatus.dot}`} />
-              {marketStatus.label}
-            </span>
-
-            <span className="text-slate-500">|</span>
-
-            <MetricItem
-              label="Portfolio"
-              value={formatMoney(data.portfolioValue)}
-              positive={portfolioUp}
-            />
-
-            <div className="hidden md:flex items-center px-1">
-              <Sparkline values={history} />
-            </div>
-
-            <span className="text-slate-500">|</span>
-
-            <MetricItem
-              label="Today"
-              value={formatMoney(data.todayPnl)}
-              positive={todayUp}
-            />
-
-            <span className="text-slate-500">|</span>
-
-            <MetricItem
-              label="Open"
-              value={formatMoney(data.openValue)}
-              positive={openUp}
-            />
           </div>
+
+          <h1 className="truncate text-3xl font-semibold text-white sm:text-4xl">
+            {title}
+          </h1>
         </div>
 
-        <div ref={profileRef} className="relative flex shrink-0 items-start gap-3">
+        <div ref={menuRef} className="relative shrink-0">
           <button
             type="button"
-            onClick={() => setProfileOpen((prev) => !prev)}
-            className="flex items-center gap-3 rounded-2xl border border-cyan-400/10 px-2 py-1.5 transition hover:border-cyan-300/30 hover:bg-white/[0.03]"
+            onClick={() => setMenuOpen((v) => !v)}
+            className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium text-white/85 backdrop-blur transition hover:bg-white/10 ${planTheme.pill}`}
           >
-            <div className="text-right">
-              <div className="text-sm text-cyan-300">Welcome</div>
-              <div className="flex items-center justify-end gap-1 text-2xl text-white">
-                <span>{userName}</span>
-                <ChevronDown
-                  className={`h-4 w-4 text-slate-400 transition ${
-                    profileOpen ? "rotate-180" : ""
-                  }`}
-                />
-              </div>
-            </div>
-
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-cyan-500/20 text-cyan-300">
-              {userName?.charAt(0)?.toUpperCase() || "U"}
-            </div>
+            <span className="text-white/70">Welcome</span>
+            <span className={planTheme.name}>{firstName}</span>
+            <ChevronDown className={`h-4 w-4 text-white/70 transition ${menuOpen ? "rotate-180" : ""}`} />
           </button>
 
-          {profileOpen && (
-            <div className="absolute right-0 top-[calc(100%+10px)] z-50 min-w-[220px] overflow-hidden rounded-2xl border border-cyan-400/20 bg-[#0a1c36]/98 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
+          {menuOpen && (
+            <div className="absolute right-0 mt-2 w-48 overflow-hidden rounded-2xl border border-white/10 bg-[#091426]/95 p-2 shadow-2xl backdrop-blur-xl">
               <Link
                 href="/dashboard/account"
-                className="flex items-center gap-3 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/[0.05]"
+                onClick={() => setMenuOpen(false)}
+                className="block rounded-xl px-3 py-2 text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
               >
-                <User className="h-4 w-4 text-cyan-300" />
                 Account
               </Link>
 
               <Link
                 href="/dashboard/upgrade"
-                className="flex items-center gap-3 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/[0.05]"
+                onClick={() => setMenuOpen(false)}
+                className="mt-1 block rounded-xl px-3 py-2 text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
               >
-                <CreditCard className="h-4 w-4 text-cyan-300" />
-                Upgrade plan
+                Upgrade
               </Link>
 
-              <form action="/auth/signout" method="post" className="border-t border-white/10">
+              <form action="/auth/signout" method="post" className="mt-1">
                 <button
                   type="submit"
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-rose-300 transition hover:bg-rose-500/10"
+                  className="block w-full rounded-xl px-3 py-2 text-left text-sm text-rose-200 transition hover:bg-rose-500/10 hover:text-rose-100"
                 >
-                  <LogOut className="h-4 w-4" />
                   Log out
                 </button>
               </form>
             </div>
           )}
         </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+        <span className={connectionColor}>{connectionText}</span>
+        <span className="text-white/18">|</span>
+
+        <span className={market.color}>{market.label}</span>
+        <span className="text-white/18">|</span>
+
+        <span className="text-white/70">Portfolio</span>
+        <span className={pnlColor(portfolioValue)}>{formatMoney(portfolioValue)}</span>
+        <span className="mx-1 hidden h-px w-20 bg-cyan-300/20 lg:block" />
+
+        <span className="text-white/70">Today</span>
+        <span className={pnlColor(todayValue)}>{formatMoney(todayValue)}</span>
+
+        <span className="text-white/18">|</span>
+
+        <span className="text-white/70">Open</span>
+        <span className={pnlColor(openValue)}>{formatMoney(openValue)}</span>
+
+        {data.updatedAt ? (
+          <>
+            <span className="text-white/18">|</span>
+            <span className="text-white/50">
+              Last sync{" "}
+              {new Date(data.updatedAt).toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+              })}
+            </span>
+          </>
+        ) : null}
       </div>
     </div>
   );
