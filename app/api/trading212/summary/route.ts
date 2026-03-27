@@ -30,14 +30,11 @@ export async function GET() {
       ok: true,
       connected: true,
       summary: {
-        accountId: summary.accountId ?? "Trading 212",
-        currencyCode: summary.currencyCode ?? "GBP",
-        total: Number(summary.total ?? (summary as any).equity ?? 0),
-        invested: Number(summary.invested ?? (summary as any).pieValue ?? 0),
-        freeCash: Number(summary.freeCash ?? (summary as any).cash ?? 0),
-        result: Number(
-          summary.result ?? (summary as any).unrealisedProfitLoss ?? 0
-        ),
+        accountId: "Trading 212",
+        total: Number(summary.total ?? 0),
+        invested: Number(summary.invested ?? 0),
+        freeCash: Number(summary.free ?? 0),
+        result: Number(summary.ppl ?? summary.result ?? 0),
       },
       fetchedAt: new Date().toISOString(),
     });

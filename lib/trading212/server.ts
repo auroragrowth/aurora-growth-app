@@ -1,81 +1,41 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { decryptString, toBasicAuthHeader } from "@/lib/security/encryption";
-import { getCurrentUser, getUserConnectionByMode, getUserTradingMode } from "@/lib/trading212/connections";
-import type { TradingMode } from "@/lib/trading212/types";
-
-const TRADING212_BASE =
-  process.env.TRADING212_BASE_URL || "https://live.trading212.com/api/v0";
+import { getCurrentUser, getUserConnection, sanitizeConnection } from "@/lib/trading212/connections";
+import { trading212Fetch } from "@/lib/trading212/client";
 
 export type Trading212Summary = {
-  accountId?: string | number | null;
-  currencyCode?: string | null;
-  freeCash?: number | null;
-  invested?: number | null;
-  result?: number | null;
+  free?: number | null;
   total?: number | null;
+  ppl?: number | null;
+  result?: number | null;
+  invested?: number | null;
+  pieCash?: number | null;
+  blocked?: number | null;
 };
-
-function sanitizeConnection(connection: any) {
-  if (!connection) return null;
-
-  const {
-    api_key,
-    api_secret,
-    api_key_encrypted,
-    api_secret_encrypted,
-    access_token,
-    refresh_token,
-    ...safe
-  } = connection;
-
-  return safe;
-}
 
 export async function getTrading212ConnectionForUser() {
   const user = await getCurrentUser();
-  const mode = await getUserTradingMode(user.id);
-  const connection = await getUserConnectionByMode(user.id, mode);
-
-  return connection || null;
+  return getUserConnection(user.id);
 }
 
 export async function fetchTrading212Summary(): Promise<{
   connected: boolean;
   summary: Trading212Summary | null;
-  connection: any;
+  connection: Record<string, unknown> | null;
 }> {
   const connection = await getTrading212ConnectionForUser();
 
-  if (!connection?.api_key_encrypted || !connection?.api_secret_encrypted) {
+  if (!connection?.api_key_encrypted || !connection.is_connected) {
     return {
       connected: false,
       summary: null,
-      connection: sanitizeConnection(connection),
+      connection: sanitizeConnection(connection as unknown as Record<string, unknown>),
     };
   }
 
-  const apiKey = decryptString(connection.api_key_encrypted);
-  const apiSecret = decryptString(connection.api_secret_encrypted);
-
-  const res = await fetch(`${TRADING212_BASE}/equity/account/summary`, {
-    method: "GET",
-    headers: {
-      Authorization: toBasicAuthHeader(apiKey, apiSecret),
-      Accept: "application/json",
-    },
-    cache: "no-store",
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `Trading 212 summary failed (${res.status})`);
-  }
-
-  const summary = (await res.json()) as Trading212Summary;
+  const summary = await trading212Fetch<Trading212Summary>(connection, "/equity/account/cash");
 
   return {
     connected: true,
     summary,
-    connection: sanitizeConnection(connection),
+    connection: sanitizeConnection(connection as unknown as Record<string, unknown>),
   };
 }

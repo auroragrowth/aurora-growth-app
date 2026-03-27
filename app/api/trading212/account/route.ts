@@ -3,11 +3,12 @@ import {
   fetchTrading212Summary,
   getTrading212ConnectionForUser,
 } from "@/lib/trading212/server";
+import { sanitizeConnection } from "@/lib/trading212/connections";
 
 type CachedAccount = {
   connected: boolean;
-  data: any;
-  connection: any;
+  data: unknown;
+  connection: Record<string, unknown> | null;
   cachedAt: number;
 };
 
@@ -81,12 +82,12 @@ export async function GET() {
     return NextResponse.json(
       {
         ok: false,
-        connected: Boolean(connection?.is_active),
+        connected: Boolean(connection?.is_connected),
         error:
           error instanceof Error
             ? error.message
             : "Trading 212 account request failed",
-        connection,
+        connection: sanitizeConnection(connection as unknown as Record<string, unknown>),
         data: null,
       },
       { status: 500 }

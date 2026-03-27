@@ -1,13 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 
-function parseAdminEmails() {
-  return (process.env.ADMIN_EMAILS || "")
-    .split(",")
-    .map((v) => v.trim().toLowerCase())
-    .filter(Boolean);
-}
-
 export async function requireAdmin() {
   const supabase = await createClient();
 
@@ -16,16 +9,20 @@ export async function requireAdmin() {
     error,
   } = await supabase.auth.getUser();
 
-  if (error || !user?.email) {
+  if (error || !user) {
     redirect("/login");
   }
 
-  const adminEmails = parseAdminEmails();
-  const email = user.email.toLowerCase();
+  // Direct query: profiles.is_admin = true
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("is_admin")
+    .eq("id", user.id)
+    .single();
 
-  if (!adminEmails.includes(email)) {
+  if (!profile?.is_admin) {
     redirect("/dashboard");
   }
 
-  return { user, email };
+  return { user, email: user.email || "" };
 }

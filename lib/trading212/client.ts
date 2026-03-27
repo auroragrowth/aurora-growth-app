@@ -1,19 +1,20 @@
 import { decryptString } from "@/lib/security/encryption";
-import type { BrokerConnectionRecord, TradingMode } from "@/lib/trading212/types";
+import type { BrokerConnectionRecord } from "@/lib/trading212/types";
+import { TRADING212_BASE_URL } from "@/lib/trading212/connections";
 
-const BASE_URLS: Record<TradingMode, string> = {
-  paper: "https://demo.trading212.com/api/v0",
-  live: "https://live.trading212.com/api/v0",
-};
+export function getTrading212AuthHeader(connection: BrokerConnectionRecord): string {
+  try {
+    const decrypted = decryptString(connection.api_key_encrypted);
+    if (decrypted && decrypted.length > 5) return decrypted;
+  } catch (err) {
+    console.error("[Trading212] Decryption failed:", err instanceof Error ? err.message : err);
+  }
 
-export function getTrading212BaseUrl(mode: TradingMode) {
-  return BASE_URLS[mode];
-}
+  if (connection.api_key && connection.api_key.length > 5) {
+    return connection.api_key;
+  }
 
-export function getTrading212AuthHeader(connection: BrokerConnectionRecord) {
-  // Trading 212 API uses a simple token header: Authorization: <api_key>
-  const apiKey = decryptString(connection.api_key_encrypted);
-  return apiKey;
+  throw new Error("Cannot resolve Trading 212 API key");
 }
 
 export async function trading212Fetch<T>(
@@ -21,11 +22,14 @@ export async function trading212Fetch<T>(
   path: string,
   init?: RequestInit
 ): Promise<T> {
-  const res = await fetch(`${getTrading212BaseUrl(connection.mode)}${path}`, {
+  const url = `${TRADING212_BASE_URL}${path}`;
+  const authHeader = getTrading212AuthHeader(connection);
+
+  const res = await fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      Authorization: getTrading212AuthHeader(connection),
+      Authorization: authHeader,
       ...(init?.headers || {}),
     },
     cache: "no-store",
@@ -36,9 +40,7 @@ export async function trading212Fetch<T>(
     throw new Error(`Trading212 error ${res.status}: ${text}`);
   }
 
-  if (res.status === 204) {
-    return null as T;
-  }
+  if (res.status === 204) return null as T;
 
   return res.json() as Promise<T>;
 }

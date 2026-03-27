@@ -9,6 +9,7 @@ import {
   Star,
   BriefcaseBusiness,
   Calculator,
+  LineChart,
   Activity,
   Link2,
   CreditCard,
@@ -26,6 +27,7 @@ type DashboardShellProps = {
   joinDate?: string | null;
   planName?: string;
   brokerStatus?: string;
+  brokerConnected?: boolean;
 };
 
 type NavItem = {
@@ -38,8 +40,9 @@ const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutGrid },
   { label: "Market Scanner", href: "/dashboard/market-scanner", icon: ScanSearch },
   { label: "Watchlist", href: "/dashboard/watchlist", icon: Star },
-  { label: "Investments", href: "/dashboard/investments", icon: BriefcaseBusiness },
   { label: "Calculator", href: "/dashboard/investments/calculator", icon: Calculator },
+  { label: "Chart", href: "/dashboard/chart", icon: LineChart },
+  { label: "Investments", href: "/dashboard/investments", icon: BriefcaseBusiness },
   { label: "Volatility Compass", href: "/dashboard/volatility", icon: Activity },
   { label: "Connections", href: "/dashboard/connections", icon: Link2 },
   { label: "Upgrade Plan", href: "/dashboard/upgrade", icon: CreditCard },
@@ -94,7 +97,8 @@ export default function DashboardShell({
   lastLogin,
   joinDate,
   planName = "Aurora Free",
-  brokerStatus: initialBrokerStatus = "Not connected to Trading 212",
+  brokerStatus: initialBrokerStatus = "Disconnected",
+  brokerConnected: initialBrokerConnected = false,
 }: DashboardShellProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(true);
@@ -102,19 +106,16 @@ export default function DashboardShell({
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
   const [brokerStatus, setBrokerStatus] = useState(initialBrokerStatus);
+  const [brokerConnected, setBrokerConnected] = useState(initialBrokerConnected);
 
   const refreshBrokerStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/connections/trading212", { cache: "no-store" });
+      const res = await fetch("/api/connections/status", { cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
-      const connections = (data.connections || []) as Array<{ mode: string; is_active: boolean }>;
-      const active = connections.filter((c) => c.is_active);
-      if (active.length > 0) {
-        setBrokerStatus(`Trading 212 connected (${active.map((c) => c.mode).join(", ")})`);
-      } else {
-        setBrokerStatus("Not connected to Trading 212");
-      }
+      const isConnected = !!data.trading212?.is_connected;
+      setBrokerConnected(isConnected);
+      setBrokerStatus(isConnected ? "Connected" : "Disconnected");
     } catch {
       // keep current status on error
     }
@@ -295,12 +296,12 @@ export default function DashboardShell({
                 )}
 
                 <div className={`hidden items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium xl:flex ${
-                  brokerStatus.includes("connected")
+                  brokerConnected
                     ? "border-emerald-300/18 bg-emerald-400/10 text-emerald-100"
                     : "border-rose-300/18 bg-rose-400/10 text-rose-100"
                 }`}>
                   <span className={`h-2 w-2 rounded-full ${
-                    brokerStatus.includes("connected")
+                    brokerConnected
                       ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]"
                       : "bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.7)]"
                   }`} />

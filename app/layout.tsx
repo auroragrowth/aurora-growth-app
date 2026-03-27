@@ -6,6 +6,9 @@ import AuroraToastHost from "@/components/ui/aurora-toast-host";
 export const metadata: Metadata = {
   title: "Aurora Growth",
   description: "Aurora Growth Platform",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({

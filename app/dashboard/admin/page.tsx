@@ -4,6 +4,7 @@ import { promises as fs } from "fs";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
+import { UserStatsSection, ErrorLogsSection, TelegramTestButton } from "./AdminClientSections";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -183,6 +184,26 @@ async function getLastBackupFile() {
   }
 }
 
+async function getGitStatus() {
+  try {
+    const [logResult, branchResult, statusResult] = await Promise.all([
+      execAsync("cd /var/www/aurora-app-dev && git log --oneline -1"),
+      execAsync("cd /var/www/aurora-app-dev && git branch --show-current"),
+      execAsync("cd /var/www/aurora-app-dev && git status --porcelain"),
+    ]);
+    const parts = logResult.stdout.trim().split(" ");
+    return {
+      hash: parts[0] || "—",
+      message: parts.slice(1).join(" ") || "—",
+      branch: branchResult.stdout.trim() || "main",
+      hasChanges: statusResult.stdout.trim().length > 0,
+      changedFiles: statusResult.stdout.trim().split("\n").filter(Boolean).length,
+    };
+  } catch {
+    return { hash: "—", message: "Unavailable", branch: "—", hasChanges: false, changedFiles: 0 };
+  }
+}
+
 async function getActivity(): Promise<ActivityRow[]> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key =
@@ -193,7 +214,7 @@ async function getActivity(): Promise<ActivityRow[]> {
 
   try {
     const res = await fetch(
-      `${url}/rest/v1/user_activity_log?select=id,user_id,email,event_type,event_label,metadata,created_at&order=created_at.desc&limit=20`,
+      `${url}/rest/v1/user_activity_log?select=id,user_id,email,event_type,event_label,metadata,created_at&order=created_at.desc&limit=50`,
       {
         headers: {
           apikey: key,
@@ -221,6 +242,7 @@ export default async function AdminDashboardPage() {
     liveCommit,
     lastBackupFile,
     activity,
+    gitStatus,
   ] = await Promise.all([
     getPm2Apps(),
     getDeployLog(),
@@ -228,6 +250,7 @@ export default async function AdminDashboardPage() {
     getCurrentLiveCommit(),
     getLastBackupFile(),
     getActivity(),
+    getGitStatus(),
   ]);
 
   const liveApp = pm2Apps.find((app) => app.name === "aurora-app");
@@ -253,12 +276,15 @@ export default async function AdminDashboardPage() {
               </p>
             </div>
 
-            <Link
-              href="/dashboard"
-              className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10"
-            >
-              Back to Dashboard
-            </Link>
+            <div className="flex flex-wrap items-center gap-3">
+              <TelegramTestButton />
+              <Link
+                href="/dashboard"
+                className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10"
+              >
+                Back to Dashboard
+              </Link>
+            </div>
           </div>
         </div>
 
@@ -364,6 +390,41 @@ export default async function AdminDashboardPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* User Stats */}
+        <div className="mb-6">
+          <UserStatsSection />
+        </div>
+
+        {/* GitHub Status */}
+        <div className="mb-6 rounded-[24px] border border-white/8 bg-white/[0.03] p-5">
+          <div className="mb-4 text-[11px] uppercase tracking-[0.28em] text-slate-400">GitHub Status</div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+            <div>
+              <span className="text-slate-400">Branch:</span>{" "}
+              <span className="font-medium text-cyan-300">{gitStatus.branch}</span>
+            </div>
+            <div>
+              <span className="text-slate-400">Last commit:</span>{" "}
+              <span className="font-mono text-xs text-slate-200">{gitStatus.hash}</span>
+            </div>
+            <div className="sm:col-span-2">
+              <span className="text-slate-400">Message:</span>{" "}
+              <span className="text-slate-200">{gitStatus.message}</span>
+            </div>
+          </div>
+          {gitStatus.hasChanges && (
+            <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-xs text-amber-200">
+              <span className="h-2 w-2 rounded-full bg-amber-400" />
+              {gitStatus.changedFiles} uncommitted change{gitStatus.changedFiles !== 1 ? "s" : ""}
+            </div>
+          )}
+        </div>
+
+        {/* Error Logs */}
+        <div className="mb-6">
+          <ErrorLogsSection />
         </div>
 
         <div className="mb-6 grid gap-4 xl:grid-cols-2">

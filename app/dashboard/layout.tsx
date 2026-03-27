@@ -1,7 +1,11 @@
 import { redirect } from "next/navigation";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import BrokerConnectModal from "@/components/dashboard/BrokerConnectModal";
+import { BrokerPopupProvider } from "@/components/providers/BrokerPopupProvider";
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+
+export const dynamic = "force-dynamic";
 
 export default async function DashboardLayout({
   children,
@@ -23,22 +27,28 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const fullName =
-    (user.user_metadata?.full_name as string | undefined) ||
-    (user.user_metadata?.name as string | undefined) ||
-    (user.user_metadata?.first_name as string | undefined) ||
+  // Fetch profile for plan info + full_name — fallback gracefully
+  let fullName =
     user.email?.split("@")[0] ||
     "User";
-
-  // Fetch profile for plan info — fallback gracefully
   let plan = "free";
   let planLabel = "Aurora Free";
   try {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("plan, plan_key, subscription_status")
+      .select("full_name, plan, plan_key, subscription_status")
       .eq("id", user.id)
       .maybeSingle();
+
+    if (profile?.full_name) {
+      fullName = profile.full_name;
+    } else {
+      fullName =
+        (user.user_metadata?.full_name as string | undefined) ||
+        (user.user_metadata?.name as string | undefined) ||
+        (user.user_metadata?.first_name as string | undefined) ||
+        fullName;
+    }
 
     plan = profile?.plan ?? profile?.plan_key ?? "free";
     planLabel =
@@ -50,35 +60,56 @@ export default async function DashboardLayout({
     console.error("Failed to fetch profile in layout:", err);
   }
 
-  // Check broker connection — fallback gracefully
-  let brokerStatus = "Not connected to Trading 212";
+  // ── Broker connection status ──────────────────────────────
+  let brokerStatus = "Disconnected";
+  let brokerConnected = false;
+  let showBrokerPopup = false;
+
   try {
-    const { data: connections } = await supabase
-      .from("broker_connections")
-      .select("id, mode, is_active")
+    const { data: connection } = await supabaseAdmin
+      .from("trading212_connections")
+      .select("id, is_connected")
       .eq("user_id", user.id)
       .eq("broker", "trading212")
-      .eq("is_active", true);
+      .eq("is_active", true)
+      .maybeSingle();
 
-    const hasConnection = (connections || []).length > 0;
-    brokerStatus = hasConnection
-      ? `Trading 212 connected (${(connections || []).map((c: any) => c.mode).join(", ")})`
-      : "Not connected to Trading 212";
+    if (connection) {
+      // User has a connection row — never show popup
+      brokerConnected = !!connection.is_connected;
+      brokerStatus = brokerConnected ? "Connected" : "Disconnected";
+    } else {
+      // No connection row — check if popup was dismissed
+      let dismissed = false;
+      try {
+        const { data: flags } = await supabaseAdmin
+          .from("profiles")
+          .select("has_seen_trading212_prompt, trading212_connected")
+          .eq("id", user.id)
+          .maybeSingle();
+        dismissed = !!(flags?.has_seen_trading212_prompt || flags?.trading212_connected);
+      } catch { /* columns may not exist */ }
+
+      showBrokerPopup = !dismissed;
+    }
   } catch (err) {
-    console.error("Failed to fetch broker connections in layout:", err);
+    console.error("Failed to check trading212 in layout:", err);
   }
 
   return (
-    <DashboardShell
-      userName={fullName}
-      userEmail={user.email || ""}
-      lastLogin={user.last_sign_in_at}
-      joinDate={user.created_at}
-      planName={planLabel}
-      brokerStatus={brokerStatus}
-    >
-      {children}
-      <BrokerConnectModal />
-    </DashboardShell>
+    <BrokerPopupProvider>
+      <DashboardShell
+        userName={fullName}
+        userEmail={user.email || ""}
+        lastLogin={user.last_sign_in_at}
+        joinDate={user.created_at}
+        planName={planLabel}
+        brokerStatus={brokerStatus}
+        brokerConnected={brokerConnected}
+      >
+        {children}
+        {showBrokerPopup && <BrokerConnectModal />}
+      </DashboardShell>
+    </BrokerPopupProvider>
   );
 }

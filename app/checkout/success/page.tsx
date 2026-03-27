@@ -54,7 +54,7 @@ export default function CheckoutSuccessPage() {
     }
 
     checkStatus();
-    const interval = setInterval(checkStatus, 2500);
+    const interval = setInterval(checkStatus, 2000);
 
     return () => {
       cancelled = true;
@@ -132,13 +132,19 @@ export default function CheckoutSuccessPage() {
                 <div className="h-10 w-10 animate-spin rounded-full border-3 border-white/10 border-t-cyan-400" />
               </div>
 
-              {attempts > 8 ? (
-                <p className="mt-6 text-sm text-white/40">
-                  Taking longer than expected.{" "}
-                  <a href="/dashboard" className="underline hover:text-white/60">
-                    Go to dashboard anyway
+              {attempts > 7 ? (
+                <div className="mt-6 space-y-3">
+                  <p className="text-sm text-white/50">
+                    Taking longer than expected — your payment was received and
+                    your plan will activate shortly.
+                  </p>
+                  <a
+                    href="/dashboard"
+                    className="inline-flex rounded-full bg-[linear-gradient(90deg,#22d3ee_0%,#3b82f6_50%,#d946ef_100%)] px-6 py-3 text-sm font-medium text-white shadow-[0_8px_30px_rgba(59,130,246,0.3)] transition hover:brightness-110"
+                  >
+                    Continue to Dashboard
                   </a>
-                </p>
+                </div>
               ) : null}
             </>
           )}

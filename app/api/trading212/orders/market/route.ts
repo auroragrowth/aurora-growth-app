@@ -1,15 +1,14 @@
 import { badRequest, ok, serverError } from "@/lib/api/json";
-import { getCurrentUser, getUserConnectionByMode, getUserTradingMode } from "@/lib/trading212/connections";
+import { getCurrentUser, getUserConnection } from "@/lib/trading212/connections";
 import { trading212Fetch } from "@/lib/trading212/client";
 
 export async function POST(req: Request) {
   try {
     const user = await getCurrentUser();
-    const mode = await getUserTradingMode(user.id);
-    const connection = await getUserConnectionByMode(user.id, mode);
+    const connection = await getUserConnection(user.id);
 
     if (!connection) {
-      return badRequest(`No active Trading 212 ${mode} connection found.`);
+      return badRequest("No active Trading 212 connection found.");
     }
 
     const body = await req.json();
@@ -22,16 +21,12 @@ export async function POST(req: Request) {
       return badRequest("Quantity must be a non-zero number.");
     }
 
-    const order = await trading212Fetch<any>(connection, "/equity/orders/market", {
+    const order = await trading212Fetch<unknown>(connection, "/equity/orders/market", {
       method: "POST",
-      body: JSON.stringify({
-        ticker,
-        quantity,
-        extendedHours,
-      }),
+      body: JSON.stringify({ ticker, quantity, extendedHours }),
     });
 
-    return ok({ success: true, mode, order });
+    return ok({ success: true, order });
   } catch (error) {
     return serverError(error instanceof Error ? error.message : "Failed to place market order.");
   }

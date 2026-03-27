@@ -59,12 +59,12 @@ Custom hooks in `hooks/`:
 - `useTrading212Summary` — polls summary every 60s
 
 ### Trading212 Broker Integration (`lib/trading212/`)
-1. User submits API key/secret → encrypted with AES-256-GCM (`lib/security/encryption.ts`) → stored in `broker_connections` table
+1. User submits API key/secret → encrypted with AES-256-GCM (`lib/security/encryption.ts`) → stored in `trading212_connections` table
 2. Server decrypts on demand → calls Trading212 REST API using `Authorization: Basic <base64(key:secret)>`
 3. `BROKER_CREDENTIALS_SECRET` env var (32+ chars) is used for AES key derivation
 
 ### Database (`supabase/migrations/`)
-- **broker_connections** — encrypted broker credentials per user/broker/mode (paper|live); RLS enforced
+- **trading212_connections** — encrypted broker credentials per user/broker/mode (paper|live); RLS enforced
 - **profiles** — extends Supabase auth.users; includes `trading_mode` (paper|live)
 
 Full schema history is in migration files. Always check existing RLS policies before writing queries that touch user data.

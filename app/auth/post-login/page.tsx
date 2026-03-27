@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { sendAdminAlert } from "@/lib/telegram/admin";
 
 function isActive(status?: string | null) {
   return status === "active" || status === "trialing";
@@ -34,6 +35,11 @@ export default async function PostLoginPage() {
         role: "member",
       },
       { onConflict: "id" }
+    );
+
+    sendAdminAlert(
+      `👤 New signup\nEmail: ${user.email}\nName: ${user.user_metadata?.full_name || "—"}`,
+      "info"
     );
 
     redirect("/select-plan");

@@ -3,6 +3,7 @@ import {
   fetchTrading212Summary,
   getTrading212ConnectionForUser,
 } from "@/lib/trading212/server";
+import { sanitizeConnection } from "@/lib/trading212/connections";
 
 type CachedOverview = {
   connected: boolean;
@@ -18,7 +19,7 @@ type CachedOverview = {
     free_cash: number;
     invested: number;
   };
-  connection: any;
+  connection: Record<string, unknown> | null;
   cachedAt: number;
 };
 
@@ -67,9 +68,9 @@ export async function GET() {
     const result = await fetchTrading212Summary();
     const summary = result.summary;
 
-    const freeCash = toNumber(summary?.freeCash);
+    const freeCash = toNumber(summary?.free);
     const invested = toNumber(summary?.invested);
-    const totalPnl = toNumber(summary?.result);
+    const totalPnl = toNumber(summary?.ppl ?? summary?.result);
     const totalValue = toNumber(summary?.total);
 
     const portfolioValue = totalValue || invested + totalPnl;
@@ -125,12 +126,12 @@ export async function GET() {
     return NextResponse.json(
       {
         ok: false,
-        connected: Boolean(connection?.is_active),
+        connected: Boolean(connection?.is_connected),
         error:
           error instanceof Error
             ? error.message
             : "Trading 212 overview request failed",
-        connection,
+        connection: sanitizeConnection(connection as unknown as Record<string, unknown>),
         overview: null,
       },
       { status: 500 }

@@ -1,43 +1,22 @@
 import { badRequest, ok, serverError, unauthorized } from "@/lib/api/json";
 import { encryptString } from "@/lib/security/encryption";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import {
-  getAllUserConnections,
-  getCurrentUser,
-  getUserTradingMode,
-} from "@/lib/trading212/connections";
-import type { TradingMode } from "@/lib/trading212/types";
+import { getCurrentUser, getUserConnection, sanitizeConnection } from "@/lib/trading212/connections";
+
+const BASE_URL = "https://live.trading212.com/api/v0";
 
 export async function GET() {
   try {
     const user = await getCurrentUser();
-
-    const [connections, tradingMode] = await Promise.all([
-      getAllUserConnections(user.id),
-      getUserTradingMode(user.id),
-    ]);
+    const connection = await getUserConnection(user.id);
 
     return ok({
-      tradingMode,
-      connections: connections.map((c) => ({
-        id: c.id,
-        broker: c.broker,
-        mode: c.mode,
-        display_name: c.display_name,
-        account_id: c.account_id,
-        account_currency: c.account_currency,
-        account_type: c.account_type,
-        is_active: c.is_active,
-        last_tested_at: c.last_tested_at,
-        last_sync_at: c.last_sync_at,
-        created_at: c.created_at,
-        updated_at: c.updated_at,
-      })),
+      connection: connection
+        ? sanitizeConnection(connection as unknown as Record<string, unknown>)
+        : null,
     });
   } catch (error) {
-    return unauthorized(
-      error instanceof Error ? error.message : "Unauthorized"
-    );
+    return unauthorized(error instanceof Error ? error.message : "Unauthorized");
   }
 }
 
@@ -46,13 +25,8 @@ export async function POST(req: Request) {
     const user = await getCurrentUser();
     const body = await req.json();
 
-    const mode = body.mode as TradingMode;
     const apiKey = String(body.apiKey || "").trim();
     const apiSecret = String(body.apiSecret || "").trim();
-
-    if (!mode || !["paper", "live"].includes(mode)) {
-      return badRequest("Mode must be paper or live.");
-    }
 
     if (!apiKey) {
       return badRequest("API key is required.");
@@ -61,61 +35,100 @@ export async function POST(req: Request) {
     const payload = {
       user_id: user.id,
       broker: "trading212",
-      mode,
       api_key_encrypted: encryptString(apiKey),
+      api_key: apiKey,
       api_secret_encrypted: apiSecret ? encryptString(apiSecret) : null,
       is_active: true,
     };
 
     const { data, error } = await supabaseAdmin
-      .from("broker_connections")
-      .upsert(payload, { onConflict: "user_id,broker,mode" })
-      .select("id, broker, mode, is_active, created_at, updated_at")
+      .from("trading212_connections")
+      .upsert(payload, { onConflict: "user_id,broker" })
+      .select("id, broker, is_active, created_at, updated_at")
       .single();
 
     if (error) {
       return serverError(error.message);
     }
 
-    // Update profiles.trading_mode to match the saved connection mode
-    await supabaseAdmin
-      .from("profiles")
-      .update({ trading_mode: mode })
-      .eq("id", user.id);
+    // Verify against Trading 212 API
+    try {
+      const res = await fetch(`${BASE_URL}/equity/account/info`, {
+        method: "GET",
+        headers: { Authorization: apiKey, Accept: "application/json" },
+        cache: "no-store",
+      });
 
-    return ok({ success: true, connection: data });
+      if (!res.ok) {
+        const text = await res.text().catch(() => "");
+        const errMsg = text || `Trading 212 verification failed (${res.status})`;
+
+        await supabaseAdmin
+          .from("trading212_connections")
+          .update({ is_connected: false, last_error: errMsg, last_tested_at: new Date().toISOString() })
+          .eq("id", data.id);
+
+        return ok({ success: true, verified: false, error: errMsg, connection: data });
+      }
+
+      const account = await res.json();
+
+      await supabaseAdmin
+        .from("trading212_connections")
+        .update({
+          is_connected: true,
+          account_id: account?.id?.toString() || null,
+          account_currency: account?.currencyCode || null,
+          account_type: "live",
+          display_name: "Trading 212",
+          last_tested_at: new Date().toISOString(),
+          last_sync_at: new Date().toISOString(),
+          last_error: null,
+        })
+        .eq("id", data.id);
+
+      await supabaseAdmin
+        .from("profiles")
+        .update({ trading212_connected: true })
+        .eq("id", user.id);
+
+      return ok({ success: true, verified: true, connection: data });
+    } catch (verifyErr) {
+      const errMsg = verifyErr instanceof Error ? verifyErr.message : "Verification failed";
+
+      await supabaseAdmin
+        .from("trading212_connections")
+        .update({ is_connected: false, last_error: errMsg, last_tested_at: new Date().toISOString() })
+        .eq("id", data.id);
+
+      return ok({ success: true, verified: false, error: errMsg, connection: data });
+    }
   } catch (error) {
-    return serverError(
-      error instanceof Error ? error.message : "Failed to save connection."
-    );
+    return serverError(error instanceof Error ? error.message : "Failed to save connection.");
   }
 }
 
-export async function DELETE(req: Request) {
+export async function DELETE() {
   try {
     const user = await getCurrentUser();
-    const { searchParams } = new URL(req.url);
-    const mode = searchParams.get("mode") as TradingMode | null;
-
-    if (!mode || !["paper", "live"].includes(mode)) {
-      return badRequest("Mode must be paper or live.");
-    }
 
     const { error } = await supabaseAdmin
-      .from("broker_connections")
+      .from("trading212_connections")
       .delete()
       .eq("user_id", user.id)
-      .eq("broker", "trading212")
-      .eq("mode", mode);
+      .eq("broker", "trading212");
 
     if (error) {
       return serverError(error.message);
     }
 
+    await supabaseAdmin
+      .from("profiles")
+      .update({ trading212_connected: false })
+      .eq("id", user.id);
+
     return ok({ success: true });
   } catch (error) {
-    return serverError(
-      error instanceof Error ? error.message : "Failed to delete connection."
-    );
+    return serverError(error instanceof Error ? error.message : "Failed to delete connection.");
   }
 }

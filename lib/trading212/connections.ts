@@ -1,6 +1,10 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import type { BrokerConnectionRecord, TradingMode } from "@/lib/trading212/types";
+import type { BrokerConnectionRecord } from "@/lib/trading212/types";
+
+const BASE_URL = "https://live.trading212.com/api/v0";
+
+export { BASE_URL as TRADING212_BASE_URL };
 
 export async function getCurrentUser() {
   const supabase = await createSupabaseServerClient();
@@ -13,33 +17,12 @@ export async function getCurrentUser() {
   return data.user;
 }
 
-export async function getUserTradingMode(userId: string): Promise<TradingMode> {
+export async function getUserConnection(userId: string) {
   const { data, error } = await supabaseAdmin
-    .from("profiles")
-    .select("trading_mode")
-    .eq("id", userId)
-    .single();
-
-  if (error || !data?.trading_mode) return "paper";
-  return data.trading_mode as TradingMode;
-}
-
-export async function setUserTradingMode(userId: string, mode: TradingMode) {
-  const { error } = await supabaseAdmin
-    .from("profiles")
-    .update({ trading_mode: mode })
-    .eq("id", userId);
-
-  if (error) throw error;
-}
-
-export async function getUserConnectionByMode(userId: string, mode: TradingMode) {
-  const { data, error } = await supabaseAdmin
-    .from("broker_connections")
+    .from("trading212_connections")
     .select("*")
     .eq("user_id", userId)
     .eq("broker", "trading212")
-    .eq("mode", mode)
     .eq("is_active", true)
     .maybeSingle();
 
@@ -47,14 +30,21 @@ export async function getUserConnectionByMode(userId: string, mode: TradingMode)
   return data as BrokerConnectionRecord | null;
 }
 
-export async function getAllUserConnections(userId: string) {
-  const { data, error } = await supabaseAdmin
-    .from("broker_connections")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("broker", "trading212")
-    .order("created_at", { ascending: true });
+/**
+ * Strip sensitive fields before returning connection data to the client.
+ */
+export function sanitizeConnection(connection: Record<string, unknown> | null) {
+  if (!connection) return null;
 
-  if (error) throw error;
-  return (data || []) as BrokerConnectionRecord[];
+  const {
+    api_key,
+    api_secret,
+    api_key_encrypted,
+    api_secret_encrypted,
+    access_token,
+    refresh_token,
+    ...safe
+  } = connection;
+
+  return safe;
 }

@@ -6,6 +6,7 @@ const ALLOWED_FIELDS = [
   "has_seen_welcome_popup",
   "has_seen_plan_selection",
   "has_completed_onboarding",
+  "has_seen_trading212_prompt",
   "trading212_connected",
   "trading212_mode",
 ] as const;
@@ -24,11 +25,10 @@ export async function GET() {
     return NextResponse.json({ ok: false }, { status: 401 });
   }
 
+  // Select only columns that are guaranteed to exist, then try extended columns
   const { data: profile, error } = await supabase
     .from("profiles")
-    .select(
-      "onboarding_step, has_seen_welcome_popup, has_seen_plan_selection, has_completed_onboarding, trading212_connected, trading212_mode, plan, plan_key, subscription_status"
-    )
+    .select("plan, plan_key, subscription_status")
     .eq("id", user.id)
     .single();
 
@@ -36,7 +36,22 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true, ...profile });
+  // Try to read onboarding columns — these may not exist if migrations haven't run
+  let extended: Record<string, unknown> = {};
+  try {
+    const { data: ext } = await supabase
+      .from("profiles")
+      .select(
+        "onboarding_step, has_seen_welcome_popup, has_seen_plan_selection, has_completed_onboarding, has_seen_trading212_prompt, trading212_connected, trading212_mode, has_completed_plan_selection"
+      )
+      .eq("id", user.id)
+      .single();
+    if (ext) extended = ext;
+  } catch {
+    // Columns don't exist yet — that's fine
+  }
+
+  return NextResponse.json({ ok: true, ...profile, ...extended });
 }
 
 export async function PATCH(req: Request) {

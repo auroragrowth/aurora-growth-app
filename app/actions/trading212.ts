@@ -2,24 +2,20 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { encryptString, toBasicAuthHeader } from "@/lib/security/encryption";
-import { getUserTradingMode } from "@/lib/trading212/connections";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { encryptString } from "@/lib/security/encryption";
+
+const BASE_URL = "https://live.trading212.com/api/v0";
 
 type ConnectResult = {
   ok: boolean;
   error?: string;
 };
 
-const TRADING212_BASE =
-  process.env.TRADING212_BASE_URL || "https://live.trading212.com/api/v0";
-
-async function getTrading212AccountSummary(apiKey: string, apiSecret: string) {
-  const res = await fetch(`${TRADING212_BASE}/equity/account/summary`, {
+async function verifyTrading212Key(apiKey: string) {
+  const res = await fetch(`${BASE_URL}/equity/account/info`, {
     method: "GET",
-    headers: {
-      Authorization: toBasicAuthHeader(apiKey, apiSecret),
-      Accept: "application/json",
-    },
+    headers: { Authorization: apiKey, Accept: "application/json" },
     cache: "no-store",
   });
 
@@ -37,8 +33,8 @@ export async function connectTrading212(
   const apiKey = String(formData.get("apiKey") || "").trim();
   const apiSecret = String(formData.get("apiSecret") || "").trim();
 
-  if (!apiKey || !apiSecret) {
-    return { ok: false, error: "API key and API secret are required." };
+  if (!apiKey) {
+    return { ok: false, error: "API key is required." };
   }
 
   const supabase = await createClient();
@@ -53,46 +49,45 @@ export async function connectTrading212(
   }
 
   try {
-    const [account, mode] = await Promise.all([
-      getTrading212AccountSummary(apiKey, apiSecret),
-      getUserTradingMode(user.id),
-    ]);
+    const account = await verifyTrading212Key(apiKey);
 
     const payload = {
       user_id: user.id,
       broker: "trading212",
-      mode,
       api_key_encrypted: encryptString(apiKey),
-      api_secret_encrypted: encryptString(apiSecret),
+      api_key: apiKey,
+      api_secret_encrypted: apiSecret ? encryptString(apiSecret) : null,
       is_active: true,
-      display_name:
-        account?.accountId?.toString?.() ||
-        account?.accountId ||
-        "Trading 212",
-      account_currency:
-        account?.currencyCode?.toString?.() ||
-        account?.currency?.toString?.() ||
-        "GBP",
+      is_connected: true,
+      display_name: "Trading 212",
+      account_currency: account?.currencyCode?.toString?.() || "GBP",
+      account_id: account?.id?.toString?.() || null,
+      account_type: "live",
+      last_tested_at: new Date().toISOString(),
       last_sync_at: new Date().toISOString(),
+      last_error: null,
     };
 
     const { error } = await supabase
-      .from("broker_connections")
-      .upsert(payload, { onConflict: "user_id,broker,mode" });
+      .from("trading212_connections")
+      .upsert(payload, { onConflict: "user_id,broker" });
 
     if (error) {
       return { ok: false, error: error.message };
     }
 
+    await supabaseAdmin
+      .from("profiles")
+      .update({ trading212_connected: true })
+      .eq("id", user.id);
+
     revalidatePath("/dashboard/account");
+    revalidatePath("/dashboard/connections");
     return { ok: true };
   } catch (error) {
     return {
       ok: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Could not connect Trading 212.",
+      error: error instanceof Error ? error.message : "Could not connect Trading 212.",
     };
   }
 }
@@ -110,28 +105,28 @@ export async function disconnectTrading212(): Promise<ConnectResult> {
   }
 
   try {
-    const mode = await getUserTradingMode(user.id);
-
     const { error } = await supabase
-      .from("broker_connections")
-      .update({ is_active: false })
+      .from("trading212_connections")
+      .update({ is_active: false, is_connected: false })
       .eq("user_id", user.id)
-      .eq("broker", "trading212")
-      .eq("mode", mode);
+      .eq("broker", "trading212");
 
     if (error) {
       return { ok: false, error: error.message };
     }
 
+    await supabaseAdmin
+      .from("profiles")
+      .update({ trading212_connected: false })
+      .eq("id", user.id);
+
     revalidatePath("/dashboard/account");
+    revalidatePath("/dashboard/connections");
     return { ok: true };
   } catch (error) {
     return {
       ok: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : "Could not disconnect Trading 212.",
+      error: error instanceof Error ? error.message : "Could not disconnect Trading 212.",
     };
   }
 }

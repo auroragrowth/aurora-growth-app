@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server";
-import { decryptString, toBasicAuthHeader } from "@/lib/security/encryption";
 import { getTrading212ConnectionForUser } from "@/lib/trading212/server";
-
-const TRADING212_BASE =
-  process.env.TRADING212_BASE_URL || "https://live.trading212.com/api/v0";
+import { trading212Fetch } from "@/lib/trading212/client";
+import { sanitizeConnection } from "@/lib/trading212/connections";
 
 type CachedPositions = {
   connected: boolean;
-  positions: any[];
-  connection: any;
+  positions: unknown[];
+  connection: Record<string, unknown> | null;
   cachedAt: number;
 };
 
@@ -17,22 +15,6 @@ const CACHE_TTL_MS = 30000;
 declare global {
   // eslint-disable-next-line no-var
   var __auroraTrading212PositionsCache: CachedPositions | undefined;
-}
-
-function sanitizeConnection(connection: any) {
-  if (!connection) return null;
-
-  const {
-    api_key,
-    api_secret,
-    api_key_encrypted,
-    api_secret_encrypted,
-    access_token,
-    refresh_token,
-    ...safe
-  } = connection;
-
-  return safe;
 }
 
 function getCache() {
@@ -62,13 +44,14 @@ export async function GET() {
 
   const connection = await getTrading212ConnectionForUser();
 
-  if (!connection?.api_key_encrypted || !connection?.api_secret_encrypted) {
+  if (!connection?.api_key_encrypted || !connection.is_connected) {
+    console.log("[Trading212] positions: no active connection found");
     return NextResponse.json(
       {
         ok: false,
         connected: false,
         error: "Trading 212 connection not configured",
-        connection: sanitizeConnection(connection),
+        connection: sanitizeConnection(connection as unknown as Record<string, unknown>),
         positions: [],
       },
       { status: 404 }
@@ -76,57 +59,25 @@ export async function GET() {
   }
 
   try {
-    const apiKey = decryptString(connection.api_key_encrypted);
-    const apiSecret = decryptString(connection.api_secret_encrypted);
+    const positions = await trading212Fetch<unknown[]>(connection, "/equity/portfolio");
 
-    const res = await fetch(`${TRADING212_BASE}/equity/portfolio`, {
-      method: "GET",
-      headers: {
-        Authorization: toBasicAuthHeader(apiKey, apiSecret),
-        Accept: "application/json",
-      },
-      cache: "no-store",
-    });
+    const safeConn = sanitizeConnection(connection as unknown as Record<string, unknown>);
 
-    const text = await res.text();
-    const parsed = text ? JSON.parse(text) : [];
-    const positions = Array.isArray(parsed) ? parsed : [];
-
-    if (res.status === 429 && cached) {
+    if (!Array.isArray(positions)) {
       return NextResponse.json({
         ok: true,
         connected: true,
-        cached: true,
-        stale: true,
-        warning: "Rate limited - using cached Trading 212 positions",
-        connection: cached.connection,
-        positions: cached.positions,
+        cached: false,
+        stale: false,
+        connection: safeConn,
+        positions: [],
       });
-    }
-
-    if (!res.ok) {
-      return NextResponse.json(
-        {
-          ok: false,
-          connected: true,
-          error:
-            Array.isArray(parsed)
-              ? `Trading 212 positions request failed (${res.status})`
-              : parsed?.message ||
-                parsed?.error ||
-                text ||
-                `Trading 212 positions request failed (${res.status})`,
-          connection: sanitizeConnection(connection),
-          positions: [],
-        },
-        { status: res.status }
-      );
     }
 
     globalThis.__auroraTrading212PositionsCache = {
       connected: true,
       positions,
-      connection: sanitizeConnection(connection),
+      connection: safeConn,
       cachedAt: Date.now(),
     };
 
@@ -135,7 +86,7 @@ export async function GET() {
       connected: true,
       cached: false,
       stale: false,
-      connection: sanitizeConnection(connection),
+      connection: safeConn,
       positions,
     });
   } catch (error) {
@@ -161,7 +112,7 @@ export async function GET() {
           error instanceof Error
             ? error.message
             : "Trading 212 positions request failed",
-        connection: sanitizeConnection(connection),
+        connection: sanitizeConnection(connection as unknown as Record<string, unknown>),
         positions: [],
       },
       { status: 500 }

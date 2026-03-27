@@ -26,18 +26,20 @@ export default async function DashboardPage() {
 
   if (!user) redirect("/login");
 
-  const firstName =
-    (user.user_metadata?.full_name as string | undefined)?.split(" ")[0] ||
-    (user.user_metadata?.name as string | undefined)?.split(" ")[0] ||
-    user.email?.split("@")[0] ||
-    "there";
-
-  // Fetch profile
+  // Fetch profile (including full_name for greeting)
   const { data: profile } = await supabase
     .from("profiles")
-    .select("plan, plan_key, subscription_status")
+    .select("full_name, plan, plan_key, subscription_status")
     .eq("id", user.id)
     .maybeSingle();
+
+  const profileName = profile?.full_name;
+  const firstName = profileName
+    ? profileName.split(" ")[0]
+    : (user.user_metadata?.full_name as string | undefined)?.split(" ")[0] ||
+      (user.user_metadata?.name as string | undefined)?.split(" ")[0] ||
+      user.email?.split("@")[0] ||
+      "there";
 
   const plan = profile?.plan ?? profile?.plan_key ?? "free";
   const planLabel =
