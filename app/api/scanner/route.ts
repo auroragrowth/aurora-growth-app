@@ -19,7 +19,7 @@ function getSupabase() {
 
 export async function GET(req: NextRequest) {
   try {
-    const universe = (req.nextUrl.searchParams.get("universe") || "core")
+    const universe = (req.nextUrl.searchParams.get("universe") || "all")
       .trim()
       .toLowerCase();
 
@@ -35,15 +35,12 @@ export async function GET(req: NextRequest) {
       query = query.eq("scanner_type", "core");
     } else if (universe === "alternative" || universe === "alt") {
       query = query.eq("scanner_type", "alternative");
-    } else if (universe === "active") {
-      query = query.limit(100);
     } else if (universe === "top10") {
       query = query.limit(10);
-    } else {
-      query = query.limit(100);
     }
+    // "all" — no filter, return both core + alternative
 
-    if (universe !== "top10" && universe !== "active") {
+    if (universe !== "top10") {
       query = query.limit(200);
     }
 

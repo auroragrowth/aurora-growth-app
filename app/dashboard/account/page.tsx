@@ -112,7 +112,7 @@ export default async function AccountPage() {
     profileError = true;
   }
 
-  const plan = profile?.plan ?? profile?.plan_key ?? "free";
+  const plan = profile?.plan_key ?? profile?.plan ?? "free";
   const planLabel = getPlanLabel(plan);
   const planClasses = getPlanClasses(plan);
   const subscriptionStatus = formatStatus(profile?.subscription_status);
@@ -146,16 +146,45 @@ export default async function AccountPage() {
               <h1 className="mt-4 text-4xl font-semibold md:text-5xl">{planLabel}</h1>
 
               <div className="mt-6 flex flex-wrap gap-3">
-                <div className="rounded-full border border-white/15 bg-white/[0.07] px-4 py-2 text-sm">
+                <div className={`rounded-full border px-4 py-2 text-sm font-medium ${
+                  profile?.subscription_status === "active"
+                    ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
+                    : profile?.subscription_status === "past_due"
+                      ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
+                      : profile?.subscription_status === "canceled"
+                        ? "border-rose-400/30 bg-rose-400/10 text-rose-200"
+                        : "border-white/15 bg-white/[0.07] text-white/80"
+                }`}>
                   Status: {subscriptionStatus}
                 </div>
                 <div className="rounded-full border border-white/15 bg-white/[0.07] px-4 py-2 text-sm">
-                  Renewal: {currentPeriodEnd}
+                  {profile?.subscription_status === "canceled"
+                    ? "Cancelled"
+                    : `Next renewal: ${currentPeriodEnd}`}
                 </div>
-                <div className="rounded-full border border-white/15 bg-white/[0.07] px-4 py-2 text-sm">
-                  Time remaining: {timeRemaining}
-                </div>
+                {timeRemaining !== "—" && timeRemaining !== "Expired" && (
+                  <div className="rounded-full border border-white/15 bg-white/[0.07] px-4 py-2 text-sm">
+                    {timeRemaining} remaining
+                  </div>
+                )}
               </div>
+
+              {profile?.subscription_status === "past_due" && (
+                <div className="mt-4 rounded-2xl border border-amber-400/25 bg-amber-400/10 px-5 py-4">
+                  <div className="flex items-center gap-2 text-sm font-medium text-amber-200">
+                    <AlertTriangle size={16} />
+                    Payment failed — please update your payment method
+                  </div>
+                  <form action="/api/stripe/portal" method="post" className="mt-3">
+                    <button
+                      type="submit"
+                      className="rounded-xl bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/30"
+                    >
+                      Update Payment Method
+                    </button>
+                  </form>
+                </div>
+              )}
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <Link
@@ -166,7 +195,7 @@ export default async function AccountPage() {
                 </Link>
                 {plan.toLowerCase() !== "elite" && (
                   <Link
-                    href="/select-plan"
+                    href="/dashboard/upgrade"
                     className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 to-violet-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:brightness-110"
                   >
                     <Sparkles size={16} /> Upgrade

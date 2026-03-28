@@ -1,20 +1,7 @@
 import { NextResponse } from "next/server";
-import Stripe from "stripe";
+import { stripe } from "@/lib/stripe/server";
 import { createClient } from "@/lib/supabase/server";
-
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
-
-if (!stripeSecretKey) {
-  throw new Error("Missing STRIPE_SECRET_KEY");
-}
-
-const stripe = new Stripe(stripeSecretKey);
-
-const PLAN_PRICE_MAP: Record<string, string | undefined> = {
-  core: process.env.STRIPE_PRICE_CORE_MONTHLY,
-  pro: process.env.STRIPE_PRICE_PRO_MONTHLY,
-  elite: process.env.STRIPE_PRICE_ELITE_MONTHLY,
-};
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function POST(request: Request) {
   try {
@@ -37,7 +24,14 @@ export async function POST(request: Request) {
       );
     }
 
-    const priceId = PLAN_PRICE_MAP[planKey];
+    const { data: stripePlan } = await supabaseAdmin
+      .from("stripe_plans")
+      .select("stripe_price_id_monthly")
+      .eq("plan_key", planKey)
+      .eq("is_active", true)
+      .single();
+
+    const priceId = stripePlan?.stripe_price_id_monthly;
 
     if (!priceId) {
       return NextResponse.redirect(

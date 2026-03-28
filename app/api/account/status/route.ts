@@ -30,7 +30,7 @@ export async function GET() {
       );
     }
 
-    const plan = profile?.plan_key ?? profile?.plan ?? "free";
+    const plan = profile?.plan_key ?? "free";
 
     return NextResponse.json({
       ok: true,

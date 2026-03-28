@@ -1,5 +1,7 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { planFeatures, type Plan, type PlanKey } from "@/lib/billing/plans";
 import SelectPlanClient from "./select-plan-client";
 
 export default async function SelectPlanPage() {
@@ -21,20 +23,37 @@ export default async function SelectPlanPage() {
     .eq("id", user.id)
     .single();
 
-  // Already has an active subscription — never redirect back here
-  const hasActiveSubscription =
+  // Already has a plan or completed selection — go to dashboard
+  const hasPlan =
+    ["core", "pro", "elite"].includes(profile?.plan_key ?? "") ||
     profile?.subscription_status === "active" ||
     profile?.subscription_status === "trialing";
 
-  if (hasActiveSubscription && profile?.plan_key) {
+  if (hasPlan) {
     redirect("/dashboard");
   }
 
-  // Show the welcome popup on first visit (before they've seen plan selection)
+  // Fetch plans from stripe_plans table
+  const { data: dbPlans } = await supabaseAdmin
+    .from("stripe_plans")
+    .select("plan_key, plan_name, display_monthly, display_yearly_monthly, display_yearly_total")
+    .eq("is_active", true)
+    .order("display_monthly", { ascending: true });
+
+  const plans: Plan[] = (dbPlans ?? []).map((row) => ({
+    key: row.plan_key as PlanKey,
+    name: row.plan_name,
+    monthlyPrice: row.display_monthly,
+    yearlyMonthlyPrice: row.display_yearly_monthly,
+    yearlyTotalPrice: row.display_yearly_total,
+    features: planFeatures[row.plan_key as PlanKey] ?? [],
+  }));
+
   const showWelcome = !profile?.has_seen_plan_selection;
 
   return (
     <SelectPlanClient
+      plans={plans}
       initialBillingInterval={profile?.billing_interval ?? "yearly"}
       showWelcome={showWelcome}
     />

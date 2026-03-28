@@ -56,7 +56,7 @@ export default async function BillingSettingsPage() {
     .eq("id", user.id)
     .single();
 
-  const plan = profile?.plan ?? profile?.plan_key ?? "free";
+  const plan = profile?.plan_key ?? profile?.plan ?? "free";
   const planLabel = getPlanLabel(plan);
   const planClasses = getPlanClasses(plan);
   const subscriptionStatus = formatStatus(profile?.subscription_status);

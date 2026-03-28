@@ -65,7 +65,15 @@ function getPlanTheme(plan?: string | null) {
 }
 
 function formatMoney(value: number) {
-  return `US$${Math.abs(value).toLocaleString(undefined, {
+  return `£${Math.abs(value).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function formatSignedMoney(value: number) {
+  const prefix = value > 0 ? "+" : value < 0 ? "-" : "";
+  return `${prefix}£${Math.abs(value).toLocaleString(undefined, {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -93,7 +101,6 @@ function getMarketLabel() {
     return { label: "Closed", color: "text-rose-300" };
   }
 
-  // NYSE: 09:30–16:00 ET; pre-market from 04:00 ET
   if (totalMinutes >= 570 && totalMinutes < 960) {
     return { label: "US Market OPEN", color: "text-emerald-300" };
   }
@@ -109,7 +116,7 @@ export default function NextLevelHeader({
   title,
   userName = "User",
 }: Props) {
-  const { data } = usePortfolio();
+  const { data, refresh } = usePortfolio();
 
   const [plan, setPlan] = useState<string | null>(null);
   const [resolvedName, setResolvedName] = useState<string>(userName);
@@ -160,6 +167,16 @@ export default function NextLevelHeader({
   }, []);
 
   useEffect(() => {
+    if (!data.connected) return;
+
+    const id = setInterval(() => {
+      refresh(true);
+    }, 30_000);
+
+    return () => clearInterval(id);
+  }, [data.connected, refresh]);
+
+  useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (!menuRef.current) return;
       if (!menuRef.current.contains(event.target as Node)) {
@@ -179,9 +196,6 @@ export default function NextLevelHeader({
   const portfolioValue = data.portfolioValue;
   const todayValue = data.todayPnl;
   const openValue = data.openValue;
-
-  const connectionText = connected ? "Connected" : "Disconnected";
-  const connectionColor = connected ? "text-emerald-300" : "text-rose-300";
 
   const pnlColor = (value: number) =>
     value > 0 ? "text-emerald-300" : value < 0 ? "text-rose-300" : "text-cyan-300";
@@ -244,37 +258,67 @@ export default function NextLevelHeader({
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
-        <span className={connectionColor}>{connectionText}</span>
-        <span className="text-white/18">|</span>
-
-        <span className={market.color}>{market.label}</span>
-        <span className="text-white/18">|</span>
-
-        <span className="text-white/70">Portfolio</span>
-        <span className={pnlColor(portfolioValue)}>{formatMoney(portfolioValue)}</span>
-        <span className="mx-1 hidden h-px w-20 bg-cyan-300/20 lg:block" />
-
-        <span className="text-white/70">Today</span>
-        <span className={pnlColor(todayValue)}>{formatMoney(todayValue)}</span>
-
-        <span className="text-white/18">|</span>
-
-        <span className="text-white/70">Open</span>
-        <span className={pnlColor(openValue)}>{formatMoney(openValue)}</span>
-
-        {data.updatedAt ? (
+        {connected ? (
           <>
-            <span className="text-white/18">|</span>
-            <span className="text-white/50">
-              Last sync{" "}
-              {new Date(data.updatedAt).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
-                second: "2-digit",
-              })}
+            <span className="inline-flex items-center gap-1.5 text-emerald-300">
+              <span className="inline-block h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]" />
+              Connected
             </span>
+            <span className="text-white/18">|</span>
+
+            <span className={market.color}>{market.label}</span>
+            <span className="text-white/18">|</span>
+
+            <span className="text-white/70">Portfolio</span>
+            <span className={pnlColor(portfolioValue)}>{formatMoney(portfolioValue)}</span>
+            <span className="mx-1 hidden h-px w-20 bg-cyan-300/20 lg:block" />
+
+            <span className="text-white/70">Today</span>
+            <span className={pnlColor(todayValue)}>{formatSignedMoney(todayValue)}</span>
+
+            <span className="text-white/18">|</span>
+
+            <span className="text-white/70">Open</span>
+            <span className={pnlColor(openValue)}>{formatSignedMoney(openValue)}</span>
+
+            {data.updatedAt ? (
+              <>
+                <span className="text-white/18">|</span>
+                <span className="text-white/50">
+                  Last sync{" "}
+                  {new Date(data.updatedAt).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}
+                </span>
+              </>
+            ) : null}
           </>
-        ) : null}
+        ) : (
+          <>
+            <span className="inline-flex items-center gap-1.5 text-rose-300">
+              <span className="inline-block h-2 w-2 rounded-full bg-rose-400" />
+              Disconnected
+            </span>
+            <span className="text-white/18">|</span>
+
+            <span className={market.color}>{market.label}</span>
+            <span className="text-white/18">|</span>
+
+            <span className="text-white/70">Portfolio</span>
+            <span className="text-white/40">£0.00</span>
+
+            <span className="text-white/18">|</span>
+
+            <Link
+              href="/dashboard/connections"
+              className="text-cyan-300 transition hover:text-cyan-200 hover:underline"
+            >
+              Connect broker
+            </Link>
+          </>
+        )}
       </div>
     </div>
   );

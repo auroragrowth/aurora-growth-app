@@ -1,13 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { plans, type BillingInterval } from "@/lib/billing/plans";
+import type { BillingInterval, Plan } from "@/lib/billing/plans";
 import WelcomePopup from "@/components/onboarding/WelcomePopup";
 
 export default function SelectPlanClient({
+  plans,
   initialBillingInterval,
   showWelcome,
 }: {
+  plans: Plan[];
   initialBillingInterval: string | null;
   showWelcome: boolean;
 }) {
@@ -111,7 +113,7 @@ export default function SelectPlanClient({
             {plans.map((plan) => {
               const price =
                 billingInterval === "yearly"
-                  ? plan.yearlyPrice
+                  ? plan.yearlyMonthlyPrice
                   : plan.monthlyPrice;
               const isPopular = plan.key === "pro";
               const isLoading = loadingPlan === plan.key;
@@ -136,7 +138,11 @@ export default function SelectPlanClient({
                   </h2>
 
                   <p className="mt-3 min-h-[44px] text-sm text-white/65">
-                    {plan.description}
+                    {plan.key === "core"
+                      ? "Perfect for focused investors"
+                      : plan.key === "pro"
+                        ? "For active growth investors"
+                        : "Full power Aurora platform"}
                   </p>
 
                   <div className="mt-6">
@@ -150,7 +156,7 @@ export default function SelectPlanClient({
                     </div>
                     {billingInterval === "yearly" ? (
                       <p className="mt-1 text-xs text-white/45">
-                        £{(price * 12).toFixed(2)} per year
+                        £{plan.yearlyTotalPrice.toFixed(2)} per year
                       </p>
                     ) : null}
                   </div>

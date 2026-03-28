@@ -26,6 +26,9 @@ type DashboardShellProps = {
   lastLogin?: string | null;
   joinDate?: string | null;
   planName?: string;
+  planKey?: string;
+  subscriptionStatus?: string | null;
+  currentPeriodEnd?: string | null;
   brokerStatus?: string;
   brokerConnected?: boolean;
 };
@@ -77,6 +80,15 @@ function getFirstName(name: string, email: string) {
   return mail.charAt(0).toUpperCase() + mail.slice(1);
 }
 
+function getDaysRemaining(periodEnd?: string | null): number | null {
+  if (!periodEnd) return null;
+  const end = new Date(periodEnd);
+  if (Number.isNaN(end.getTime())) return null;
+  const diff = end.getTime() - Date.now();
+  if (diff <= 0) return 0;
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
 function getPageTitle(pathname: string) {
   if (pathname === "/dashboard") return "Dashboard";
   if (pathname.startsWith("/dashboard/market-scanner")) return "Market Scanner";
@@ -97,6 +109,9 @@ export default function DashboardShell({
   lastLogin,
   joinDate,
   planName = "Aurora Free",
+  planKey = "free",
+  subscriptionStatus = null,
+  currentPeriodEnd = null,
   brokerStatus: initialBrokerStatus = "Disconnected",
   brokerConnected: initialBrokerConnected = false,
 }: DashboardShellProps) {
@@ -308,8 +323,40 @@ export default function DashboardShell({
                   {brokerStatus}
                 </div>
 
-                <div className="hidden rounded-full border border-white/10 bg-white/6 px-3 py-2 text-xs font-medium text-white/88 lg:block">
-                  {planName}
+                <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-2 text-xs font-medium text-white/88 lg:flex">
+                  <span>{planName}</span>
+                  {(() => {
+                    const days = getDaysRemaining(currentPeriodEnd);
+                    if (subscriptionStatus === "past_due") {
+                      return (
+                        <span className="rounded-full bg-amber-400/20 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                          Payment issue
+                        </span>
+                      );
+                    }
+                    if (days !== null && days > 0) {
+                      return (
+                        <span className="text-white/50">
+                          · {days}d remaining
+                        </span>
+                      );
+                    }
+                    if (days === 0 && subscriptionStatus === "canceled") {
+                      return (
+                        <span className="rounded-full bg-rose-400/20 px-2 py-0.5 text-[10px] font-semibold text-rose-300">
+                          Expired
+                        </span>
+                      );
+                    }
+                    if (!currentPeriodEnd && planKey !== "free" && ["core", "pro", "elite"].includes(planKey)) {
+                      return (
+                        <span className="text-white/40">
+                          · Contact support
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
 
                 <div ref={profileRef} className="relative">

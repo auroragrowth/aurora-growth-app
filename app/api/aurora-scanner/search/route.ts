@@ -1,37 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import * as cheerio from "cheerio";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 const CACHE_TTL_MS = 15 * 60 * 1000;
 
-type CacheEntry = {
-  rows: any[];
-  ts: number;
-};
-
-const searchCache = new Map<string, CacheEntry>();
+type CacheEntry = { rows: any[]; ts: number };
+const cache = new Map<string, CacheEntry>();
 
 function pruneCache() {
   const now = Date.now();
-  for (const [key, entry] of searchCache) {
-    if (now - entry.ts > CACHE_TTL_MS) searchCache.delete(key);
+  for (const [key, entry] of cache) {
+    if (now - entry.ts > CACHE_TTL_MS) cache.delete(key);
   }
-}
-
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !key) {
-    throw new Error("Missing Supabase environment variables");
-  }
-
-  return createClient(url, key);
 }
 
 function clean(text: string) {
@@ -63,7 +44,7 @@ async function searchMarket(term: string) {
   const cacheKey = term.toUpperCase();
 
   pruneCache();
-  const cached = searchCache.get(cacheKey);
+  const cached = cache.get(cacheKey);
   if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
     return cached.rows;
   }
@@ -115,67 +96,28 @@ async function searchMarket(term: string) {
     });
   });
 
-  searchCache.set(cacheKey, { rows, ts: Date.now() });
+  cache.set(cacheKey, { rows, ts: Date.now() });
 
   return rows;
 }
 
 export async function GET(req: NextRequest) {
   try {
-    const t =
-      req.nextUrl.searchParams.get("t") ||
-      req.nextUrl.searchParams.get("q") ||
-      null;
-    const v = req.nextUrl.searchParams.get("v");
+    const q = req.nextUrl.searchParams.get("q")?.trim();
 
-    if (t && t.trim()) {
-      const rows = await searchMarket(t.trim());
-      return NextResponse.json({ ok: true, rows });
-    }
-
-    if (v === "111") {
-      return NextResponse.json({ ok: true, rows: [] });
-    }
-
-    const universe = (
-      req.nextUrl.searchParams.get("universe") || "all"
-    )
-      .trim()
-      .toLowerCase();
-
-    const supabase = getSupabase();
-
-    let query = supabase
-      .from("scanner_results")
-      .select("*")
-      .order("score", { ascending: false, nullsFirst: false })
-      .order("updated_at", { ascending: false, nullsFirst: false });
-
-    if (universe === "core") {
-      query = query.eq("scanner_type", "core");
-    } else if (universe === "alternative" || universe === "alt") {
-      query = query.eq("scanner_type", "alternative");
-    } else if (universe === "top10") {
-      query = query.limit(10);
-    }
-
-    if (universe !== "top10") {
-      query = query.limit(200);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
+    if (!q) {
       return NextResponse.json(
-        { ok: false, error: error.message, rows: [] },
-        { status: 500 }
+        { ok: false, error: "q parameter is required", rows: [] },
+        { status: 400 }
       );
     }
 
-    return NextResponse.json({ ok: true, rows: data || [] });
+    const rows = await searchMarket(q);
+
+    return NextResponse.json({ ok: true, rows });
   } catch (error: any) {
     return NextResponse.json(
-      { ok: false, error: error?.message || "Scanner load failed", rows: [] },
+      { ok: false, error: error?.message || "Search failed", rows: [] },
       { status: 500 }
     );
   }

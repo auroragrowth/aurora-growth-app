@@ -15,6 +15,7 @@ export type WatchlistItem = {
   id?: string;
   symbol: string;
   company_name?: string | null;
+  source?: string | null;
   created_at?: string | null;
 };
 
@@ -33,7 +34,8 @@ type WatchlistContextType = {
   refresh: () => Promise<void>;
   toggleTicker: (
     ticker?: string | null,
-    companyName?: string | null
+    companyName?: string | null,
+    source?: string | null
   ) => Promise<ToggleResult>;
 };
 
@@ -97,7 +99,7 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
 
       const { data, error } = await supabase
         .from("watchlist_items")
-        .select("id,symbol,company_name,created_at")
+        .select("id,symbol,company_name,source,created_at")
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -109,6 +111,7 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
             id: row.id,
             symbol: normalizeTicker(row.symbol),
             company_name: row.company_name || null,
+            source: (row as any).source || null,
             created_at: row.created_at || null,
           }))
         );
@@ -140,7 +143,7 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
   }, [supabase, refresh]);
 
   const toggleTicker = useCallback(
-    async (ticker?: string | null, companyName?: string | null) => {
+    async (ticker?: string | null, companyName?: string | null, source?: string | null) => {
       const symbol = normalizeTicker(ticker);
       if (!symbol) return { ok: false, active: false };
 
@@ -154,7 +157,7 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
 
         const next = exists
           ? current.filter((item) => item.symbol !== symbol)
-          : [{ symbol, company_name: companyName || null }, ...current];
+          : [{ symbol, company_name: companyName || null, source: source || null }, ...current];
 
         writeGuestWatchlist(next);
         setItems(next);
@@ -186,8 +189,9 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
         .insert({
           symbol,
           company_name: companyName || null,
+          source: source || null,
         })
-        .select("id,symbol,company_name,created_at")
+        .select("id,symbol,company_name,source,created_at")
         .single();
 
       if (error) {
@@ -200,6 +204,7 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
           id: data.id,
           symbol: normalizeTicker(data.symbol),
           company_name: data.company_name || null,
+          source: (data as any).source || null,
           created_at: data.created_at || null,
         },
         ...items,

@@ -2,10 +2,6 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { sendAdminAlert } from "@/lib/telegram/admin";
 
-function isActive(status?: string | null) {
-  return status === "active" || status === "trialing";
-}
-
 export default async function PostLoginPage() {
   const supabase = await createClient();
 
@@ -20,7 +16,7 @@ export default async function PostLoginPage() {
   // Fetch or create the user's profile
   const { data: profile } = await supabase
     .from("profiles")
-    .select("plan_key, plan, subscription_status")
+    .select("plan_key, has_completed_plan_selection")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -45,13 +41,14 @@ export default async function PostLoginPage() {
     redirect("/select-plan");
   }
 
+  // Go to dashboard if user has a paid plan OR has completed plan selection
   const hasPlan =
-    (profile.plan_key || profile.plan) &&
-    isActive(profile.subscription_status);
+    ["core", "pro", "elite"].includes(profile.plan_key ?? "") ||
+    profile.has_completed_plan_selection === true;
 
-  if (!hasPlan) {
-    redirect("/select-plan");
+  if (hasPlan) {
+    redirect("/dashboard");
   }
 
-  redirect("/dashboard");
+  redirect("/select-plan");
 }

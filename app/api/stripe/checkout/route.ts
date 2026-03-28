@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getStripePriceId,
-  type BillingInterval,
-  type PlanKey,
-} from "@/lib/billing/plans";
 import { stripe } from "@/lib/stripe/server";
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const planKey = body.planKey as PlanKey;
-    const billingInterval = body.billingInterval as BillingInterval;
+    const planKey = body.planKey as string;
+    const billingInterval = body.billingInterval as string;
 
     if (!planKey || !billingInterval) {
       return NextResponse.json(
@@ -48,13 +44,26 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("stripe_customer_id")
-      .eq("id", user.id)
-      .maybeSingle();
+    // Look up Stripe price ID from stripe_plans table
+    const { data: plan, error: planError } = await supabaseAdmin
+      .from("stripe_plans")
+      .select("stripe_price_id_monthly, stripe_price_id_yearly")
+      .eq("plan_key", planKey)
+      .eq("is_active", true)
+      .single();
 
-    const priceId = getStripePriceId(planKey, billingInterval);
+    if (planError || !plan) {
+      console.error("stripe_plans lookup failed:", planError);
+      return NextResponse.json(
+        { error: `No active plan found for ${planKey}` },
+        { status: 400 }
+      );
+    }
+
+    const priceId =
+      billingInterval === "monthly"
+        ? plan.stripe_price_id_monthly
+        : plan.stripe_price_id_yearly;
 
     if (!priceId) {
       return NextResponse.json(
@@ -62,6 +71,12 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("stripe_customer_id")
+      .eq("id", user.id)
+      .maybeSingle();
 
     // Record the plan selection intent before going to Stripe
     await supabase

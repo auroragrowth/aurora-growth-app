@@ -13,6 +13,8 @@ export async function POST(req: Request) {
       typeof body?.company_name === "string" ? body.company_name.trim() : null;
     const market =
       typeof body?.market === "string" ? body.market.trim() : null;
+    const source =
+      typeof body?.source === "string" ? body.source.trim() : null;
 
     if (!symbol) {
       return NextResponse.json({ error: "Symbol is required" }, { status: 400 });
@@ -57,15 +59,40 @@ export async function POST(req: Request) {
       });
     }
 
-    const { error: insErr } = await supabase.from("watchlist_items").insert([
-      {
-        user_id: auth.user.id,
-        symbol,
-        company_name,
-        market,
-        updated_at: new Date().toISOString(),
-      },
-    ]);
+    const isAurora = source === "Aurora Core" || source === "Aurora Alternative";
+
+    const insertRow: Record<string, any> = {
+      user_id: auth.user.id,
+      symbol,
+      company_name,
+      market,
+      source,
+      is_aurora_recommended: isAurora,
+      added_by: isAurora ? "scanner" : "manual",
+      updated_at: new Date().toISOString(),
+    };
+
+    let insErr: any = null;
+
+    const firstTry = await supabase
+      .from("watchlist_items")
+      .insert([insertRow]);
+
+    if (firstTry.error) {
+      const msg = firstTry.error.message || "";
+      if (
+        msg.includes("is_aurora_recommended") ||
+        msg.includes("added_by")
+      ) {
+        const { is_aurora_recommended, added_by, ...fallbackRow } = insertRow;
+        const retry = await supabase
+          .from("watchlist_items")
+          .insert([fallbackRow]);
+        insErr = retry.error;
+      } else {
+        insErr = firstTry.error;
+      }
+    }
 
     if (insErr) {
       return NextResponse.json({ error: insErr.message }, { status: 500 });

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useWatchlist } from "@/components/watchlist/WatchlistProvider";
+import { ExpiredBlur } from "@/components/dashboard/ExpiredOverlay";
 
-type SourceFilter = "all" | "core" | "alternative";
+type SourceFilter = "all" | "core" | "alternative" | "mylist";
 
 type WatchlistRow = {
   id?: string;
@@ -20,7 +21,9 @@ type WatchlistRow = {
   change?: number | null;
 };
 
-function normaliseSource(row: WatchlistRow): "core" | "alternative" {
+type SourceType = "core" | "alternative" | "mylist";
+
+function normaliseSource(row: WatchlistRow): SourceType {
   const raw = String(row.source ?? row.universe ?? row.scanner_source ?? "")
     .trim()
     .toLowerCase();
@@ -34,18 +37,47 @@ function normaliseSource(row: WatchlistRow): "core" | "alternative" {
     return "core";
   }
 
-  return "alternative";
+  if (
+    raw === "alternative" ||
+    raw === "aurora alternative" ||
+    raw === "aurora_alternative" ||
+    raw === "aurora-alternative"
+  ) {
+    return "alternative";
+  }
+
+  if (
+    raw === "my list" ||
+    raw === "mylist" ||
+    raw === "my_list" ||
+    raw === "search"
+  ) {
+    return "mylist";
+  }
+
+  if (!raw) return "mylist";
+
+  return "mylist";
 }
 
 function sourceLabel(row: WatchlistRow) {
-  return normaliseSource(row) === "core"
-    ? "AURORA CORE"
-    : "AURORA ALTERNATIVE";
+  const s = normaliseSource(row);
+  if (s === "core") return "Aurora Core";
+  if (s === "alternative") return "Aurora Alternative";
+  return "My List";
+}
+
+function sourceBadgeClass(source: SourceType) {
+  if (source === "core")
+    return "border-teal-400/35 bg-teal-500/10 text-teal-300";
+  if (source === "alternative")
+    return "border-purple-400/35 bg-purple-500/10 text-purple-300";
+  return "border-white/20 bg-white/5 text-white/55";
 }
 
 function formatPercent(value?: number | null) {
   if (typeof value !== "number" || Number.isNaN(value)) return "0.00%";
-  return `${value >= 0 ? "" : "-"}${Math.abs(value).toFixed(2)}%`;
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
 function formatDate(value?: string | null) {
@@ -72,7 +104,8 @@ function formatMarketCap(value?: number | string | null) {
 
   if (!Number.isFinite(n)) return String(value);
 
-  if (n >= 1_000_000_000_000) return `${(n / 1_000_000_000_000).toFixed(2)}T`;
+  if (n >= 1_000_000_000_000)
+    return `${(n / 1_000_000_000_000).toFixed(2)}T`;
   if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`;
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
 
@@ -137,11 +170,20 @@ export default function WatchlistPage() {
     [rows]
   );
 
+  const myListCount = useMemo(
+    () => rows.filter((row) => normaliseSource(row) === "mylist").length,
+    [rows]
+  );
+
   const filteredRows = useMemo(() => {
     let next = [...rows];
 
-    if (sourceFilter !== "all") {
-      next = next.filter((row) => normaliseSource(row) === sourceFilter);
+    if (sourceFilter === "core") {
+      next = next.filter((row) => normaliseSource(row) === "core");
+    } else if (sourceFilter === "alternative") {
+      next = next.filter((row) => normaliseSource(row) === "alternative");
+    } else if (sourceFilter === "mylist") {
+      next = next.filter((row) => normaliseSource(row) === "mylist");
     }
 
     next.sort((a, b) => {
@@ -204,7 +246,7 @@ export default function WatchlistPage() {
           Watchlist
         </h1>
         <p className="mt-2 text-sm text-white/60">
-          Saved companies from Aurora Market Scanner and your platform watchlists.
+          Saved companies from Aurora Market Scanner and your personal picks.
         </p>
       </div>
 
@@ -221,27 +263,27 @@ export default function WatchlistPage() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-emerald-400/20 bg-[#07152f]/90 p-5 shadow-[0_0_30px_rgba(16,185,129,0.08)]">
+        <div className="rounded-3xl border border-teal-400/20 bg-[#07152f]/90 p-5 shadow-[0_0_30px_rgba(20,184,166,0.08)]">
           <div className="text-xs uppercase tracking-[0.28em] text-white/45">
             Aurora Core
           </div>
-          <div className="mt-3 text-3xl font-semibold text-emerald-300">
+          <div className="mt-3 text-3xl font-semibold text-teal-300">
             {coreCount}
           </div>
           <div className="mt-2 text-sm text-white/55">
-            Core setup watchlist names
+            Core watchlist names
           </div>
         </div>
 
-        <div className="rounded-3xl border border-fuchsia-400/20 bg-[#07152f]/90 p-5 shadow-[0_0_30px_rgba(217,70,239,0.08)]">
+        <div className="rounded-3xl border border-purple-400/20 bg-[#07152f]/90 p-5 shadow-[0_0_30px_rgba(168,85,247,0.08)]">
           <div className="text-xs uppercase tracking-[0.28em] text-white/45">
             Aurora Alternative
           </div>
-          <div className="mt-3 text-3xl font-semibold text-fuchsia-300">
+          <div className="mt-3 text-3xl font-semibold text-purple-300">
             {alternativeCount}
           </div>
           <div className="mt-2 text-sm text-white/55">
-            Alternative setup watchlist names
+            Alternative watchlist names
           </div>
         </div>
 
@@ -250,7 +292,13 @@ export default function WatchlistPage() {
             Status
           </div>
           <div className="mt-3 text-lg font-semibold text-white">
-            {!mounted ? "Loading..." : loading ? "Syncing..." : ready ? "Ready" : "Starting"}
+            {!mounted
+              ? "Loading..."
+              : loading
+                ? "Syncing..."
+                : ready
+                  ? "Ready"
+                  : "Starting"}
           </div>
           <div className="mt-2 text-sm text-white/55">
             Watchlist connected
@@ -274,7 +322,7 @@ export default function WatchlistPage() {
           onClick={() => setSourceFilter("core")}
           className={`rounded-full px-5 py-2.5 text-sm font-medium transition ${
             sourceFilter === "core"
-              ? "border border-emerald-400/40 bg-emerald-500/15 text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.15)]"
+              ? "border border-teal-400/40 bg-teal-500/15 text-teal-300 shadow-[0_0_20px_rgba(20,184,166,0.15)]"
               : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
           }`}
         >
@@ -285,171 +333,189 @@ export default function WatchlistPage() {
           onClick={() => setSourceFilter("alternative")}
           className={`rounded-full px-5 py-2.5 text-sm font-medium transition ${
             sourceFilter === "alternative"
-              ? "border border-fuchsia-400/40 bg-fuchsia-500/15 text-fuchsia-300 shadow-[0_0_20px_rgba(217,70,239,0.15)]"
+              ? "border border-purple-400/40 bg-purple-500/15 text-purple-300 shadow-[0_0_20px_rgba(168,85,247,0.15)]"
               : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
           }`}
         >
           Alternative ({alternativeCount})
         </button>
+
+        <button
+          onClick={() => setSourceFilter("mylist")}
+          className={`rounded-full px-5 py-2.5 text-sm font-medium transition ${
+            sourceFilter === "mylist"
+              ? "border border-white/30 bg-white/10 text-white/80"
+              : "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10"
+          }`}
+        >
+          My List ({myListCount})
+        </button>
       </div>
 
-      <div className="overflow-hidden rounded-3xl border border-cyan-500/10 bg-[#041225]/95">
-        <div className="overflow-x-auto">
-          <table className="min-w-full">
-            <thead className="bg-white/[0.03]">
-              <tr className="border-b border-white/5 text-left text-[11px] uppercase tracking-[0.28em] text-white/45">
-                <th className="px-6 py-4">Watch</th>
+      <ExpiredBlur>
+        <div className="overflow-hidden rounded-3xl border border-cyan-500/10 bg-[#041225]/95">
+          <div className="overflow-x-auto">
+            <table className="min-w-full">
+              <thead className="bg-white/[0.03]">
+                <tr className="border-b border-white/5 text-left text-[11px] uppercase tracking-[0.28em] text-white/45">
+                  <th className="px-6 py-4">Watch</th>
 
-                <th className="px-6 py-4">
-                  <button
-                    onClick={() => handleSort("ticker")}
-                    className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
-                  >
-                    Ticker
-                    <span className="text-white/30">↕</span>
-                  </button>
-                </th>
-
-                <th className="px-6 py-4">
-                  <button
-                    onClick={() => handleSort("company")}
-                    className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
-                  >
-                    Company
-                    <span className="text-white/30">↕</span>
-                  </button>
-                </th>
-
-                <th className="px-6 py-4">
-                  <button
-                    onClick={() => handleSort("source")}
-                    className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
-                  >
-                    Source
-                    <span className="text-white/30">↕</span>
-                  </button>
-                </th>
-
-                <th className="px-6 py-4">Market Cap</th>
-
-                <th className="px-6 py-4">
-                  <button
-                    onClick={() => handleSort("score")}
-                    className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
-                  >
-                    Score
-                    <span className="text-white/30">↕</span>
-                  </button>
-                </th>
-
-                <th className="px-6 py-4">Change</th>
-
-                <th className="px-6 py-4">
-                  <button
-                    onClick={() => handleSort("added")}
-                    className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
-                  >
-                    Added
-                    <span className="text-white/30">↕</span>
-                  </button>
-                </th>
-
-                <th className="px-6 py-4">Action</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filteredRows.length === 0 ? (
-                <tr>
-                  <td colSpan={9} className="px-6 py-16 text-center text-white/55">
-                    No watchlist stocks found for this filter.
-                  </td>
-                </tr>
-              ) : (
-                filteredRows.map((row, idx) => {
-                  const source = normaliseSource(row);
-
-                  return (
-                    <tr
-                      key={`${row.id ?? row.symbol}-${idx}`}
-                      className="border-b border-white/5 text-white/88 transition hover:bg-white/[0.025]"
+                  <th className="px-6 py-4">
+                    <button
+                      onClick={() => handleSort("ticker")}
+                      className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
                     >
-                      <td className="px-6 py-5">
-                        <button
-                          onClick={() => handleRemove(row.symbol)}
-                          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-cyan-400/35 bg-cyan-500/10 text-cyan-300 shadow-[0_0_18px_rgba(0,200,255,0.10)] transition hover:scale-105 hover:bg-cyan-500/20"
-                          title="Remove from watchlist"
-                        >
-                          ★
-                        </button>
-                      </td>
+                      Ticker
+                      <span className="text-white/30">&#8597;</span>
+                    </button>
+                  </th>
 
-                      <td className="px-6 py-5">
-                        <Link
-                          href={`/dashboard/investments/calculator?ticker=${encodeURIComponent(row.symbol)}`}
-                          className="font-semibold tracking-wide text-white transition hover:text-cyan-300"
-                        >
-                          {row.symbol}
-                        </Link>
-                      </td>
+                  <th className="px-6 py-4">
+                    <button
+                      onClick={() => handleSort("company")}
+                      className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
+                    >
+                      Company
+                      <span className="text-white/30">&#8597;</span>
+                    </button>
+                  </th>
 
-                      <td className="px-6 py-5 text-white/85">
-                        {row.company_name || "—"}
-                      </td>
+                  <th className="px-6 py-4">
+                    <button
+                      onClick={() => handleSort("source")}
+                      className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
+                    >
+                      Source
+                      <span className="text-white/30">&#8597;</span>
+                    </button>
+                  </th>
 
-                      <td className="px-6 py-5">
-                        <span
-                          className={`inline-flex rounded-full border px-4 py-2 text-[11px] uppercase tracking-[0.24em] ${
-                            source === "core"
-                              ? "border-emerald-400/35 bg-emerald-500/10 text-emerald-300"
-                              : "border-cyan-400/35 bg-cyan-500/10 text-cyan-300"
-                          }`}
-                        >
-                          {sourceLabel(row)}
-                        </span>
-                      </td>
+                  <th className="px-6 py-4">Market Cap</th>
 
-                      <td className="px-6 py-5 text-white/80">
-                        {formatMarketCap(row.market_cap)}
-                      </td>
+                  <th className="px-6 py-4">
+                    <button
+                      onClick={() => handleSort("score")}
+                      className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
+                    >
+                      Score
+                      <span className="text-white/30">&#8597;</span>
+                    </button>
+                  </th>
 
-                      <td className="px-6 py-5 font-medium text-cyan-300">
-                        {row.score ?? "—"}
-                      </td>
+                  <th className="px-6 py-4">Change</th>
 
-                      <td className="px-6 py-5 text-emerald-300">
-                        {formatPercent(row.change_pct)}
-                      </td>
+                  <th className="px-6 py-4">
+                    <button
+                      onClick={() => handleSort("added")}
+                      className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
+                    >
+                      Added
+                      <span className="text-white/30">&#8597;</span>
+                    </button>
+                  </th>
 
-                      <td className="px-6 py-5 text-white/65">
-                        {formatDate(row.created_at)}
-                      </td>
+                  <th className="px-6 py-4">Action</th>
+                </tr>
+              </thead>
 
-                      <td className="px-6 py-5">
-                        <div className="flex items-center gap-3">
-                          <Link
-                            href={`/dashboard/investments/calculator?ticker=${encodeURIComponent(row.symbol)}`}
-                            className="inline-flex items-center rounded-full border border-cyan-400/35 bg-cyan-500/10 px-5 py-3 text-sm font-medium text-cyan-300 transition hover:bg-cyan-500/20"
-                          >
-                            View Chart
-                          </Link>
+              <tbody>
+                {filteredRows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={9}
+                      className="px-6 py-16 text-center text-white/55"
+                    >
+                      No watchlist stocks found for this filter.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredRows.map((row, idx) => {
+                    const source = normaliseSource(row);
 
+                    return (
+                      <tr
+                        key={`${row.id ?? row.symbol}-${idx}`}
+                        className="border-b border-white/5 text-white/88 transition hover:bg-white/[0.025]"
+                      >
+                        <td className="px-6 py-5">
                           <button
                             onClick={() => handleRemove(row.symbol)}
-                            className="inline-flex items-center rounded-full border border-fuchsia-400/25 bg-fuchsia-500/10 px-5 py-3 text-sm font-medium text-fuchsia-200 transition hover:bg-fuchsia-500/20"
+                            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-cyan-400/35 bg-cyan-500/10 text-cyan-300 shadow-[0_0_18px_rgba(0,200,255,0.10)] transition hover:scale-105 hover:bg-cyan-500/20"
+                            title="Remove from watchlist"
                           >
-                            Remove
+                            &#9733;
                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                        </td>
+
+                        <td className="px-6 py-5">
+                          <Link
+                            href={`/dashboard/stocks/${encodeURIComponent(row.symbol)}`}
+                            className="font-semibold tracking-wide text-white transition hover:text-cyan-300"
+                          >
+                            {row.symbol}
+                          </Link>
+                        </td>
+
+                        <td className="px-6 py-5 text-white/85">
+                          {row.company_name || "—"}
+                        </td>
+
+                        <td className="px-6 py-5">
+                          <span
+                            className={`inline-flex rounded-full border px-4 py-2 text-[11px] uppercase tracking-[0.24em] ${sourceBadgeClass(source)}`}
+                          >
+                            {sourceLabel(row)}
+                          </span>
+                        </td>
+
+                        <td className="px-6 py-5 text-white/80">
+                          {formatMarketCap(row.market_cap)}
+                        </td>
+
+                        <td className="px-6 py-5 font-medium text-cyan-300">
+                          {row.score ?? "—"}
+                        </td>
+
+                        <td
+                          className={`px-6 py-5 ${
+                            (row.change_pct ?? 0) >= 0
+                              ? "text-emerald-300"
+                              : "text-red-300"
+                          }`}
+                        >
+                          {formatPercent(row.change_pct)}
+                        </td>
+
+                        <td className="px-6 py-5 text-white/65">
+                          {formatDate(row.created_at)}
+                        </td>
+
+                        <td className="px-6 py-5">
+                          <div className="flex items-center gap-3">
+                            <Link
+                              href={`/dashboard/stocks/${encodeURIComponent(row.symbol)}`}
+                              className="inline-flex items-center rounded-full border border-cyan-400/35 bg-cyan-500/10 px-5 py-3 text-sm font-medium text-cyan-300 transition hover:bg-cyan-500/20"
+                            >
+                              View Chart
+                            </Link>
+
+                            <button
+                              onClick={() => handleRemove(row.symbol)}
+                              className="inline-flex items-center rounded-full border border-fuchsia-400/25 bg-fuchsia-500/10 px-5 py-3 text-sm font-medium text-fuchsia-200 transition hover:bg-fuchsia-500/20"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      </ExpiredBlur>
     </div>
   );
 }

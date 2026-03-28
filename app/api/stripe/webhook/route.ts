@@ -18,26 +18,27 @@ function getSubscriptionPeriodEnd(subscription: Stripe.Subscription): string {
   return new Date(ts * 1000).toISOString();
 }
 
-async function activateProfile(
-  userId: string,
-  planKey: string,
-  subscription: Stripe.Subscription
-) {
-  const currentPeriodEnd = getSubscriptionPeriodEnd(subscription);
+function getInvoiceAmount(invoice: Stripe.Invoice): number {
+  return invoice.amount_paid ?? 0;
+}
 
-  await supabaseAdmin
-    .from("profiles")
-    .update({
-      plan: planKey,
-      plan_key: planKey,
-      subscription_status: subscription.status,
-      stripe_customer_id: subscription.customer as string,
-      stripe_subscription_id: subscription.id,
-      current_period_end: currentPeriodEnd,
-      has_completed_plan_selection: true,
-      onboarding_step: "checkout_complete",
-    })
-    .eq("id", userId);
+function getInvoiceCurrency(invoice: Stripe.Invoice): string {
+  return invoice.currency ?? "gbp";
+}
+
+async function logSubscriptionEvent(event: {
+  user_id: string;
+  event_type: string;
+  plan_key?: string | null;
+  amount_paid?: number;
+  currency?: string;
+  stripe_customer_id?: string | null;
+  stripe_subscription_id?: string | null;
+  stripe_invoice_id?: string | null;
+  period_end?: string | null;
+  raw_event_id?: string;
+}) {
+  await supabaseAdmin.from("subscription_events").insert(event);
 }
 
 async function upsertSubscriptionRecord(
@@ -63,6 +64,19 @@ async function upsertSubscriptionRecord(
     },
     { onConflict: "user_id" }
   );
+}
+
+async function getSubscriptionFromInvoice(
+  invoice: Stripe.Invoice
+): Promise<{ subscriptionId: string; subscription: Stripe.Subscription } | null> {
+  const subRef =
+    invoice.parent?.subscription_details?.subscription ?? null;
+  const subscriptionId =
+    typeof subRef === "string" ? subRef : subRef?.id ?? null;
+  if (!subscriptionId) return null;
+
+  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+  return { subscriptionId, subscription };
 }
 
 export async function POST(req: NextRequest) {
@@ -92,6 +106,7 @@ export async function POST(req: NextRequest) {
 
   try {
     switch (event.type) {
+      // ── Checkout completed ─────────────────────────────────
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.metadata?.user_id;
@@ -110,17 +125,63 @@ export async function POST(req: NextRequest) {
 
         const subscription =
           await stripe.subscriptions.retrieve(subscriptionId);
+        const currentPeriodEnd = getSubscriptionPeriodEnd(subscription);
+        const amountPaid = (session.amount_total ?? 0);
 
-        await activateProfile(userId, planKey, subscription);
+        // Update profiles with full subscription data
+        await supabaseAdmin
+          .from("profiles")
+          .update({
+            plan: planKey,
+            plan_key: planKey,
+            subscription_status: "active",
+            stripe_customer_id: subscription.customer as string,
+            stripe_subscription_id: subscription.id,
+            current_period_end: currentPeriodEnd,
+            subscription_renews_at: currentPeriodEnd,
+            last_payment_at: new Date().toISOString(),
+            last_payment_amount: amountPaid,
+            has_completed_plan_selection: true,
+            onboarding_step: "checkout_complete",
+          })
+          .eq("id", userId);
+
+        // Increment counters via RPC or separate update
+        await supabaseAdmin.rpc("increment_payment_stats", {
+          p_user_id: userId,
+          p_amount: amountPaid,
+        }).then(r => {
+          // If RPC doesn't exist, silently ignore
+          if (r.error) console.log("increment_payment_stats not available:", r.error.message);
+        });
+
         await upsertSubscriptionRecord(userId, planKey, subscription);
-        const customerEmail = session.customer_details?.email || session.customer_email || userId;
+
+        const customerEmail =
+          session.customer_details?.email ||
+          session.customer_email ||
+          userId;
+
+        await logSubscriptionEvent({
+          user_id: userId,
+          event_type: "checkout_completed",
+          plan_key: planKey,
+          amount_paid: amountPaid,
+          currency: (session.currency ?? "gbp"),
+          stripe_customer_id: subscription.customer as string,
+          stripe_subscription_id: subscription.id,
+          period_end: currentPeriodEnd,
+          raw_event_id: event.id,
+        });
+
         sendAdminAlert(
-          `💳 New payment\nPlan: ${planKey}\nEmail: ${customerEmail}`,
+          `💳 New payment\nPlan: ${planKey}\nEmail: ${customerEmail}\nAmount: ${(amountPaid / 100).toFixed(2)} ${session.currency?.toUpperCase() ?? "GBP"}`,
           "info"
         );
         break;
       }
 
+      // ── Subscription created/updated ───────────────────────
       case "customer.subscription.created":
       case "customer.subscription.updated": {
         const subscription = event.data.object as Stripe.Subscription;
@@ -129,30 +190,39 @@ export async function POST(req: NextRequest) {
 
         if (!userId) break;
 
+        const currentPeriodEnd = getSubscriptionPeriodEnd(subscription);
+
         await upsertSubscriptionRecord(userId, planKey, subscription);
 
+        const profileUpdate: Record<string, unknown> = {
+          subscription_status: subscription.status,
+          current_period_end: currentPeriodEnd,
+          subscription_renews_at: currentPeriodEnd,
+        };
+
         if (planKey) {
-          await supabaseAdmin
-            .from("profiles")
-            .update({
-              plan: planKey,
-              plan_key: planKey,
-              subscription_status: subscription.status,
-              current_period_end: getSubscriptionPeriodEnd(subscription),
-            })
-            .eq("id", userId);
-        } else {
-          await supabaseAdmin
-            .from("profiles")
-            .update({
-              subscription_status: subscription.status,
-              current_period_end: getSubscriptionPeriodEnd(subscription),
-            })
-            .eq("id", userId);
+          profileUpdate.plan = planKey;
+          profileUpdate.plan_key = planKey;
         }
+
+        await supabaseAdmin
+          .from("profiles")
+          .update(profileUpdate)
+          .eq("id", userId);
+
+        await logSubscriptionEvent({
+          user_id: userId,
+          event_type: "subscription_updated",
+          plan_key: planKey,
+          stripe_customer_id: subscription.customer as string,
+          stripe_subscription_id: subscription.id,
+          period_end: currentPeriodEnd,
+          raw_event_id: event.id,
+        });
         break;
       }
 
+      // ── Subscription deleted/cancelled ─────────────────────
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
         const userId = subscription.metadata?.user_id;
@@ -181,44 +251,79 @@ export async function POST(req: NextRequest) {
             plan_key: null,
             subscription_status: "canceled",
             current_period_end: null,
+            subscription_renews_at: null,
+            subscription_cancelled_at: new Date().toISOString(),
           })
           .eq("id", userId);
+
+        await logSubscriptionEvent({
+          user_id: userId,
+          event_type: "subscription_cancelled",
+          stripe_customer_id: subscription.customer as string,
+          stripe_subscription_id: subscription.id,
+          raw_event_id: event.id,
+        });
+
+        sendAdminAlert(
+          `🚫 Subscription cancelled\nUser: ${userId}`,
+          "warning"
+        );
         break;
       }
 
+      // ── Invoice payment succeeded (renewal) ────────────────
       case "invoice.payment_succeeded": {
         const invoice = event.data.object as Stripe.Invoice;
-        const subRef =
-          invoice.parent?.subscription_details?.subscription ?? null;
-        const subscriptionId =
-          typeof subRef === "string" ? subRef : subRef?.id ?? null;
-        if (!subscriptionId) break;
+        const result = await getSubscriptionFromInvoice(invoice);
+        if (!result) break;
 
-        const subscription =
-          await stripe.subscriptions.retrieve(subscriptionId);
+        const { subscription } = result;
         const userId = subscription.metadata?.user_id;
         if (!userId) break;
+
+        const currentPeriodEnd = getSubscriptionPeriodEnd(subscription);
+        const amountPaid = getInvoiceAmount(invoice);
 
         await supabaseAdmin
           .from("profiles")
           .update({
-            subscription_status: subscription.status,
-            current_period_end: getSubscriptionPeriodEnd(subscription),
+            subscription_status: "active",
+            current_period_end: currentPeriodEnd,
+            subscription_renews_at: currentPeriodEnd,
+            last_payment_at: new Date().toISOString(),
+            last_payment_amount: amountPaid,
           })
           .eq("id", userId);
+
+        await supabaseAdmin.rpc("increment_payment_stats", {
+          p_user_id: userId,
+          p_amount: amountPaid,
+        }).then(r => {
+          if (r.error) console.log("increment_payment_stats not available:", r.error.message);
+        });
+
+        await logSubscriptionEvent({
+          user_id: userId,
+          event_type: "payment_succeeded",
+          plan_key: subscription.metadata?.plan_key ?? null,
+          amount_paid: amountPaid,
+          currency: getInvoiceCurrency(invoice),
+          stripe_customer_id: subscription.customer as string,
+          stripe_subscription_id: subscription.id,
+          stripe_invoice_id: invoice.id,
+          period_end: currentPeriodEnd,
+          raw_event_id: event.id,
+        });
         break;
       }
 
+      // ── Invoice payment failed ─────────────────────────────
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
-        const subRef =
-          invoice.parent?.subscription_details?.subscription ?? null;
-        const subscriptionId =
-          typeof subRef === "string" ? subRef : subRef?.id ?? null;
-        if (!subscriptionId) break;
+        const result = await getSubscriptionFromInvoice(invoice);
+        if (!result) break;
 
-        const subscription =
-          await stripe.subscriptions.retrieve(subscriptionId);
+        const { subscription } = result;
         const userId = subscription.metadata?.user_id;
         if (!userId) break;
 
@@ -226,8 +331,21 @@ export async function POST(req: NextRequest) {
           .from("profiles")
           .update({ subscription_status: "past_due" })
           .eq("id", userId);
+
+        await logSubscriptionEvent({
+          user_id: userId,
+          event_type: "payment_failed",
+          plan_key: subscription.metadata?.plan_key ?? null,
+          amount_paid: getInvoiceAmount(invoice),
+          currency: getInvoiceCurrency(invoice),
+          stripe_customer_id: subscription.customer as string,
+          stripe_subscription_id: subscription.id,
+          stripe_invoice_id: invoice.id,
+          raw_event_id: event.id,
+        });
+
         sendAdminAlert(
-          `❌ Payment failed\nUser: ${userId}\nInvoice: ${invoice.id}`,
+          `❌ Payment failed\nUser: ${userId}\nInvoice: ${invoice.id}\nAmount: ${((invoice.amount_due ?? 0) / 100).toFixed(2)} ${invoice.currency?.toUpperCase() ?? "GBP"}`,
           "error"
         );
         break;

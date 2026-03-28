@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { ExpiredLock } from "@/components/dashboard/ExpiredOverlay";
 
 type WatchlistItem = {
   id: string;
@@ -354,6 +355,7 @@ export default function InvestmentsCalculatorPage() {
   }, [ticker, reference, ladderRows, combinedFirstTwo, profitLines]);
 
   return (
+    <ExpiredLock>
     <div className="space-y-6">
       <section className="rounded-[30px] border border-cyan-500/15 bg-[linear-gradient(180deg,rgba(4,16,48,0.98),rgba(5,20,56,0.96))] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.3)]">
         <div className="mb-6">
@@ -728,5 +730,6 @@ export default function InvestmentsCalculatorPage() {
         </div>
       </section>
     </div>
+    </ExpiredLock>
   );
 }

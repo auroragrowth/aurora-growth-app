@@ -1,7 +1,10 @@
 import { redirect } from "next/navigation";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import BrokerConnectModal from "@/components/dashboard/BrokerConnectModal";
+import WelcomeModal from "@/components/dashboard/WelcomeModal";
+import ExpiryBanner from "@/components/dashboard/ExpiryBanner";
 import { BrokerPopupProvider } from "@/components/providers/BrokerPopupProvider";
+import { SubscriptionProvider } from "@/components/providers/SubscriptionProvider";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -33,10 +36,12 @@ export default async function DashboardLayout({
     "User";
   let plan = "free";
   let planLabel = "Aurora Free";
+  let subscriptionStatus: string | null = null;
+  let currentPeriodEnd: string | null = null;
   try {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("full_name, plan, plan_key, subscription_status")
+      .select("full_name, plan, plan_key, subscription_status, current_period_end")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -50,12 +55,14 @@ export default async function DashboardLayout({
         fullName;
     }
 
-    plan = profile?.plan ?? profile?.plan_key ?? "free";
+    plan = profile?.plan_key ?? profile?.plan ?? "free";
     planLabel =
       plan === "elite" ? "Aurora Elite" :
       plan === "pro" ? "Aurora Pro" :
       plan === "core" ? "Aurora Core" :
       "Aurora Free";
+    subscriptionStatus = profile?.subscription_status ?? null;
+    currentPeriodEnd = profile?.current_period_end ?? null;
   } catch (err) {
     console.error("Failed to fetch profile in layout:", err);
   }
@@ -97,19 +104,31 @@ export default async function DashboardLayout({
   }
 
   return (
-    <BrokerPopupProvider>
-      <DashboardShell
-        userName={fullName}
-        userEmail={user.email || ""}
-        lastLogin={user.last_sign_in_at}
-        joinDate={user.created_at}
-        planName={planLabel}
-        brokerStatus={brokerStatus}
-        brokerConnected={brokerConnected}
-      >
-        {children}
-        {showBrokerPopup && <BrokerConnectModal />}
-      </DashboardShell>
-    </BrokerPopupProvider>
+    <SubscriptionProvider
+      planKey={plan}
+      planName={planLabel}
+      subscriptionStatus={subscriptionStatus}
+      currentPeriodEnd={currentPeriodEnd}
+    >
+      <BrokerPopupProvider>
+        <DashboardShell
+          userName={fullName}
+          userEmail={user.email || ""}
+          lastLogin={user.last_sign_in_at}
+          joinDate={user.created_at}
+          planName={planLabel}
+          planKey={plan}
+          subscriptionStatus={subscriptionStatus}
+          currentPeriodEnd={currentPeriodEnd}
+          brokerStatus={brokerStatus}
+          brokerConnected={brokerConnected}
+        >
+          <ExpiryBanner />
+          {children}
+          {showBrokerPopup && <BrokerConnectModal />}
+          <WelcomeModal firstName={fullName.split(" ")[0]} />
+        </DashboardShell>
+      </BrokerPopupProvider>
+    </SubscriptionProvider>
   );
 }

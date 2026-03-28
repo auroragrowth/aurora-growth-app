@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 const ALLOWED_FIELDS = [
   "onboarding_step",
   "has_seen_welcome_popup",
+  "has_seen_welcome",
   "has_seen_plan_selection",
   "has_completed_onboarding",
   "has_seen_trading212_prompt",

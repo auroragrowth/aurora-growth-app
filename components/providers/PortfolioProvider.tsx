@@ -91,7 +91,7 @@ const defaultState: Snapshot = {
   overview: null,
 };
 
-const REFRESH_COOLDOWN_MS = 180_000;
+const REFRESH_COOLDOWN_MS = 25_000;
 
 const PortfolioContext = createContext<{
   data: Snapshot;

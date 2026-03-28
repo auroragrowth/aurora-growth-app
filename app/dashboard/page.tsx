@@ -41,7 +41,7 @@ export default async function DashboardPage() {
       user.email?.split("@")[0] ||
       "there";
 
-  const plan = profile?.plan ?? profile?.plan_key ?? "free";
+  const plan = profile?.plan_key ?? profile?.plan ?? "free";
   const planLabel =
     plan === "elite" ? "Aurora Elite" :
     plan === "pro" ? "Aurora Pro" :
@@ -65,7 +65,7 @@ export default async function DashboardPage() {
   } catch { /* ignore */ }
 
   return (
-    <main className="min-h-screen bg-[#020817] text-white">
+    <main className="text-white">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8 md:px-8 lg:px-10">
         {/* Welcome hero */}
         <section className="overflow-hidden rounded-[28px] border border-cyan-500/15 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_34%),linear-gradient(135deg,rgba(3,7,18,0.96),rgba(2,6,23,0.92))] shadow-[0_0_0_1px_rgba(14,165,233,0.04),0_20px_80px_rgba(2,6,23,0.65)] p-6 md:p-8">
