@@ -48,6 +48,23 @@ export default function StarterGuidePage() {
             How Aurora Works
           </h2>
 
+          {/* Step 0 — Broker account */}
+          <div className="mb-6 rounded-2xl border border-cyan-400/15 bg-cyan-400/5 p-5">
+            <h3 className="text-sm font-semibold text-white">Step 0 — Open a brokerage account</h3>
+            <p className="mt-2 text-sm text-slate-300">
+              If you don&apos;t already have one, we recommend opening an account with our partner broker.
+              New accounts receive a free share worth up to &pound;100 on first deposit.
+            </p>
+            <a
+              href="https://www.trading212.com/invite/4DqdKdJdUH3"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-flex items-center gap-1 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-300 transition hover:bg-cyan-400/15"
+            >
+              Open account &rarr;
+            </a>
+          </div>
+
           <div className="grid gap-6 sm:grid-cols-2">
             {[
               {

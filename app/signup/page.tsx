@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 function getPasswordStrength(password: string) {
@@ -32,7 +32,16 @@ function getPasswordStrength(password: string) {
 }
 
 export default function SignupPage() {
+  return (
+    <Suspense>
+      <SignupPageInner />
+    </Suspense>
+  );
+}
+
+function SignupPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClient();
 
   const [fullName, setFullName] = useState("");
@@ -45,6 +54,14 @@ export default function SignupPage() {
   const [error, setError] = useState("");
 
   const passwordStrength = useMemo(() => getPasswordStrength(password), [password]);
+
+  // Store referral code from URL
+  useEffect(() => {
+    const ref = searchParams.get("ref");
+    if (ref) {
+      localStorage.setItem("referral_code", ref);
+    }
+  }, [searchParams]);
 
   const handleSignup = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -60,6 +77,8 @@ export default function SignupPage() {
     try {
       const origin = process.env.NEXT_PUBLIC_APP_URL?.trim() || window.location.origin;
 
+      const referralCode = localStorage.getItem("referral_code") || undefined;
+
       const { error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -68,6 +87,7 @@ export default function SignupPage() {
           data: {
             full_name: fullName,
             phone: phone || undefined,
+            referred_by: referralCode,
           },
         },
       });

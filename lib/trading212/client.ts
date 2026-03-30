@@ -1,6 +1,6 @@
 import { decryptString, toBasicAuthHeader } from "@/lib/security/encryption";
 import type { BrokerConnectionRecord } from "@/lib/trading212/types";
-import { TRADING212_BASE_URL } from "@/lib/trading212/connections";
+import { getBaseUrl, TRADING212_BASE_URL } from "@/lib/trading212/connections";
 
 export function getTrading212AuthHeader(connection: BrokerConnectionRecord): string {
   let apiKey = "";
@@ -51,7 +51,8 @@ export async function trading212Fetch<T>(
   path: string,
   init?: RequestInit
 ): Promise<T> {
-  const url = `${TRADING212_BASE_URL}${path}`;
+  const baseUrl = connection.base_url || getBaseUrl(connection.mode || "live");
+  const url = `${baseUrl}${path}`;
   const authHeader = getTrading212AuthHeader(connection);
 
   const res = await fetch(url, {

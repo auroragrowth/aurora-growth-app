@@ -66,13 +66,15 @@ type Snapshot = {
   updatedAt: string | null;
   positions: Position[];
   overview: Overview | null;
+  brokerMode: "live" | "demo";
 };
 
 type StatusResponse = {
   ok?: boolean;
   authenticated?: boolean;
+  active_broker_mode?: "live" | "demo";
   trading212?: {
-    mode?: "paper" | "live";
+    mode?: "live" | "demo";
     is_connected?: boolean;
   } | null;
 };
@@ -89,6 +91,7 @@ const defaultState: Snapshot = {
   updatedAt: null,
   positions: [],
   overview: null,
+  brokerMode: "live",
 };
 
 const REFRESH_COOLDOWN_MS = 25_000;
@@ -202,6 +205,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
 
         const statusJson = (await safeJson(statusRes)) as StatusResponse | null;
         const sqlConnected = Boolean(statusJson?.trading212?.is_connected);
+        const currentMode = (statusJson?.active_broker_mode || statusJson?.trading212?.mode || "live") as "live" | "demo";
 
         if (!mountedRef.current) return;
 
@@ -211,6 +215,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
             connected: false,
             loading: false,
             error: null,
+            brokerMode: currentMode,
           }));
           lastLoadedAtRef.current = Date.now();
           return;
@@ -278,6 +283,7 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
           updatedAt: new Date().toISOString(),
           positions: safePositions,
           overview,
+          brokerMode: currentMode,
         });
 
         lastLoadedAtRef.current = Date.now();
@@ -310,9 +316,17 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     // Auto-refresh every 60 seconds
     const interval = setInterval(() => load(true), 60_000);
 
+    // Re-fetch when broker mode changes
+    const onModeChange = () => {
+      lastLoadedAtRef.current = 0; // bypass cooldown
+      load(true);
+    };
+    window.addEventListener("aurora:broker-mode-changed", onModeChange);
+
     return () => {
       mountedRef.current = false;
       clearInterval(interval);
+      window.removeEventListener("aurora:broker-mode-changed", onModeChange);
     };
   }, [load]);
 

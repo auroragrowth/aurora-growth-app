@@ -190,6 +190,19 @@ export default function SelectPlanClient({
           <p className="mt-10 text-center text-sm text-white/35">
             No free trials. Cancel any time from your account settings.
           </p>
+
+          <p className="mt-4 text-center text-sm text-white/40">
+            Already have a brokerage account? Connect it after signup to unlock live portfolio tracking.{" "}
+            Don&apos;t have one?{" "}
+            <a
+              href="https://www.trading212.com/invite/4DqdKdJdUH3"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-cyan-300 underline underline-offset-2 transition hover:text-cyan-200"
+            >
+              Open an account &rarr;
+            </a>
+          </p>
         </div>
       </main>
     </>

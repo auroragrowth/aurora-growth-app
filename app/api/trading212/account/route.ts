@@ -5,88 +5,39 @@ import {
 } from "@/lib/trading212/server";
 import { sanitizeConnection } from "@/lib/trading212/connections";
 
-type CachedAccount = {
-  connected: boolean;
-  data: unknown;
-  connection: Record<string, unknown> | null;
-  cachedAt: number;
-};
-
-const CACHE_TTL_MS = 30000;
-
-declare global {
-  // eslint-disable-next-line no-var
-  var __auroraTrading212AccountCache: CachedAccount | undefined;
-}
-
-function getCache() {
-  const cache = globalThis.__auroraTrading212AccountCache;
-  if (!cache) return null;
-
-  const isFresh = Date.now() - cache.cachedAt < CACHE_TTL_MS;
-  return {
-    ...cache,
-    isFresh,
-  };
-}
-
 export async function GET() {
-  const cached = getCache();
-
-  if (cached?.isFresh) {
-    return NextResponse.json({
-      ok: true,
-      connected: cached.connected,
-      cached: true,
-      stale: false,
-      connection: cached.connection,
-      data: cached.data,
-    });
-  }
-
   try {
-    const result = await fetchTrading212Summary();
+    const connection = await getTrading212ConnectionForUser();
 
-    globalThis.__auroraTrading212AccountCache = {
-      connected: result.connected,
-      data: result.summary,
-      connection: result.connection,
-      cachedAt: Date.now(),
-    };
+    console.log("[Trading212 Account]", {
+      mode: connection?.mode || "none",
+      baseUrl: connection?.base_url || "none",
+      isConnected: connection?.is_connected || false,
+      hasKey: !!connection?.api_key_encrypted,
+    });
+
+    const result = await fetchTrading212Summary();
 
     return NextResponse.json({
       ok: true,
       connected: result.connected,
       cached: false,
-      stale: false,
       connection: result.connection,
       data: result.summary,
     });
   } catch (error) {
-    const stale = getCache();
+    console.error("[Trading212 Account] Error:", error instanceof Error ? error.message : error);
 
-    if (stale) {
-      return NextResponse.json({
-        ok: true,
-        connected: stale.connected,
-        cached: true,
-        stale: true,
-        warning: "Using cached Trading 212 account data",
-        connection: stale.connection,
-        data: stale.data,
-      });
-    }
-
-    const connection = await getTrading212ConnectionForUser();
+    let connection = null;
+    try {
+      connection = await getTrading212ConnectionForUser();
+    } catch { /* ignore */ }
 
     return NextResponse.json(
       {
         ok: false,
         connected: Boolean(connection?.is_connected),
-        error:
-          error instanceof Error
-            ? error.message
-            : "Trading 212 account request failed",
+        error: error instanceof Error ? error.message : "Trading 212 account request failed",
         connection: sanitizeConnection(connection as unknown as Record<string, unknown>),
         data: null,
       },

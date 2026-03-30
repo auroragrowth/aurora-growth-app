@@ -1,12 +1,16 @@
 /**
  * Single source of truth for the trading212_connections table schema.
- * One row per user. No mode — paper trading removed.
+ * One row per user per mode (live / demo).
  */
+
+export type BrokerMode = "live" | "demo";
 
 export type BrokerConnectionRecord = {
   id: string;
   user_id: string;
   broker: string;
+  mode: BrokerMode;
+  base_url: string;
   api_key_encrypted: string;
   api_key: string | null;
   api_secret_encrypted: string | null;

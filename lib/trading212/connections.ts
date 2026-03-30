@@ -1,10 +1,16 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import type { BrokerConnectionRecord } from "@/lib/trading212/types";
+import type { BrokerConnectionRecord, BrokerMode } from "@/lib/trading212/types";
 
-const BASE_URL = "https://live.trading212.com/api/v0";
+export const LIVE_BASE_URL = "https://live.trading212.com/api/v0";
+export const DEMO_BASE_URL = "https://demo.trading212.com/api/v0";
 
-export { BASE_URL as TRADING212_BASE_URL };
+/** @deprecated Use getBaseUrl(mode) instead */
+export const TRADING212_BASE_URL = LIVE_BASE_URL;
+
+export function getBaseUrl(mode: BrokerMode): string {
+  return mode === "demo" ? DEMO_BASE_URL : LIVE_BASE_URL;
+}
 
 export async function getCurrentUser() {
   const supabase = await createSupabaseServerClient();
@@ -17,17 +23,43 @@ export async function getCurrentUser() {
   return data.user;
 }
 
-export async function getUserConnection(userId: string) {
+export async function getActiveMode(userId: string): Promise<BrokerMode> {
+  const { data } = await supabaseAdmin
+    .from("profiles")
+    .select("active_broker_mode")
+    .eq("id", userId)
+    .maybeSingle();
+
+  return (data?.active_broker_mode === "demo" ? "demo" : "live") as BrokerMode;
+}
+
+export async function getUserConnection(userId: string, mode?: BrokerMode) {
+  const resolvedMode = mode ?? await getActiveMode(userId);
+
   const { data, error } = await supabaseAdmin
     .from("trading212_connections")
     .select("*")
     .eq("user_id", userId)
     .eq("broker", "trading212")
     .eq("is_active", true)
+    .eq("mode", resolvedMode)
     .maybeSingle();
 
   if (error) throw error;
   return data as BrokerConnectionRecord | null;
+}
+
+export async function getUserConnections(userId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("trading212_connections")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("broker", "trading212")
+    .eq("is_active", true)
+    .order("mode", { ascending: true });
+
+  if (error) throw error;
+  return (data || []) as BrokerConnectionRecord[];
 }
 
 /**

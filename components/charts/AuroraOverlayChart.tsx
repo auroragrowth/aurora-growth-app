@@ -113,7 +113,7 @@ export default function AuroraOverlayChart({
   }, [candles]);
 
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !document.body.contains(containerRef.current)) return;
 
     const chart = createChart(containerRef.current, {
       height: 420,

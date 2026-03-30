@@ -482,7 +482,7 @@ export default function TopOpportunitiesPage() {
                     </div>
 
                     <Link
-                      href={`/dashboard/chart?ticker=${encodeURIComponent(
+                      href={`/dashboard/stocks/${encodeURIComponent(
                         row.ticker || ""
                       )}`}
                       className="inline-flex items-center rounded-xl bg-cyan-400 px-4 py-2 text-sm font-semibold text-[#04111c] transition hover:brightness-110"
@@ -591,7 +591,7 @@ export default function TopOpportunitiesPage() {
                         </td>
                         <td className="rounded-r-2xl px-3 py-4 text-right">
                           <Link
-                            href={`/dashboard/chart?ticker=${encodeURIComponent(
+                            href={`/dashboard/stocks/${encodeURIComponent(
                               row.ticker || ""
                             )}`}
                             className="inline-flex rounded-xl bg-cyan-400 px-3 py-2 text-xs font-semibold text-[#04111c] transition hover:brightness-110"

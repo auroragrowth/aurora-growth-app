@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import TradingViewAdvancedChart from "@/components/stocks/TradingViewAdvancedChart";
 import { useWatchlist } from "@/components/watchlist/WatchlistProvider";
 
@@ -60,6 +61,10 @@ function fmtPct(value: unknown) {
 }
 
 function fmtMktCap(value: unknown) {
+  const str = String(value || "").trim();
+  const m = str.match(/^([\d,.]+)\s*([BMT])$/i);
+  if (m) return `$${m[1]}${m[2].toUpperCase()}`;
+  if (str.includes("%")) return "—";
   const n = asNumber(value, 0);
   if (!n) return "—";
   if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
@@ -137,16 +142,60 @@ function MetricCard({
 }
 
 export default function StockIntelligenceClient({ ticker }: Props) {
-  const { hasTicker, toggleTicker } = useWatchlist();
+  const router = useRouter();
+  const { hasTicker, toggleTicker, items: watchlistItems } = useWatchlist();
   const symbol = safeUpper(ticker);
 
   const [row, setRow] = useState<ScannerRow | null>(null);
+  const [allRows, setAllRows] = useState<ScannerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [aiText, setAiText] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiTimestamp, setAiTimestamp] = useState<string | null>(null);
   const [showAi, setShowAi] = useState(true);
   const [speaking, setSpeaking] = useState(false);
+
+  // Ticker search
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  const searchResults = useMemo(() => {
+    const q = searchQuery.toUpperCase().trim();
+    const wlTickers = (watchlistItems || []).map((i: any) => safeUpper(i.symbol || i.ticker));
+
+    // Build deduplicated list: watchlist first, then scanner
+    const seen = new Set<string>();
+    const results: { ticker: string; company: string; isWatchlist: boolean }[] = [];
+
+    for (const item of watchlistItems || []) {
+      const t = safeUpper(item.symbol || (item as any).ticker);
+      if (!t || seen.has(t)) continue;
+      if (q && !t.includes(q) && !(item.company_name || "").toUpperCase().includes(q)) continue;
+      seen.add(t);
+      results.push({ ticker: t, company: item.company_name || "", isWatchlist: true });
+    }
+
+    for (const r of allRows) {
+      const t = safeUpper(r.ticker);
+      if (!t || seen.has(t)) continue;
+      if (q && !t.includes(q) && !(r.company_name || r.company || "").toUpperCase().includes(q)) continue;
+      seen.add(t);
+      results.push({ ticker: t, company: r.company_name || r.company || "", isWatchlist: false });
+    }
+
+    return results.slice(0, 20);
+  }, [searchQuery, watchlistItems, allRows]);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -163,7 +212,10 @@ export default function StockIntelligenceClient({ ticker }: Props) {
         const match = rows.find(
           (r) => safeUpper(r.ticker) === symbol
         );
-        if (mounted) setRow(match || null);
+        if (mounted) {
+          setRow(match || null);
+          setAllRows(rows);
+        }
       } catch {
         if (mounted) setRow(null);
       } finally {
@@ -249,12 +301,49 @@ export default function StockIntelligenceClient({ ticker }: Props) {
         {/* Header */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <Link
-              href="/dashboard/market-scanner"
-              className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300 transition hover:bg-white/10"
-            >
-              ← Back to Market Scanner
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/dashboard/market-scanner"
+                className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300 transition hover:bg-white/10"
+              >
+                ← Back
+              </Link>
+
+              {/* Ticker search */}
+              <div ref={searchRef} className="relative">
+                <input
+                  value={searchQuery}
+                  onChange={(e) => { setSearchQuery(e.target.value); setSearchOpen(true); }}
+                  onFocus={() => setSearchOpen(true)}
+                  placeholder={`${symbol} — Search or select ticker...`}
+                  className="w-64 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-cyan-400/30"
+                />
+                {searchOpen && searchResults.length > 0 && (
+                  <div className="absolute left-0 top-full z-50 mt-1 max-h-64 w-80 overflow-y-auto rounded-2xl border border-white/10 bg-[#0b1220] shadow-2xl">
+                    {searchResults.map((r) => (
+                      <button
+                        key={r.ticker}
+                        type="button"
+                        onClick={() => {
+                          setSearchOpen(false);
+                          setSearchQuery("");
+                          router.push(`/dashboard/stocks/${r.ticker}`);
+                        }}
+                        className={`flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm transition hover:bg-white/5 ${
+                          r.ticker === symbol ? "bg-cyan-400/5" : ""
+                        }`}
+                      >
+                        <span className="font-semibold text-cyan-300">{r.ticker}</span>
+                        <span className="truncate text-zinc-400">{r.company}</span>
+                        {r.isWatchlist && (
+                          <span className="ml-auto shrink-0 text-[10px] text-amber-400">★</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
 
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <h1 className="text-3xl font-bold tracking-tight text-white">
@@ -286,6 +375,13 @@ export default function StockIntelligenceClient({ ticker }: Props) {
                   </>
                 )}
               </button>
+
+              <Link
+                href={`/dashboard/investments/calculator?ticker=${symbol}`}
+                className="inline-flex items-center gap-1.5 rounded-full bg-[linear-gradient(90deg,#22d3ee_0%,#60a5fa_45%,#a855f7_100%)] px-5 py-2 text-sm font-semibold text-slate-950 transition hover:brightness-110"
+              >
+                📊 Make Investment
+              </Link>
             </div>
           </div>
 

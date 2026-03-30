@@ -79,32 +79,43 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Chat service not configured" }, { status: 503 });
   }
 
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const MODELS = ["gemini-2.0-flash", "gemini-1.5-flash"];
+  const genAI = new GoogleGenerativeAI(apiKey);
 
-    const history = (body.history || [])
-      .filter((m) => m.role === "user" || m.role === "model")
-      .slice(-6)
-      .map((m) => ({
-        role: m.role === "user" ? "user" as const : "model" as const,
-        parts: [{ text: m.content }],
-      }));
+  const history = (body.history || [])
+    .filter((m) => m.role === "user" || m.role === "model")
+    .slice(-6)
+    .map((m) => ({
+      role: m.role === "user" ? "user" as const : "model" as const,
+      parts: [{ text: m.content }],
+    }));
 
-    const chat = model.startChat({
-      history,
-      systemInstruction: { role: "user" as const, parts: [{ text: SYSTEM_PROMPT }] },
-    });
+  let lastError: any = null;
 
-    const result = await chat.sendMessage(body.message);
-    const text = result.response.text();
+  for (const modelId of MODELS) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelId });
+      const chat = model.startChat({
+        history,
+        systemInstruction: { role: "user" as const, parts: [{ text: SYSTEM_PROMPT }] },
+      });
 
-    return NextResponse.json({ ok: true, message: text });
-  } catch (err: any) {
-    console.error("Public chat error:", err?.message || err);
-    return NextResponse.json(
-      { error: "Aurora Assistant is temporarily unavailable." },
-      { status: 500 }
-    );
+      const result = await chat.sendMessage(body.message);
+      const text = result.response.text();
+
+      return NextResponse.json({ ok: true, message: text });
+    } catch (err: any) {
+      console.error(`Public chat error (${modelId}):`, err?.message || err);
+      lastError = err;
+      if (err?.message?.includes("429") || err?.message?.includes("quota")) continue;
+      break;
+    }
   }
+
+  return NextResponse.json(
+    { error: lastError?.message?.includes("429")
+        ? "Aurora Assistant is busy. Please try again in a minute."
+        : "Aurora Assistant is temporarily unavailable." },
+    { status: lastError?.message?.includes("429") ? 429 : 500 }
+  );
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { ExpiredLock } from "@/components/dashboard/ExpiredOverlay";
 import dynamic from "next/dynamic";
@@ -121,7 +122,12 @@ function shortDate(dateStr: string | null): string {
 /* ─── component ─── */
 
 export default function InvestmentsCalculatorPage() {
+  return <Suspense><InvestmentsCalculatorInner /></Suspense>;
+}
+
+function InvestmentsCalculatorInner() {
   const supabase = createClient();
+  const searchParams = useSearchParams();
 
   // Watchlist
   const [loadingWatchlist, setLoadingWatchlist] = useState(true);
@@ -143,10 +149,8 @@ export default function InvestmentsCalculatorPage() {
   const [refData, setRefData] = useState<RefData | null>(null);
   const [loadingRef, setLoadingRef] = useState(false);
 
-  // Profit target (0 = no target)
-  const [profitTargetPct, setProfitTargetPct] = useState(20);
-  const [customProfitPct, setCustomProfitPct] = useState("");
-  const showProfitTargets = profitTargetPct > 0;
+  // Profit target — fixed at 20%
+  const profitTargetPct = 20;
 
   // Chart data
   const [candles, setCandles] = useState<CandleRow[]>([]);
@@ -180,15 +184,28 @@ export default function InvestmentsCalculatorPage() {
     return () => { active = false; };
   }, [supabase]);
 
+  /* ── Pre-fill from ?ticker= query param ── */
+  const [prefilledFromParam, setPrefilledFromParam] = useState(false);
+  useEffect(() => {
+    const paramTicker = searchParams?.get("ticker");
+    if (paramTicker && !prefilledFromParam) {
+      setPrefilledFromParam(true);
+      setTicker(paramTicker.toUpperCase());
+      loadTickerData(paramTicker.toUpperCase());
+      return;
+    }
+  }, [searchParams, prefilledFromParam]);
+
   /* ── Auto-select first watchlist item ── */
   useEffect(() => {
+    if (prefilledFromParam) return;
     if (!watchlist.length || selectedWatchlistId) return;
     const first = watchlist[0];
     setSelectedWatchlistId(first.id);
     setTicker(first.symbol || "");
     setCompanyName(first.company_name || "");
     loadTickerData(first.symbol || "");
-  }, [watchlist, selectedWatchlistId]);
+  }, [watchlist, selectedWatchlistId, prefilledFromParam]);
 
   /* ── Load ticker data: price + history + reference ── */
   const loadTickerData = useCallback(async (symbol: string) => {
@@ -363,6 +380,17 @@ export default function InvestmentsCalculatorPage() {
       });
     }
 
+    // BEP line (green, solid)
+    if (combinedFirstTwo.averagePrice > 0) {
+      out.push({
+        label: `BEP · ${cp}${combinedFirstTwo.averagePrice.toFixed(2)}`,
+        price: combinedFirstTwo.averagePrice,
+        color: "#22c55e",
+        style: "solid",
+        lineWidth: 2,
+      });
+    }
+
     // Ladder buy lines (blue, solid)
     ladderRows.forEach((row) => {
       out.push({
@@ -375,7 +403,7 @@ export default function InvestmentsCalculatorPage() {
     });
 
     // Profit target lines (gold, dashed) — only when a target % is set
-    if (showProfitTargets) {
+    if (true) {
       ladderRows.forEach((row) => {
         const targetPrice = row.entryPrice * (1 + profitTargetPct / 100);
         out.push({
@@ -389,7 +417,7 @@ export default function InvestmentsCalculatorPage() {
     }
 
     return out;
-  }, [referencePrice, ladderRows, currency, cp, profitTargetPct, showProfitTargets]);
+  }, [referencePrice, ladderRows, currency, cp, profitTargetPct, combinedFirstTwo]);
 
   /* ── Chart link ── */
   const chartHref = useMemo(() => {
@@ -406,7 +434,7 @@ export default function InvestmentsCalculatorPage() {
       line1: String(line1), line2: String(line2), bep: String(bep),
       p10: String(p10), p15: String(p15), p20: String(p20), p25: String(p25),
     });
-    return `/dashboard/chart?${params.toString()}`;
+    return `/dashboard/stocks/${ticker || "USLM"}`;
   }, [ticker, referencePrice, ladderRows, combinedFirstTwo, profitLines]);
 
   /* ── Reference card helper ── */
@@ -465,15 +493,31 @@ export default function InvestmentsCalculatorPage() {
               {watchlistError && <p className="mt-2 text-sm text-rose-300">{watchlistError}</p>}
             </div>
 
-            {/* Ticker */}
+            {/* Ticker search */}
             <div>
               <label className="mb-2 block text-sm text-slate-300">Ticker</label>
-              <input
-                value={ticker}
-                onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-                placeholder="ANET"
-              />
+              <div className="flex gap-2">
+                <input
+                  value={ticker}
+                  onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                  onKeyDown={(e) => { if (e.key === "Enter") loadTickerData(ticker); }}
+                  className="flex-1 rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                  placeholder="Search ticker e.g. AAPL"
+                />
+                <button
+                  type="button"
+                  onClick={() => loadTickerData(ticker)}
+                  disabled={!ticker.trim() || loadingTicker}
+                  className="rounded-2xl border border-cyan-500/15 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-300 transition hover:bg-cyan-500/20 disabled:opacity-40"
+                >
+                  {loadingTicker ? "..." : "Go"}
+                </button>
+              </div>
+              {currentPrice > 0 && ticker && (
+                <p className="mt-2 text-sm text-cyan-300/80">
+                  Current: {cp}{currentPrice.toFixed(2)} · Ref: {cp}{referencePrice.toFixed(2)} (+20%)
+                </p>
+              )}
             </div>
 
             {/* Cash + Ladder in a row */}
@@ -654,7 +698,7 @@ export default function InvestmentsCalculatorPage() {
       </section>
 
       {/* ═══ TOP SUMMARY BAR ═══ */}
-      {showProfitTargets && ladderRows.length > 0 && (() => {
+      {true && ladderRows.length > 0 && (() => {
         const totalInvested = ladderRows.reduce((s, r) => s + r.investmentAmount, 0);
         const totalAtTargets = ladderRows.reduce((s, r) => {
           const targetPrice = r.entryPrice * (1 + profitTargetPct / 100);
@@ -778,43 +822,13 @@ export default function InvestmentsCalculatorPage() {
         <div className="mb-4">
           <h3 className="text-lg font-semibold text-white">Profit Targets</h3>
           <p className="mt-1 text-xs text-slate-400">
-            {showProfitTargets && combinedFirstTwo.averagePrice > 0
+            {true && combinedFirstTwo.averagePrice > 0
               ? <>Calculated from your blended entry price of {cp}{combinedFirstTwo.averagePrice.toFixed(2)}</>
               : "Select a profit target percentage below"}
           </p>
         </div>
 
-        {/* Profit % selector */}
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={() => { setProfitTargetPct(0); setCustomProfitPct(""); }}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
-              profitTargetPct === 0
-                ? "border-amber-400/40 bg-amber-500/20 text-amber-200"
-                : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/8"
-            }`}
-          >
-            No target
-          </button>
-          {[10, 15, 20, 25, 30].map((pct) => (
-            <button
-              key={pct}
-              type="button"
-              onClick={() => { setProfitTargetPct(pct); setCustomProfitPct(""); }}
-              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
-                profitTargetPct === pct && !customProfitPct
-                  ? "border-amber-400/40 bg-amber-500/20 text-amber-200"
-                  : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/8"
-              }`}
-            >
-              {pct}%
-            </button>
-          ))}
-        </div>
-
-        {showProfitTargets && (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {profitLines.length === 0 ? (
               <div className="text-sm text-slate-500">No profit targets yet.</div>
             ) : (
@@ -835,7 +849,6 @@ export default function InvestmentsCalculatorPage() {
               ))
             )}
           </div>
-        )}
 
         <div className="mt-4">
           <Link

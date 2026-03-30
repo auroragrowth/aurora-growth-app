@@ -59,9 +59,10 @@ export default function LadderMiniChart({
 
   // Create chart once
   useEffect(() => {
-    if (!containerRef.current) return;
+    const el = containerRef.current;
+    if (!el || !document.body.contains(el) || el.clientWidth === 0) return;
 
-    const chart = createChart(containerRef.current, {
+    const chart = createChart(el, {
       height,
       layout: {
         background: { type: ColorType.Solid, color: "#030916" },
@@ -112,7 +113,8 @@ export default function LadderMiniChart({
       chartRef.current = null;
       seriesRef.current = null;
     };
-  }, [height]);
+    // Re-run when candles appear (container mounts) or height changes
+  }, [height, candleData.length > 0]);
 
   // Update candle data
   useEffect(() => {
@@ -149,7 +151,7 @@ export default function LadderMiniChart({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-white/10 bg-[#030916]">
-      <div ref={containerRef} className="w-full" />
+      {candles.length > 0 && <div ref={containerRef} className="w-full" style={{ minHeight: height }} />}
       {candles.length === 0 && (
         <div className="flex h-[300px] items-center justify-center text-sm text-white/40">
           Enter a ticker to load chart data

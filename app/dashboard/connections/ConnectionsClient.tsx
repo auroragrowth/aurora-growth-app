@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useBrokerPopup } from "@/components/providers/BrokerPopupProvider";
 
+import BrokerModeToggle from "@/components/broker/BrokerModeToggle";
+
 type Connection = {
   id: string;
   broker: string;
+  mode?: string;
   display_name: string | null;
   account_id: string | null;
   account_currency: string | null;
@@ -231,23 +234,132 @@ function TelegramSection() {
   );
 }
 
+/* ── Connection Card ─── */
+
+function ConnectionCard({
+  mode,
+  connection,
+  loading,
+  onTest,
+  onDisconnect,
+  onConnect,
+  testing,
+}: {
+  mode: "live" | "demo";
+  connection: Connection | null;
+  loading: boolean;
+  onTest: () => void;
+  onDisconnect: () => void;
+  onConnect: () => void;
+  testing: boolean;
+}) {
+  const isLive = mode === "live";
+  const dot = isLive ? "bg-emerald-400" : "bg-amber-400";
+  const label = isLive ? "LIVE ACCOUNT" : "DEMO / PRACTICE";
+  const icon = isLive ? "🟢" : "🟡";
+
+  return (
+    <div className={`rounded-2xl border p-5 ${
+      connection?.is_connected
+        ? isLive ? "border-emerald-400/20 bg-emerald-400/5" : "border-amber-400/20 border-dashed bg-amber-400/5"
+        : "border-white/10 bg-white/[0.03]"
+    }`}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span>{icon}</span>
+          <span className="text-sm font-semibold text-white">{label}</span>
+        </div>
+        {loading ? (
+          <span className="text-xs text-slate-500">Loading...</span>
+        ) : connection?.is_connected ? (
+          <span className={`rounded-full border px-2.5 py-0.5 text-[10px] font-bold ${
+            isLive ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300" : "border-amber-400/25 bg-amber-400/10 text-amber-300"
+          }`}>Active</span>
+        ) : (
+          <span className="text-[10px] text-slate-500">Not connected</span>
+        )}
+      </div>
+
+      {connection?.is_connected ? (
+        <div className="mt-4">
+          <div className="text-sm text-slate-300">
+            Account: {connection.account_id || "—"} · {connection.account_currency || "—"}
+          </div>
+          <div className="text-xs text-slate-500">
+            Last sync: {connection.last_tested_at ? fmtDate(connection.last_tested_at) : "Never"}
+          </div>
+          {connection.last_error && (
+            <div className="mt-2 text-xs text-rose-300">{connection.last_error}</div>
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button onClick={onTest} disabled={testing} className="rounded-full border border-white/10 bg-white/[0.03] px-3.5 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-white/[0.06] disabled:opacity-40">
+              {testing ? "Testing..." : "Test"}
+            </button>
+            <button onClick={onConnect} className="rounded-full border border-cyan-400/15 bg-cyan-400/5 px-3.5 py-1.5 text-xs font-medium text-cyan-300 transition hover:bg-cyan-400/10">
+              Reconnect
+            </button>
+            <button onClick={onDisconnect} className="rounded-full border border-rose-400/15 bg-rose-400/5 px-3.5 py-1.5 text-xs font-medium text-rose-300 transition hover:bg-rose-400/10">
+              Disconnect
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4">
+          <p className="text-sm text-slate-400">
+            {isLive ? "Connect your live account to track your real portfolio." : "Connect a practice account to test without real money."}
+          </p>
+          <button
+            onClick={onConnect}
+            className={`mt-3 rounded-full px-5 py-2.5 text-sm font-semibold transition ${
+              isLive
+                ? "bg-[linear-gradient(90deg,#22d3ee_0%,#60a5fa_45%,#a855f7_100%)] text-slate-950 hover:brightness-110"
+                : "border border-amber-400/20 bg-amber-400/10 text-amber-200 hover:bg-amber-400/15"
+            }`}
+          >
+            Connect {isLive ? "Live" : "Demo"} Account
+          </button>
+
+          <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.02] px-4 py-3">
+            <p className="text-xs text-slate-400">
+              Don&apos;t have an account yet? Sign up to our recommended broker and get a free share worth up to &pound;100 when you make your first deposit.
+            </p>
+            <a
+              href="https://www.trading212.com/invite/4DqdKdJdUH3"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-cyan-300 transition hover:text-cyan-200"
+            >
+              Open a broker account &rarr;
+            </a>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Main Page ─────────────────────────────────────── */
 
 export default function ConnectionsClient() {
   const { openTrading212Popup } = useBrokerPopup();
   const [loading, setLoading] = useState(true);
-  const [testing, setTesting] = useState(false);
-  const [connection, setConnection] = useState<Connection | null>(null);
+  const [testing, setTesting] = useState<"live" | "demo" | null>(null);
+  const [liveConn, setLiveConn] = useState<Connection | null>(null);
+  const [demoConn, setDemoConn] = useState<Connection | null>(null);
+  const [activeMode, setActiveMode] = useState<"live" | "demo">("live");
   const [status, setStatus] = useState("");
 
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/connections/trading212", { cache: "no-store" });
+      const res = await fetch("/api/connections/trading212?mode=all", { cache: "no-store" });
       const data = await res.json();
-      setConnection(data.connection || null);
+      const conns: Connection[] = data.connections || [];
+      setLiveConn(conns.find((c) => c.mode === "live") || null);
+      setDemoConn(conns.find((c) => c.mode === "demo") || null);
+      setActiveMode(data.activeMode || "live");
     } catch {
-      setStatus("Could not load connection.");
+      setStatus("Could not load connections.");
     } finally {
       setLoading(false);
     }
@@ -260,30 +372,29 @@ export default function ConnectionsClient() {
     return () => window.removeEventListener("aurora:broker-connected", handler);
   }, []);
 
-  async function testConnection() {
-    setTesting(true);
+  async function testConnection(mode: "live" | "demo") {
+    setTesting(mode);
     setStatus("");
     try {
       const res = await fetch("/api/connections/trading212/test", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Connection test failed.");
-      setStatus("Connection verified successfully.");
+      setStatus(`${mode === "live" ? "Live" : "Demo"} connection verified.`);
       await load();
-      window.dispatchEvent(new CustomEvent("aurora:broker-connected"));
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Connection test failed.");
     } finally {
-      setTesting(false);
+      setTesting(null);
     }
   }
 
-  async function disconnect() {
+  async function disconnect(mode: "live" | "demo") {
     setStatus("");
     try {
-      const res = await fetch("/api/connections/trading212", { method: "DELETE" });
+      const res = await fetch(`/api/connections/trading212?mode=${mode}`, { method: "DELETE" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to disconnect.");
-      setStatus("Connection removed.");
+      setStatus(`${mode === "live" ? "Live" : "Demo"} connection removed.`);
       await load();
       window.dispatchEvent(new CustomEvent("aurora:broker-connected"));
     } catch (error) {
@@ -293,139 +404,57 @@ export default function ConnectionsClient() {
 
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-6 px-2">
-      {/* Page header */}
       <div>
         <h1 className="text-3xl font-semibold tracking-tight text-white md:text-4xl">Connections</h1>
         <p className="mt-2 text-base text-slate-400">Manage your broker and notification integrations.</p>
       </div>
 
-      {/* Status toast */}
       {status && (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-cyan-400/15 bg-cyan-400/5 px-5 py-3">
           <div className="text-sm text-slate-200">{status}</div>
-          <button onClick={() => setStatus("")} className="text-xs text-slate-500 hover:text-slate-300">
-            Dismiss
-          </button>
+          <button onClick={() => setStatus("")} className="text-xs text-slate-500 hover:text-slate-300">Dismiss</button>
         </div>
       )}
 
-      {/* Two-column layout */}
       <div className="grid gap-6 xl:grid-cols-2">
-        {/* ═══ LEFT — Broker Connection ═══ */}
+        {/* ═══ LEFT — Broker Connections ═══ */}
         <div className="flex flex-col rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-8 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-400/20 bg-cyan-400/10">
               <span className="text-lg">🔗</span>
             </div>
             <div>
-              <h2 className="text-xl font-semibold text-white">Broker Connection</h2>
-              <p className="text-xs text-slate-400">Trading 212 live account</p>
-            </div>
-            <div className="ml-auto">
-              {loading ? (
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-400">Loading...</span>
-              ) : connection?.is_connected ? (
-                <span className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-                  Connected
-                </span>
-              ) : connection ? (
-                <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-300">
-                  Unverified
-                </span>
-              ) : (
-                <span className="rounded-full border border-rose-400/25 bg-rose-400/10 px-3 py-1 text-xs font-semibold text-rose-300">
-                  Disconnected
-                </span>
-              )}
+              <h2 className="text-xl font-semibold text-white">Broker Connections</h2>
+              <p className="text-xs text-slate-400">Live and practice accounts</p>
             </div>
           </div>
 
           <div className="my-5 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-          {loading ? (
-            <div className="flex flex-1 items-center justify-center text-sm text-white/40">Loading connection...</div>
-          ) : connection ? (
-            <div className="flex flex-1 flex-col">
-              {/* Connection details */}
-              <div className="grid gap-3 text-sm sm:grid-cols-2">
-                <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Account ID</div>
-                  <div className="mt-1 font-medium text-white">{connection.account_id || "—"}</div>
-                </div>
-                <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Currency</div>
-                  <div className="mt-1 font-medium text-white">{connection.account_currency || "—"}</div>
-                </div>
-                <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Connected</div>
-                  <div className="mt-1 font-medium text-white">{fmtDate(connection.created_at)}</div>
-                </div>
-                <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Last tested</div>
-                  <div className="mt-1 font-medium text-white">{fmtDate(connection.last_tested_at)}</div>
-                </div>
-              </div>
+          <div className="space-y-4">
+            <ConnectionCard
+              mode="live"
+              connection={liveConn}
+              loading={loading}
+              testing={testing === "live"}
+              onTest={() => testConnection("live")}
+              onDisconnect={() => disconnect("live")}
+              onConnect={openTrading212Popup}
+            />
+            <ConnectionCard
+              mode="demo"
+              connection={demoConn}
+              loading={loading}
+              testing={testing === "demo"}
+              onTest={() => testConnection("demo")}
+              onDisconnect={() => disconnect("demo")}
+              onConnect={openTrading212Popup}
+            />
+          </div>
 
-              {/* Error display */}
-              {connection.last_error && (
-                <div className="mt-4 rounded-2xl border border-rose-400/15 bg-rose-400/5 px-4 py-3">
-                  <div className="text-sm font-medium text-rose-200">
-                    {connection.last_error.includes("401")
-                      ? "Your broker connection needs refreshing. Please enter a new API key to reconnect."
-                      : connection.last_error.includes("decryption")
-                        ? "Your broker credentials could not be read. Please reconnect with a new API key."
-                        : connection.last_error}
-                  </div>
-                  {(connection.last_error.includes("401") || connection.last_error.includes("decryption")) && (
-                    <button
-                      type="button"
-                      onClick={openTrading212Popup}
-                      className="mt-2 rounded-full bg-rose-400/15 px-4 py-1.5 text-xs font-semibold text-rose-200 transition hover:bg-rose-400/25"
-                    >
-                      Reconnect
-                    </button>
-                  )}
-                </div>
-              )}
+          <div className="my-5 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-              {/* Action buttons */}
-              <div className="mt-auto flex flex-wrap gap-2 pt-6">
-                <button
-                  onClick={testConnection}
-                  disabled={testing}
-                  className="rounded-full border border-white/10 bg-white/[0.03] px-5 py-2.5 text-sm font-medium text-slate-200 transition hover:bg-white/[0.06] disabled:opacity-40"
-                >
-                  {testing ? "Testing..." : "Test connection"}
-                </button>
-                <button
-                  onClick={openTrading212Popup}
-                  className="rounded-full border border-cyan-400/15 bg-cyan-400/5 px-5 py-2.5 text-sm font-medium text-cyan-300 transition hover:bg-cyan-400/10"
-                >
-                  Update credentials
-                </button>
-                <button
-                  onClick={disconnect}
-                  className="rounded-full border border-rose-400/15 bg-rose-400/5 px-5 py-2.5 text-sm font-medium text-rose-300 transition hover:bg-rose-400/10"
-                >
-                  Disconnect
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-1 flex-col items-center justify-center py-6 text-center">
-              <div className="text-4xl">📊</div>
-              <div className="mt-4 text-lg font-medium text-white">No broker connected</div>
-              <p className="mt-2 max-w-xs text-sm text-slate-400">
-                Connect your Trading 212 account to start tracking your portfolio in real time.
-              </p>
-              <button
-                onClick={openTrading212Popup}
-                className="mt-6 rounded-full bg-[linear-gradient(90deg,#22d3ee_0%,#60a5fa_45%,#a855f7_100%)] px-7 py-3.5 text-base font-semibold text-slate-950 transition hover:brightness-110"
-              >
-                Connect Trading 212
-              </button>
-            </div>
-          )}
+          <BrokerModeToggle initialMode={activeMode} />
         </div>
 
         {/* ═══ RIGHT — Telegram Alerts ═══ */}

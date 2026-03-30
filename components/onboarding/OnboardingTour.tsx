@@ -158,7 +158,14 @@ export default function OnboardingTour() {
     };
   }, [visible, step, updatePosition]);
 
+  const [toast, setToast] = useState(false);
+
   /* ── Handlers ──────────────────────────────────────────────── */
+  const showDismissToast = useCallback(() => {
+    setToast(true);
+    setTimeout(() => setToast(false), 4000);
+  }, []);
+
   const completeTour = useCallback(async () => {
     setVisible(false);
     localStorage.setItem("aurora_tour_completed", "true");
@@ -168,7 +175,15 @@ export default function OnboardingTour() {
     } catch {
       // best effort
     }
-  }, []);
+    showDismissToast();
+  }, [showDismissToast]);
+
+  const skipForNow = useCallback(() => {
+    setVisible(false);
+    localStorage.removeItem("aurora_tour_step");
+    // Don't set completed — will show again next login
+    showDismissToast();
+  }, [showDismissToast]);
 
   const next = useCallback(() => {
     if (step >= TOTAL - 1) {
@@ -179,10 +194,6 @@ export default function OnboardingTour() {
     setStep(newStep);
     localStorage.setItem("aurora_tour_step", String(newStep));
   }, [step, completeTour]);
-
-  const skip = useCallback(() => {
-    completeTour();
-  }, [completeTour]);
 
   /* ── Restart handler (called externally via custom event) ─── */
   useEffect(() => {
@@ -196,7 +207,13 @@ export default function OnboardingTour() {
     return () => window.removeEventListener("aurora:restart-tour", handler);
   }, []);
 
-  if (!visible) return null;
+  if (!visible) {
+    return toast ? (
+      <div className="fixed bottom-6 left-1/2 z-[10000] -translate-x-1/2 rounded-2xl border border-cyan-400/20 bg-[rgba(4,16,40,0.95)] px-5 py-3 text-sm text-slate-300 shadow-xl backdrop-blur-xl">
+        You can restart the Aurora tour anytime from your Account page
+      </div>
+    ) : null;
+  }
 
   const current = STEPS[step];
   const isWelcome = step === 0;
@@ -235,7 +252,7 @@ export default function OnboardingTour() {
       {/* Backdrop overlay */}
       <div
         className="fixed inset-0 z-[9998] bg-black/50 backdrop-blur-[2px] transition-opacity duration-300"
-        onClick={skip}
+        onClick={skipForNow}
       />
 
       {/* Highlight ring on target element */}
@@ -304,13 +321,22 @@ export default function OnboardingTour() {
 
             {/* Controls */}
             <div className="mt-4 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={skip}
-                className="text-xs font-medium text-white/40 transition hover:text-white/70"
-              >
-                Skip tour
-              </button>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={skipForNow}
+                  className="text-xs font-medium text-white/40 transition hover:text-white/70"
+                >
+                  Skip for now
+                </button>
+                <button
+                  type="button"
+                  onClick={completeTour}
+                  className="text-xs font-medium text-white/25 transition hover:text-white/50"
+                >
+                  Don&apos;t show again
+                </button>
+              </div>
 
               {/* Progress dots */}
               <div className="flex items-center gap-1.5">

@@ -51,9 +51,9 @@ function getCache() {
 }
 
 export async function GET() {
-  const cached = getCache();
-
-  if (cached?.isFresh) {
+  // Cache disabled — mode switching requires fresh data each time
+  if (false && getCache()?.isFresh) {
+    const cached = getCache()!;
     return NextResponse.json({
       ok: true,
       connected: cached.connected,

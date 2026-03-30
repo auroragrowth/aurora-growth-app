@@ -29,19 +29,7 @@ function getCache() {
 }
 
 export async function GET() {
-  const cached = getCache();
-
-  if (cached?.isFresh) {
-    return NextResponse.json({
-      ok: true,
-      connected: cached.connected,
-      cached: true,
-      stale: false,
-      connection: cached.connection,
-      positions: cached.positions,
-    });
-  }
-
+  // Cache disabled — mode switching requires fresh data
   const connection = await getTrading212ConnectionForUser();
 
   if (!connection?.api_key_encrypted || !connection.is_connected) {

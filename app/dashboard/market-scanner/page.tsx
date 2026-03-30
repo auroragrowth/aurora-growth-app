@@ -58,6 +58,17 @@ function toNumber(value: unknown) {
 }
 
 function formatMoney(value: unknown) {
+  const str = String(value || "").trim();
+
+  // Handle Finviz-style strings like "26.3B", "450.2M", "1.5T"
+  const suffixMatch = str.match(/^([\d,.]+)\s*([BMT])$/i);
+  if (suffixMatch) {
+    return `$${suffixMatch[1]}${suffixMatch[2].toUpperCase()}`;
+  }
+
+  // If value is a percentage string, it's bad data — show dash
+  if (str.includes("%")) return "—";
+
   const n = toNumber(value);
   if (!n) return "—";
   if (Math.abs(n) >= 1_000_000_000_000)

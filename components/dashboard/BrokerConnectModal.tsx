@@ -11,6 +11,7 @@ type Props = {
 export default function BrokerConnectModal({ onClose }: Props) {
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
+  const [mode, setMode] = useState<"live" | "demo">("live");
   const [status, setStatus] = useState<ConnectionStatus>("idle");
   const [error, setError] = useState("");
 
@@ -50,7 +51,11 @@ export default function BrokerConnectModal({ onClose }: Props) {
         ? `Basic ${btoa(`${key}:${secret}`)}`
         : key;
 
-      const testRes = await fetch("https://live.trading212.com/api/v0/equity/account/info", {
+      const testBaseUrl = mode === "demo"
+        ? "https://demo.trading212.com/api/v0"
+        : "https://live.trading212.com/api/v0";
+
+      const testRes = await fetch(`${testBaseUrl}/equity/account/info`, {
         headers: { Authorization: authValue },
       });
 
@@ -74,7 +79,7 @@ export default function BrokerConnectModal({ onClose }: Props) {
       const res = await fetch("/api/connections/trading212", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey, apiSecret }),
+        body: JSON.stringify({ apiKey, apiSecret, mode }),
       });
 
       const data = await res.json();
@@ -133,6 +138,34 @@ export default function BrokerConnectModal({ onClose }: Props) {
           </div>
         ) : (
           <div className="mt-6 space-y-4">
+            {/* Mode selector */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setMode("live")}
+                className={`flex-1 rounded-full border px-4 py-2.5 text-sm font-semibold transition ${
+                  mode === "live"
+                    ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
+                    : "border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.06]"
+                }`}
+              >
+                <span className={`mr-1.5 inline-block h-2 w-2 rounded-full ${mode === "live" ? "bg-emerald-400" : "bg-slate-600"}`} />
+                Live Account
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("demo")}
+                className={`flex-1 rounded-full border px-4 py-2.5 text-sm font-semibold transition ${
+                  mode === "demo"
+                    ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
+                    : "border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.06]"
+                }`}
+              >
+                <span className={`mr-1.5 inline-block h-2 w-2 rounded-full ${mode === "demo" ? "bg-amber-400" : "bg-slate-600"}`} />
+                Practice
+              </button>
+            </div>
+
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-300">API Key</label>
               <input

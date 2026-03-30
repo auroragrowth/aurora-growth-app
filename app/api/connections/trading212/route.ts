@@ -1,19 +1,38 @@
 import { badRequest, ok, serverError, unauthorized } from "@/lib/api/json";
 import { encryptString } from "@/lib/security/encryption";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { getCurrentUser, getUserConnection, sanitizeConnection } from "@/lib/trading212/connections";
+import {
+  getCurrentUser,
+  getActiveMode,
+  getUserConnection,
+  getUserConnections,
+  sanitizeConnection,
+  getBaseUrl,
+} from "@/lib/trading212/connections";
+import type { BrokerMode } from "@/lib/trading212/types";
 
-const BASE_URL = "https://live.trading212.com/api/v0";
-
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const user = await getCurrentUser();
-    const connection = await getUserConnection(user.id);
+    const url = new URL(req.url);
+    const queryMode = url.searchParams.get("mode");
 
+    if (queryMode === "all") {
+      const connections = await getUserConnections(user.id);
+      return ok({
+        connections: connections.map((c) =>
+          sanitizeConnection(c as unknown as Record<string, unknown>)
+        ),
+        activeMode: await getActiveMode(user.id),
+      });
+    }
+
+    const connection = await getUserConnection(user.id, (queryMode as BrokerMode) || undefined);
     return ok({
       connection: connection
         ? sanitizeConnection(connection as unknown as Record<string, unknown>)
         : null,
+      activeMode: await getActiveMode(user.id),
     });
   } catch (error) {
     return unauthorized(error instanceof Error ? error.message : "Unauthorized");
@@ -27,14 +46,19 @@ export async function POST(req: Request) {
 
     const apiKey = String(body.apiKey || "").trim();
     const apiSecret = String(body.apiSecret || "").trim();
+    const mode: BrokerMode = body.mode === "demo" ? "demo" : "live";
 
     if (!apiKey) {
       return badRequest("API key is required.");
     }
 
+    const baseUrl = getBaseUrl(mode);
+
     const payload = {
       user_id: user.id,
       broker: "trading212",
+      mode,
+      base_url: baseUrl,
       api_key_encrypted: encryptString(apiKey),
       api_key: apiKey,
       api_secret_encrypted: apiSecret ? encryptString(apiSecret) : null,
@@ -43,8 +67,8 @@ export async function POST(req: Request) {
 
     const { data, error } = await supabaseAdmin
       .from("trading212_connections")
-      .upsert(payload, { onConflict: "user_id,broker" })
-      .select("id, broker, is_active, created_at, updated_at")
+      .upsert(payload, { onConflict: "user_id,broker,mode" })
+      .select("id, broker, mode, is_active, created_at, updated_at")
       .single();
 
     if (error) {
@@ -57,7 +81,7 @@ export async function POST(req: Request) {
         ? `Basic ${Buffer.from(`${apiKey}:${apiSecret}`, "utf8").toString("base64")}`
         : apiKey;
 
-      const res = await fetch(`${BASE_URL}/equity/account/info`, {
+      const res = await fetch(`${baseUrl}/equity/account/info`, {
         method: "GET",
         headers: { Authorization: authValue, Accept: "application/json" },
         cache: "no-store",
@@ -83,8 +107,8 @@ export async function POST(req: Request) {
           is_connected: true,
           account_id: account?.id?.toString() || null,
           account_currency: account?.currencyCode || null,
-          account_type: "live",
-          display_name: "Trading 212",
+          account_type: mode,
+          display_name: `Trading 212 ${mode === "demo" ? "Demo" : "Live"}`,
           last_tested_at: new Date().toISOString(),
           last_sync_at: new Date().toISOString(),
           last_error: null,
@@ -112,24 +136,34 @@ export async function POST(req: Request) {
   }
 }
 
-export async function DELETE() {
+export async function DELETE(req: Request) {
   try {
     const user = await getCurrentUser();
+    const url = new URL(req.url);
+    const mode = url.searchParams.get("mode") as BrokerMode | null;
 
-    const { error } = await supabaseAdmin
+    const q = supabaseAdmin
       .from("trading212_connections")
       .delete()
       .eq("user_id", user.id)
       .eq("broker", "trading212");
 
+    if (mode) q.eq("mode", mode);
+
+    const { error } = await q;
+
     if (error) {
       return serverError(error.message);
     }
 
-    await supabaseAdmin
-      .from("profiles")
-      .update({ trading212_connected: false })
-      .eq("id", user.id);
+    // Check if any connections remain
+    const remaining = await getUserConnections(user.id);
+    if (remaining.length === 0) {
+      await supabaseAdmin
+        .from("profiles")
+        .update({ trading212_connected: false })
+        .eq("id", user.id);
+    }
 
     return ok({ success: true });
   } catch (error) {

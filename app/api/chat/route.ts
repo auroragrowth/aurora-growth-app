@@ -85,45 +85,62 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Chat service not configured" }, { status: 503 });
   }
 
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+  const MODELS = ["gemini-2.0-flash", "gemini-1.5-flash"];
 
-    const history = (body.history || [])
-      .filter((m) => m.role === "user" || m.role === "model")
-      .slice(-10)
-      .map((m) => ({
-        role: m.role === "user" ? "user" as const : "model" as const,
-        parts: [{ text: m.content }],
-      }));
+  const genAI = new GoogleGenerativeAI(apiKey);
 
-    const chat = model.startChat({
-      history,
-      systemInstruction: { role: "user" as const, parts: [{ text: SYSTEM_PROMPT }] },
-    });
+  const history = (body.history || [])
+    .filter((m) => m.role === "user" || m.role === "model")
+    .slice(-10)
+    .map((m) => ({
+      role: m.role === "user" ? "user" as const : "model" as const,
+      parts: [{ text: m.content }],
+    }));
 
-    const result = await chat.sendMessage(body.message);
-    const text = result.response.text();
+  let lastError: any = null;
 
-    // Save conversation
+  for (const modelId of MODELS) {
     try {
-      await supabase.from("chat_conversations").insert({
-        user_id: user.id,
-        session_id: body.sessionId || null,
-        user_message: body.message,
-        assistant_message: text,
-        created_at: new Date().toISOString(),
-      });
-    } catch {
-      // Table may not exist yet — don't block response
-    }
+      const model = genAI.getGenerativeModel({ model: modelId });
 
-    return NextResponse.json({ ok: true, message: text });
-  } catch (err: any) {
-    console.error("Chat API error:", err?.message || err);
-    return NextResponse.json(
-      { error: "Aurora Assistant is temporarily unavailable. Please try again." },
-      { status: 500 }
-    );
+      const chat = model.startChat({
+        history,
+        systemInstruction: { role: "user" as const, parts: [{ text: SYSTEM_PROMPT }] },
+      });
+
+      const result = await chat.sendMessage(body.message);
+      const text = result.response.text();
+
+      // Save conversation
+      try {
+        await supabase.from("chat_conversations").insert({
+          user_id: user.id,
+          session_id: body.sessionId || null,
+          user_message: body.message,
+          assistant_message: text,
+          created_at: new Date().toISOString(),
+        });
+      } catch {
+        // Table may not exist yet — don't block response
+      }
+
+      return NextResponse.json({ ok: true, message: text });
+    } catch (err: any) {
+      console.error(`Chat API error (${modelId}):`, err?.message || err);
+      lastError = err;
+      // If rate limited (429), try next model
+      if (err?.message?.includes("429") || err?.message?.includes("quota")) {
+        continue;
+      }
+      // For other errors, don't retry
+      break;
+    }
   }
+
+  return NextResponse.json(
+    { error: lastError?.message?.includes("429")
+        ? "Aurora Assistant is busy right now. Please try again in a minute."
+        : "Aurora Assistant is temporarily unavailable. Please try again." },
+    { status: lastError?.message?.includes("429") ? 429 : 500 }
+  );
 }

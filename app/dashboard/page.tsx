@@ -158,7 +158,7 @@ export default async function DashboardPage() {
                 { label: "Market Scanner", href: "/dashboard/market-scanner" },
                 { label: "Investment Calculator", href: "/dashboard/investments/calculator" },
                 { label: "Watchlist", href: "/dashboard/watchlist" },
-                { label: "Chart Analysis", href: "/dashboard/chart" },
+                { label: "Chart Analysis", href: "/dashboard/stocks/USLM" },
                 { label: "Volatility Compass", href: "/dashboard/volatility-compass" },
               ].map((link) => (
                 <Link

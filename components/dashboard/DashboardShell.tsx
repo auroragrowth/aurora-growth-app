@@ -19,6 +19,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { usePortfolio } from "@/components/providers/PortfolioProvider";
+import BrokerModeToggle from "@/components/broker/BrokerModeToggle";
 
 type DashboardShellProps = {
   children: React.ReactNode;
@@ -46,7 +47,7 @@ const navItems: NavItem[] = [
   { label: "Market Scanner", href: "/dashboard/market-scanner", icon: ScanSearch, tourId: "scanner" },
   { label: "Watchlist", href: "/dashboard/watchlist", icon: Star, tourId: "watchlist" },
   { label: "Calculator", href: "/dashboard/investments/calculator", icon: Calculator, tourId: "calculator" },
-  { label: "Chart", href: "/dashboard/chart", icon: LineChart },
+  { label: "Chart", href: "/dashboard/stocks/USLM", icon: LineChart },
   { label: "Investments", href: "/dashboard/investments", icon: BriefcaseBusiness },
   { label: "Volatility Compass", href: "/dashboard/volatility", icon: Activity },
   { label: "Connections", href: "/dashboard/connections", icon: Link2, tourId: "connections" },
@@ -100,6 +101,7 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith("/dashboard/volatility")) return "Volatility Compass";
   if (pathname.startsWith("/dashboard/upgrade")) return "Upgrade Plan";
   if (pathname.startsWith("/dashboard/account")) return "Account";
+  if (pathname.startsWith("/dashboard/stocks/")) return "Stock Analysis";
   if (pathname.startsWith("/dashboard/chart")) return "Chart";
   return "Aurora Platform";
 }
@@ -153,11 +155,18 @@ export default function DashboardShell({
   const pageTitle = useMemo(() => getPageTitle(pathname), [pathname]);
 
   const { data: portfolio } = usePortfolio();
+  const [modeToast, setModeToast] = useState<string | null>(null);
+  const [demoBannerDismissed, setDemoBannerDismissed] = useState(false);
   const fmtMoney = useCallback((v: number) => {
     const prefix = v > 0 ? "+" : v < 0 ? "-" : "";
     return `${prefix}\u00a3${Math.abs(v).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }, []);
   const plColor = useCallback((v: number) => v > 0 ? "text-emerald-300" : v < 0 ? "text-rose-300" : "text-slate-400", []);
+  const handleModeChange = useCallback((mode: "live" | "demo") => {
+    setModeToast(`Switched to ${mode === "demo" ? "Demo" : "Live"} mode`);
+    setDemoBannerDismissed(false);
+    setTimeout(() => setModeToast(null), 3000);
+  }, []);
 
   useEffect(() => {
     const saved = window.localStorage.getItem("aurora-sidebar-collapsed");
@@ -314,32 +323,26 @@ export default function DashboardShell({
               </div>
 
               <div className="ml-auto flex items-center gap-2 sm:gap-3">
-                {joinDate && (
-                  <div className="hidden rounded-full border border-violet-300/18 bg-violet-400/10 px-3 py-2 text-xs font-medium text-violet-100 2xl:flex items-center gap-1.5">
-                    🚀 Aurora User since {new Date(joinDate).toLocaleDateString("en-GB", { month: "short", year: "numeric" })}
-                  </div>
-                )}
-
+                {/* Broker mode toggle + portfolio data */}
                 {brokerConnected ? (
-                  portfolio.connected && !portfolio.loading && portfolio.portfolioValue > 0 ? (
-                    <div className="hidden items-center gap-1.5 rounded-full border border-emerald-300/18 bg-emerald-400/10 px-3 py-2 text-xs font-medium text-emerald-100 xl:flex">
-                      <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
-                      <span>Live</span>
-                      <span className="mx-1 text-white/20">|</span>
-                      <span className="text-white">Portfolio {"\u00a3"}{portfolio.portfolioValue.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                      <span className="mx-1 text-white/20">|</span>
-                      <span className={plColor(portfolio.todayPnl)}>Today {fmtMoney(portfolio.todayPnl)}</span>
-                      <span className="mx-1 text-white/20">|</span>
-                      <span className={plColor(portfolio.portfolioValue - (portfolio.overview?.total_cost ? Number(portfolio.overview.total_cost) : 0))}>
-                        Open {fmtMoney(portfolio.portfolioValue - (portfolio.overview?.total_cost ? Number(portfolio.overview.total_cost) : 0))}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="hidden items-center gap-2 rounded-full border border-emerald-300/18 bg-emerald-400/10 px-3 py-2 text-xs font-medium text-emerald-100 xl:flex">
-                      <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
-                      {portfolio.loading ? "Loading..." : "Connected"}
-                    </div>
-                  )
+                  <div className="hidden items-center gap-2 xl:flex">
+                    <BrokerModeToggle initialMode={portfolio.brokerMode || "live"} compact onModeChange={handleModeChange} />
+                    {portfolio.connected && !portfolio.loading && portfolio.portfolioValue > 0 && (() => {
+                      const isDemo = portfolio.brokerMode === "demo";
+                      const openPl = portfolio.portfolioValue - (portfolio.overview?.total_cost ? Number(portfolio.overview.total_cost) : 0);
+                      return (
+                        <div className={`flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium ${
+                          isDemo ? "border-amber-300/18 bg-amber-400/10 text-amber-100 border-dashed" : "border-emerald-300/18 bg-emerald-400/10 text-emerald-100"
+                        }`}>
+                          <span className="text-white">{"\u00a3"}{portfolio.portfolioValue.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <span className="text-white/20">|</span>
+                          <span className={isDemo ? "text-amber-200" : plColor(portfolio.todayPnl)}>Today {fmtMoney(portfolio.todayPnl)}</span>
+                          <span className="text-white/20">|</span>
+                          <span className={isDemo ? "text-amber-200" : plColor(openPl)}>Open {fmtMoney(openPl)}</span>
+                        </div>
+                      );
+                    })()}
+                  </div>
                 ) : (
                   <div className="hidden items-center gap-2 rounded-full border border-rose-300/18 bg-rose-400/10 px-3 py-2 text-xs font-medium text-rose-100 xl:flex">
                     <span className="h-2 w-2 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.7)]" />
@@ -440,6 +443,21 @@ export default function DashboardShell({
               </div>
             </div>
           </header>
+
+          {/* Demo mode banner */}
+          {portfolio.brokerMode === "demo" && brokerConnected && !demoBannerDismissed && (
+            <div className="flex h-7 items-center justify-center gap-2 bg-amber-400/10 text-xs text-amber-300">
+              <span>Demo mode — viewing practice account</span>
+              <button onClick={() => setDemoBannerDismissed(true)} className="ml-2 text-amber-400/50 hover:text-amber-300">&times;</button>
+            </div>
+          )}
+
+          {/* Mode switch toast */}
+          {modeToast && (
+            <div className="flex h-8 items-center justify-center bg-cyan-400/10 text-xs font-medium text-cyan-300">
+              {modeToast}
+            </div>
+          )}
 
           <main className="flex-1">
             <div className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8">

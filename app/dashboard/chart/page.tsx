@@ -1,5 +1,5 @@
-import ChartClient from "./ChartClient";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return <ChartClient />;
+export default function ChartPage() {
+  redirect("/dashboard/market-scanner");
 }

@@ -28,6 +28,7 @@ export default async function PostLoginPage() {
         email: user.email,
         full_name: user.user_metadata?.full_name || "",
         phone: user.user_metadata?.phone || null,
+        referred_by: user.user_metadata?.referred_by || null,
         role: "member",
         login_count: 1,
         last_login: new Date().toISOString(),
