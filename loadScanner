@@ -1,0 +1,44 @@
+async function loadScanner(forceRefresh = false) {
+  try {
+    if (forceRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    setTableError(null);
+
+    const url = forceRefresh
+      ? `/api/finviz/screener?scanner=${scannerType}&refresh=1`
+      : `/api/finviz/screener?scanner=${scannerType}`;
+
+    const res = await fetch(url, {
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to load scanner (${res.status})`);
+    }
+
+    const data = await res.json();
+
+    const mapped: ScannerRow[] = (data?.rows || []).map((row: any) => ({
+      ticker: row.ticker || "",
+      company: row.company || "",
+      sector: row.sector || "-",
+      industry: row.industry || "-",
+      marketCap: row.marketCap || "-",
+      price: row.price || "-",
+      change: row.change || "-",
+    }));
+
+    setRows(mapped);
+  } catch (error: any) {
+    console.error(error);
+    setTableError(error?.message || "Failed to load scanner");
+    setRows([]);
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+}
