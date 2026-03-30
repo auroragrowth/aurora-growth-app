@@ -102,7 +102,6 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith("/dashboard/upgrade")) return "Upgrade Plan";
   if (pathname.startsWith("/dashboard/account")) return "Account";
   if (pathname.startsWith("/dashboard/stocks/")) return "Stock Analysis";
-  if (pathname.startsWith("/dashboard/chart")) return "Chart";
   return "Aurora Platform";
 }
 

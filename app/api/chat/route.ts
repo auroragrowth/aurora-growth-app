@@ -85,7 +85,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Chat service not configured" }, { status: 503 });
   }
 
-  const MODELS = ["gemini-2.0-flash", "gemini-1.5-flash"];
+  const MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite"];
 
   const genAI = new GoogleGenerativeAI(apiKey);
 

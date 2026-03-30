@@ -1,8 +1,19 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import { getWatchlistTable } from "@/lib/watchlist/getTable";
 
 function cleanSymbol(v: unknown) {
   return String(v || "").trim().toUpperCase();
+}
+
+async function getActiveMode(userId: string): Promise<string> {
+  const { data } = await supabaseAdmin
+    .from("profiles")
+    .select("active_broker_mode")
+    .eq("id", userId)
+    .maybeSingle();
+  return data?.active_broker_mode || "live";
 }
 
 export async function POST(req: Request) {
@@ -23,45 +34,28 @@ export async function POST(req: Request) {
     const supabase = await createClient();
 
     const { data: auth, error: authErr } = await supabase.auth.getUser();
-    if (authErr) {
-      return NextResponse.json({ error: authErr.message }, { status: 401 });
-    }
-
-    if (!auth?.user) {
+    if (authErr || !auth?.user) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const { data: existing, error: exErr } = await supabase
-      .from("watchlist_items")
+    const mode = await getActiveMode(auth.user.id);
+    const table = getWatchlistTable(mode);
+
+    const { data: existing } = await supabase
+      .from(table)
       .select("id")
       .eq("user_id", auth.user.id)
       .eq("symbol", symbol)
       .maybeSingle();
 
-    if (exErr) {
-      return NextResponse.json({ error: exErr.message }, { status: 500 });
-    }
-
     if (existing?.id) {
-      const { error: delErr } = await supabase
-        .from("watchlist_items")
-        .delete()
-        .eq("id", existing.id);
-
-      if (delErr) {
-        return NextResponse.json({ error: delErr.message }, { status: 500 });
-      }
-
-      return NextResponse.json({
-        ok: true,
-        added: false,
-        symbol,
-      });
+      await supabase.from(table).delete().eq("id", existing.id);
+      return NextResponse.json({ ok: true, added: false, symbol, mode });
     }
 
     const isAurora = source === "Aurora Core" || source === "Aurora Alternative";
 
-    const insertRow: Record<string, any> = {
+    const insertRow: Record<string, unknown> = {
       user_id: auth.user.id,
       symbol,
       company_name,
@@ -72,37 +66,18 @@ export async function POST(req: Request) {
       updated_at: new Date().toISOString(),
     };
 
-    let insErr: any = null;
+    const { error: insErr } = await supabase.from(table).insert([insertRow]);
 
-    const firstTry = await supabase
-      .from("watchlist_items")
-      .insert([insertRow]);
-
-    if (firstTry.error) {
-      const msg = firstTry.error.message || "";
-      if (
-        msg.includes("is_aurora_recommended") ||
-        msg.includes("added_by")
-      ) {
-        const { is_aurora_recommended, added_by, ...fallbackRow } = insertRow;
-        const retry = await supabase
-          .from("watchlist_items")
-          .insert([fallbackRow]);
-        insErr = retry.error;
-      } else {
-        insErr = firstTry.error;
+    if (insErr) {
+      // Fallback without optional columns
+      const { is_aurora_recommended, added_by, ...fallbackRow } = insertRow;
+      const { error: retryErr } = await supabase.from(table).insert([fallbackRow]);
+      if (retryErr) {
+        return NextResponse.json({ error: retryErr.message }, { status: 500 });
       }
     }
 
-    if (insErr) {
-      return NextResponse.json({ error: insErr.message }, { status: 500 });
-    }
-
-    return NextResponse.json({
-      ok: true,
-      added: true,
-      symbol,
-    });
+    return NextResponse.json({ ok: true, added: true, symbol, mode });
   } catch (err: any) {
     return NextResponse.json(
       { error: err?.message || "Failed to toggle watchlist" },
