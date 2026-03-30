@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 
 type ScannerRow = {
   ticker: string;
@@ -44,6 +44,93 @@ function parseSortableValue(value: unknown) {
   return str.toLowerCase();
 }
 
+function ActionDropdown({
+  ticker,
+  isSaved,
+  onWatchToggle,
+}: {
+  ticker: string;
+  isSaved: boolean;
+  onWatchToggle?: (ticker: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-200 transition hover:border-rose-400/40 hover:bg-rose-500/15"
+      >
+        View Chart
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          className={`transition ${open ? "rotate-180" : ""}`}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-30 mt-1.5 w-48 overflow-hidden rounded-2xl border border-white/10 bg-[#0b1628] shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+          <Link
+            href={`/dashboard/stocks/${encodeURIComponent(ticker)}`}
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/[0.05]"
+          >
+            <span>📈</span>
+            Open full chart
+          </Link>
+          <button
+            onClick={() => {
+              onWatchToggle?.(ticker);
+              setOpen(false);
+            }}
+            disabled={isSaved}
+            className={`flex w-full items-center gap-2 px-4 py-3 text-sm transition ${
+              isSaved
+                ? "cursor-default text-slate-500"
+                : "text-slate-200 hover:bg-white/[0.05]"
+            }`}
+          >
+            {isSaved ? (
+              <>
+                <span>✓</span>
+                In watchlist
+              </>
+            ) : (
+              <>
+                <span>⭐</span>
+                Add to watchlist
+              </>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function MarketScannerTable({
   title = "Aurora Market Scanner",
   description = "Discover companies from Aurora scanner rules.",
@@ -55,6 +142,7 @@ export default function MarketScannerTable({
   const [sortKey, setSortKey] = useState<SortKey>("ticker");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
+  const [confirmTicker, setConfirmTicker] = useState<string | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
 
@@ -93,8 +181,44 @@ export default function MarketScannerTable({
     return sortDir === "asc" ? "↑" : "↓";
   }
 
+  function handleStarClick(ticker: string, isSaved: boolean) {
+    if (isSaved) {
+      setConfirmTicker(ticker);
+    } else {
+      onWatchToggle?.(ticker);
+    }
+  }
+
   return (
     <section className="space-y-4">
+      {/* Confirm remove dialog */}
+      {confirmTicker && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0b1628] p-6 shadow-2xl">
+            <p className="text-sm text-slate-200">
+              Remove <span className="font-semibold text-white">{confirmTicker}</span> from your watchlist?
+            </p>
+            <div className="mt-4 flex gap-3">
+              <button
+                onClick={() => {
+                  onWatchToggle?.(confirmTicker);
+                  setConfirmTicker(null);
+                }}
+                className="flex-1 rounded-full bg-red-500/20 px-4 py-2.5 text-sm font-medium text-red-300 transition hover:bg-red-500/30"
+              >
+                Remove
+              </button>
+              <button
+                onClick={() => setConfirmTicker(null)}
+                className="flex-1 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm text-slate-300 transition hover:bg-white/[0.06]"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div>
         <div className="text-[11px] uppercase tracking-[0.35em] text-cyan-400/80">
           Aurora Growth
@@ -195,20 +319,21 @@ export default function MarketScannerTable({
                     >
                       <td className="px-5 py-4">
                         <button
-                          onClick={() => onWatchToggle?.(row.ticker)}
-                          className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition ${
-                            isSaved
-                              ? "border-yellow-500/30 bg-yellow-500/10 text-yellow-300"
-                              : "border-cyan-500/20 bg-cyan-500/10 text-cyan-300 hover:border-cyan-400/30 hover:bg-cyan-400/10"
-                          }`}
+                          onClick={() => handleStarClick(row.ticker, isSaved)}
+                          className="text-xl transition hover:scale-110"
+                          title={isSaved ? "Remove from watchlist" : "Add to watchlist"}
                         >
-                          {isSaved ? "★ Watching" : "+ Watch"}
+                          {isSaved ? (
+                            <span className="text-yellow-400">★</span>
+                          ) : (
+                            <span className="text-slate-500 hover:text-yellow-400">☆</span>
+                          )}
                         </button>
                       </td>
 
                       <td className="px-5 py-4">
                         <Link
-                          href={`/dashboard/${row.ticker}`}
+                          href={`/dashboard/stocks/${encodeURIComponent(row.ticker)}`}
                           className="font-semibold text-cyan-300 hover:text-cyan-200"
                         >
                           {row.ticker}
@@ -217,7 +342,7 @@ export default function MarketScannerTable({
 
                       <td className="px-5 py-4">
                         <Link
-                          href={`/dashboard/${row.ticker}`}
+                          href={`/dashboard/stocks/${encodeURIComponent(row.ticker)}`}
                           className="hover:text-white"
                         >
                           {row.company}
@@ -231,12 +356,11 @@ export default function MarketScannerTable({
                       <td className="px-5 py-4 text-slate-300">{row.change || "-"}</td>
 
                       <td className="px-5 py-4 text-right">
-                        <Link
-                          href={`/dashboard/${row.ticker}`}
-                          className="inline-flex rounded-full border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-200 transition hover:border-rose-400/40 hover:bg-rose-500/15"
-                        >
-                          View
-                        </Link>
+                        <ActionDropdown
+                          ticker={row.ticker}
+                          isSaved={isSaved}
+                          onWatchToggle={onWatchToggle}
+                        />
                       </td>
                     </tr>
                   );

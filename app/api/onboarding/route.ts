@@ -10,6 +10,9 @@ const ALLOWED_FIELDS = [
   "has_seen_trading212_prompt",
   "trading212_connected",
   "trading212_mode",
+  "welcome_popup_shown_count",
+  "onboarding_tour_completed",
+  "onboarding_tour_completed_at",
 ] as const;
 
 type AllowedField = (typeof ALLOWED_FIELDS)[number];
@@ -43,7 +46,7 @@ export async function GET() {
     const { data: ext } = await supabase
       .from("profiles")
       .select(
-        "onboarding_step, has_seen_welcome_popup, has_seen_plan_selection, has_completed_onboarding, has_seen_trading212_prompt, trading212_connected, trading212_mode, has_completed_plan_selection"
+        "onboarding_step, has_seen_welcome_popup, has_seen_plan_selection, has_completed_onboarding, has_seen_trading212_prompt, trading212_connected, trading212_mode, has_completed_plan_selection, login_count, welcome_popup_shown_count, has_seen_welcome, onboarding_tour_completed, onboarding_tour_completed_at"
       )
       .eq("id", user.id)
       .single();

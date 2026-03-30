@@ -1,9 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useWatchlist } from "@/components/watchlist/WatchlistProvider";
 import { ExpiredBlur } from "@/components/dashboard/ExpiredOverlay";
+import PriceAlertModal from "@/components/watchlist/PriceAlertModal";
+
+type PriceAlertRow = {
+  id: string;
+  symbol: string;
+  alert_type: string;
+  target_price: number;
+  triggered: boolean;
+  is_active?: boolean;
+};
 
 type SourceFilter = "all" | "core" | "alternative" | "mylist";
 
@@ -120,10 +130,54 @@ export default function WatchlistPage() {
   >("added");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [mounted, setMounted] = useState(false);
+  const [alerts, setAlerts] = useState<PriceAlertRow[]>([]);
+  const [alertModalSymbol, setAlertModalSymbol] = useState<string | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  const loadAlerts = useCallback(async () => {
+    try {
+      const res = await fetch("/api/alerts", { cache: "no-store" });
+      const data = await res.json();
+      if (Array.isArray(data?.alerts)) setAlerts(data.alerts);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    loadAlerts();
+  }, [loadAlerts]);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      fetch("/api/alerts/check", { cache: "no-store" }).catch(() => {});
+    }, 5 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  function activeAlertsForSymbol(symbol: string) {
+    return alerts.filter(
+      (a) => a.symbol === symbol && !a.triggered && a.is_active !== false
+    );
+  }
+
+  function triggeredAlertsForSymbol(symbol: string) {
+    return alerts.filter(
+      (a) => a.symbol === symbol && a.triggered
+    );
+  }
+
+  function existingAlertsForModal(symbol: string) {
+    const all = alerts.filter((a) => a.symbol === symbol && !a.triggered);
+    return {
+      above: all.find((a) => a.alert_type === "price_above") || undefined,
+      below: all.find((a) => a.alert_type === "price_below") || undefined,
+      entry: all.find((a) => a.alert_type === "entry_level") || undefined,
+    };
+  }
+
+  // alertModalRow computed after filteredRows below
 
   const rows: WatchlistRow[] = useMemo(() => {
     return (items || []).map((item: any) => ({
@@ -438,13 +492,48 @@ export default function WatchlistPage() {
                         className="border-b border-white/5 text-white/88 transition hover:bg-white/[0.025]"
                       >
                         <td className="px-6 py-5">
-                          <button
-                            onClick={() => handleRemove(row.symbol)}
-                            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-cyan-400/35 bg-cyan-500/10 text-cyan-300 shadow-[0_0_18px_rgba(0,200,255,0.10)] transition hover:scale-105 hover:bg-cyan-500/20"
-                            title="Remove from watchlist"
-                          >
-                            &#9733;
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleRemove(row.symbol)}
+                              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-cyan-400/35 bg-cyan-500/10 text-cyan-300 shadow-[0_0_18px_rgba(0,200,255,0.10)] transition hover:scale-105 hover:bg-cyan-500/20"
+                              title="Remove from watchlist"
+                            >
+                              &#9733;
+                            </button>
+                            {(() => {
+                              const active = activeAlertsForSymbol(row.symbol);
+                              const triggered = triggeredAlertsForSymbol(row.symbol);
+                              const hasTriggered = triggered.length > 0;
+                              const hasActive = active.length > 0;
+
+                              return (
+                                <button
+                                  onClick={() => setAlertModalSymbol(row.symbol)}
+                                  className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full border text-sm transition hover:scale-105 ${
+                                    hasTriggered
+                                      ? "animate-pulse border-red-400/40 bg-red-500/15 text-red-300"
+                                      : hasActive
+                                        ? "border-amber-400/40 bg-amber-400/15 text-amber-300"
+                                        : "border-white/15 bg-white/5 text-white/30 hover:text-white/50"
+                                  }`}
+                                  title={
+                                    hasTriggered
+                                      ? "Alert triggered!"
+                                      : hasActive
+                                        ? `${active.length} alert${active.length > 1 ? "s" : ""} active`
+                                        : "Set price alert"
+                                  }
+                                >
+                                  {hasTriggered || hasActive ? "🔔" : "🔕"}
+                                  {hasActive && !hasTriggered && active.length > 0 && (
+                                    <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-black">
+                                      {active.length}
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })()}
+                          </div>
                         </td>
 
                         <td className="px-6 py-5">
@@ -516,6 +605,19 @@ export default function WatchlistPage() {
           </div>
         </div>
       </ExpiredBlur>
+
+      {alertModalSymbol && (
+        <PriceAlertModal
+          symbol={alertModalSymbol}
+          companyName={
+            rows.find((r) => r.symbol === alertModalSymbol)?.company_name
+          }
+          currentPrice={0}
+          existingAlerts={existingAlertsForModal(alertModalSymbol)}
+          onClose={() => setAlertModalSymbol(null)}
+          onSaved={loadAlerts}
+        />
+      )}
     </div>
   );
 }

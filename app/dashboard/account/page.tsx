@@ -1,15 +1,11 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import {
-  Sparkles,
-  CreditCard,
-  MessageCircle,
-  AlertTriangle,
-} from "lucide-react";
+import { CreditCard, Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import AccountProfileForm from "./AccountProfileForm";
-import EmailPreferences from "./EmailPreferences";
-import BrokerConnectionSection from "./BrokerConnectionSection";
+import RestartTourButton from "./RestartTourButton";
+import CopyButton from "./CopyButton";
 
 function getPlanLabel(plan: string | null | undefined) {
   switch ((plan || "").toLowerCase()) {
@@ -20,49 +16,49 @@ function getPlanLabel(plan: string | null | undefined) {
   }
 }
 
-function getPlanClasses(plan: string | null | undefined) {
-  switch ((plan || "").toLowerCase()) {
-    case "elite": return "border-fuchsia-400/40 bg-gradient-to-br from-fuchsia-500/18 via-purple-500/14 to-indigo-500/16 text-fuchsia-50";
-    case "pro": return "border-cyan-400/40 bg-gradient-to-br from-cyan-500/18 via-sky-500/14 to-blue-500/16 text-cyan-50";
-    case "core": return "border-blue-400/40 bg-gradient-to-br from-blue-500/18 via-sky-500/14 to-cyan-500/16 text-blue-50";
-    default: return "border-white/10 bg-white/[0.04] text-slate-100";
-  }
-}
-
-function formatStatus(value: string | null | undefined) {
-  if (!value) return "Unknown";
-  return value.charAt(0).toUpperCase() + value.slice(1).replaceAll("_", " ");
-}
-
 function formatDate(value: string | null | undefined) {
   if (!value) return "Not set";
   return new Date(value).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function getTimeRemaining(periodEnd: string | null | undefined) {
-  if (!periodEnd) return "—";
-  const end = new Date(periodEnd);
-  const now = new Date();
-  const diff = end.getTime() - now.getTime();
-  if (diff <= 0) return "Expired";
-  const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
-  if (days === 1) return "1 day";
-  return `${days} days`;
+function getInitials(name: string, email: string) {
+  if (name?.trim()) {
+    const parts = name.trim().split(" ");
+    return (parts[0]?.[0] || "").toUpperCase() + (parts[1]?.[0] || "").toUpperCase();
+  }
+  return (email?.[0] || "U").toUpperCase();
 }
 
-function SectionError({ label }: { label: string }) {
-  return (
-    <div className="rounded-[28px] border border-amber-400/20 bg-amber-400/5 p-7">
-      <div className="flex items-center gap-3 text-amber-200">
-        <AlertTriangle className="h-5 w-5" />
-        <span className="text-sm font-medium">Unable to load {label}</span>
-      </div>
-      <p className="mt-2 text-sm text-slate-400">
-        This section could not be loaded right now. Please try refreshing the page.
-      </p>
-    </div>
-  );
-}
+const PLAN_FEATURES: Record<string, string[]> = {
+  elite: [
+    "Full market scanner (Core + Alternative lists)",
+    "Investment ladder calculator",
+    "Aurora Intelligence AI analysis",
+    "Telegram price alerts",
+    "Broker integration",
+    "Volatility compass",
+    "Priority support",
+    "Early access to new features",
+  ],
+  pro: [
+    "Full market scanner (Core + Alternative lists)",
+    "Investment ladder calculator",
+    "Aurora Intelligence AI analysis",
+    "Telegram price alerts",
+    "Broker integration",
+    "Volatility compass",
+  ],
+  core: [
+    "Core market scanner (38 stocks)",
+    "Investment ladder calculator",
+    "Aurora Intelligence AI analysis",
+    "Telegram price alerts",
+    "Broker integration",
+  ],
+  free: [
+    "Limited market scanner preview",
+  ],
+};
 
 export default async function AccountPage() {
   const supabase = await createClient();
@@ -75,248 +71,265 @@ export default async function AccountPage() {
   } catch {
     redirect("/login");
   }
-
   if (!user) redirect("/login");
 
-  // Fetch profile — don't let a failure crash the whole page
   let profile: Record<string, any> | null = null;
-  let profileError = false;
   try {
     const { data, error } = await supabase
       .from("profiles")
       .select(`
-        full_name,
-        email,
-        phone,
-        role,
-        plan,
-        plan_key,
-        subscription_status,
-        billing_interval,
-        cancel_at_period_end,
-        current_period_end,
-        telegram_chat_id,
-        email_weekly,
-        email_monthly,
-        email_quarterly,
-        email_yearly,
-        email_alerts
+        full_name, email, phone, plan, plan_key,
+        subscription_status, current_period_end, cancel_at_period_end,
+        telegram_chat_id, trading212_connected, referral_code,
+        login_count
       `)
       .eq("id", user.id)
       .single();
-
     if (error) throw error;
     profile = data;
   } catch (err) {
     console.error("Failed to fetch profile:", err);
-    profileError = true;
+  }
+
+  // Watchlist count
+  let watchlistCount = 0;
+  try {
+    const { count } = await supabaseAdmin
+      .from("watchlist_items")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id);
+    watchlistCount = count ?? 0;
+  } catch { /* ignore */ }
+
+  // Generate referral code if missing
+  let referralCode = profile?.referral_code || null;
+  if (!referralCode) {
+    try {
+      const code = user.id.replace(/-/g, "").substring(0, 8).toUpperCase();
+      await supabaseAdmin.from("profiles").update({ referral_code: code }).eq("id", user.id);
+      referralCode = code;
+    } catch { /* ignore */ }
   }
 
   const plan = profile?.plan_key ?? profile?.plan ?? "free";
   const planLabel = getPlanLabel(plan);
-  const planClasses = getPlanClasses(plan);
-  const subscriptionStatus = formatStatus(profile?.subscription_status);
-  const currentPeriodEnd = formatDate(profile?.current_period_end);
-  const timeRemaining = getTimeRemaining(profile?.current_period_end);
   const fullName = profile?.full_name?.trim() || user.user_metadata?.full_name || "";
   const email = profile?.email || user.email || "";
-  const phone = profile?.phone || user.user_metadata?.phone || "";
+  const phone = profile?.phone || "";
   const joinDate = user.created_at;
+  const initials = getInitials(fullName, email);
   const telegramConnected = !!profile?.telegram_chat_id;
-  const isPaidPlan = ["core", "pro", "elite"].includes(plan.toLowerCase());
+  const brokerConnected = !!profile?.trading212_connected;
+  const loginCount = profile?.login_count ?? 0;
+  const features = PLAN_FEATURES[plan.toLowerCase()] || PLAN_FEATURES.free;
 
-  const emailPrefs = {
-    weekly: profile?.email_weekly !== false,
-    monthly: profile?.email_monthly !== false,
-    quarterly: profile?.email_quarterly !== false,
-    yearly: profile?.email_yearly !== false,
-    alerts: profile?.email_alerts !== false,
-  };
+  const statusLabel = profile?.subscription_status
+    ? profile.subscription_status.charAt(0).toUpperCase() + profile.subscription_status.slice(1).replace(/_/g, " ")
+    : "Unknown";
+
+  const statusColor = profile?.subscription_status === "active"
+    ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
+    : profile?.subscription_status === "past_due"
+      ? "border-amber-400/25 bg-amber-400/10 text-amber-300"
+      : "border-white/10 bg-white/5 text-slate-400";
 
   return (
-    <div className="space-y-6">
-      {/* Membership hero */}
-      {profileError ? (
-        <SectionError label="membership details" />
-      ) : (
-        <section className={`rounded-[30px] border p-7 shadow-[0_22px_60px_rgba(0,0,0,0.22)] md:p-8 ${planClasses}`}>
-          <div className="grid gap-6 lg:grid-cols-[1.45fr_0.85fr]">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.28em] opacity-80">Membership Plan</div>
-              <h1 className="mt-4 text-4xl font-semibold md:text-5xl">{planLabel}</h1>
+    <div className="mx-auto w-full max-w-[1100px] space-y-6 px-2">
 
-              <div className="mt-6 flex flex-wrap gap-3">
-                <div className={`rounded-full border px-4 py-2 text-sm font-medium ${
-                  profile?.subscription_status === "active"
-                    ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
-                    : profile?.subscription_status === "past_due"
-                      ? "border-amber-400/30 bg-amber-400/10 text-amber-200"
-                      : profile?.subscription_status === "canceled"
-                        ? "border-rose-400/30 bg-rose-400/10 text-rose-200"
-                        : "border-white/15 bg-white/[0.07] text-white/80"
-                }`}>
-                  Status: {subscriptionStatus}
-                </div>
-                <div className="rounded-full border border-white/15 bg-white/[0.07] px-4 py-2 text-sm">
-                  {profile?.subscription_status === "canceled"
-                    ? "Cancelled"
-                    : `Next renewal: ${currentPeriodEnd}`}
-                </div>
-                {timeRemaining !== "—" && timeRemaining !== "Expired" && (
-                  <div className="rounded-full border border-white/15 bg-white/[0.07] px-4 py-2 text-sm">
-                    {timeRemaining} remaining
-                  </div>
-                )}
-              </div>
-
-              {profile?.subscription_status === "past_due" && (
-                <div className="mt-4 rounded-2xl border border-amber-400/25 bg-amber-400/10 px-5 py-4">
-                  <div className="flex items-center gap-2 text-sm font-medium text-amber-200">
-                    <AlertTriangle size={16} />
-                    Payment failed — please update your payment method
-                  </div>
-                  <form action="/api/stripe/portal" method="post" className="mt-3">
-                    <button
-                      type="submit"
-                      className="rounded-xl bg-amber-500/20 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/30"
-                    >
-                      Update Payment Method
-                    </button>
-                  </form>
-                </div>
-              )}
-
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Link
-                  href="/dashboard/settings/billing"
-                  className="inline-flex items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.10] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/[0.14]"
-                >
-                  <CreditCard size={16} /> Manage Plan
-                </Link>
-                {plan.toLowerCase() !== "elite" && (
-                  <Link
-                    href="/dashboard/upgrade"
-                    className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-400 to-violet-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:brightness-110"
-                  >
-                    <Sparkles size={16} /> Upgrade
-                  </Link>
-                )}
-              </div>
-            </div>
-
-            <div className="rounded-[28px] border border-white/10 bg-[rgba(4,15,38,0.55)] p-6">
-              <h2 className="text-2xl font-semibold text-white">Subscription</h2>
-              <div className="mt-5 space-y-4">
-                <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-[rgba(5,16,40,0.55)] p-4">
-                  <span className="text-sm text-slate-400">Plan</span>
-                  <span className="font-semibold text-white">{planLabel}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-[rgba(5,16,40,0.55)] p-4">
-                  <span className="text-sm text-slate-400">Status</span>
-                  <span className="font-semibold text-white">{subscriptionStatus}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-[rgba(5,16,40,0.55)] p-4">
-                  <span className="text-sm text-slate-400">Renewal</span>
-                  <span className="font-semibold text-white">{currentPeriodEnd}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-2xl border border-white/8 bg-[rgba(5,16,40,0.55)] p-4">
-                  <span className="text-sm text-slate-400">Auto-cancel</span>
-                  <span className="font-semibold text-white">{profile?.cancel_at_period_end ? "Yes" : "No"}</span>
-                </div>
-              </div>
-            </div>
+      {/* ═══ SECTION 1 — Profile Header ═══ */}
+      <section className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-8 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
+        <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#22d3ee,#3b82f6,#a855f7)] text-2xl font-bold text-white shadow-[0_0_30px_rgba(59,130,246,0.3)]">
+            {initials}
           </div>
-        </section>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Profile section */}
-        <section className="rounded-[28px] border border-white/10 bg-[rgba(11,28,63,0.62)] p-7 shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
-          <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/80">Profile</div>
-
-          <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-violet-300/18 bg-violet-400/10 px-3 py-1.5 text-xs font-medium text-violet-200">
-            Aurora User since {formatDate(joinDate)}
+          <div className="min-w-0 flex-1">
+            <h1 className="text-3xl font-semibold tracking-tight text-white">{fullName || "Aurora Member"}</h1>
+            <p className="mt-1 text-base text-slate-400">{email}</p>
+            <p className="mt-1 text-sm text-violet-300/80">
+              Aurora member since {formatDate(joinDate)}
+            </p>
           </div>
+        </div>
 
-          <AccountProfileForm
-            defaultName={fullName}
-            defaultEmail={email}
-            defaultPhone={phone}
-            lastLogin={user.last_sign_in_at || null}
-            userId={user.id}
-          />
-        </section>
-
-        {/* Telegram Alerts section */}
-        <section className="rounded-[28px] border border-white/10 bg-[rgba(11,28,63,0.62)] p-7 shadow-[0_20px_60px_rgba(0,0,0,0.18)]">
-          <div className="flex items-center gap-3">
-            <MessageCircle className="h-5 w-5 text-cyan-300" />
-            <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/80">Telegram Alerts</div>
-          </div>
-
-          <h3 className="mt-4 text-xl font-semibold text-white">
-            {telegramConnected ? "Telegram Connected" : "Connect Telegram"}
-          </h3>
-
-          <p className="mt-3 text-sm leading-7 text-slate-300">
-            {telegramConnected
-              ? "You are receiving Aurora alerts via Telegram. You will get notifications when watchlist stocks cross ladder entry levels, plus a weekly market summary every Friday."
-              : "Scan the QR code below with your Telegram app to connect your personal Aurora alert bot. You will receive:"}
-          </p>
-
-          {!telegramConnected && (
-            <ul className="mt-3 space-y-2 text-sm text-slate-300">
-              <li className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
-                Alerts when watchlist stocks cross ladder entry levels
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
-                Ticker, company, price, and suggested action
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
-                Weekly market close summary every Friday
-              </li>
-            </ul>
+        <div className="mt-6 flex flex-wrap gap-2">
+          <span className="rounded-full border border-fuchsia-400/25 bg-fuchsia-400/10 px-3.5 py-1.5 text-xs font-semibold text-fuchsia-200">
+            {planLabel}
+          </span>
+          <span className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold ${statusColor}`}>
+            {statusLabel}
+          </span>
+          <span className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold ${
+            brokerConnected
+              ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
+              : "border-rose-400/25 bg-rose-400/10 text-rose-300"
+          }`}>
+            {brokerConnected ? "Broker Connected" : "Broker Disconnected"}
+          </span>
+          {telegramConnected && (
+            <span className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3.5 py-1.5 text-xs font-semibold text-cyan-300">
+              Telegram Connected
+            </span>
           )}
+        </div>
+      </section>
 
-          <div className="mt-6 rounded-2xl border border-white/10 bg-[rgba(5,16,40,0.55)] p-6">
-            {telegramConnected ? (
-              <div className="flex items-center gap-3">
-                <div className="h-3 w-3 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.6)]" />
-                <span className="text-sm font-medium text-emerald-200">Connected and receiving alerts</span>
-              </div>
-            ) : (
-              <div className="text-center">
-                <div className="mx-auto h-40 w-40 rounded-2xl border border-white/10 bg-white/5 flex items-center justify-center">
-                  <div className="text-center">
-                    <MessageCircle className="h-10 w-10 text-white/20 mx-auto" />
-                    <p className="mt-2 text-xs text-white/30">QR Code</p>
-                    <p className="text-[10px] text-white/20">Coming soon</p>
-                  </div>
-                </div>
-                <p className="mt-4 text-sm text-slate-400">
-                  Search for <span className="font-mono text-cyan-300">@AuroraGrowthBot</span> on Telegram and send <span className="font-mono text-cyan-300">/start</span> to connect.
-                </p>
-              </div>
-            )}
+      {/* ═══ SECTION 2 — Aurora Journey Stats ═══ */}
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: "Member Since", value: formatDate(joinDate) },
+          { label: "Watchlist", value: `${watchlistCount} stocks` },
+          { label: "Logins", value: `${loginCount} sessions` },
+          { label: "Alerts", value: telegramConnected ? "Active" : "Not set up" },
+        ].map((stat) => (
+          <div key={stat.label} className="rounded-2xl border border-white/8 bg-[rgba(8,20,43,0.9)] px-5 py-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">{stat.label}</div>
+            <div className="mt-2 text-lg font-semibold text-white">{stat.value}</div>
           </div>
-        </section>
-      </div>
+        ))}
+      </section>
 
-      {/* Trading 212 Connection */}
-      <BrokerConnectionSection />
+      {/* ═══ SECTION 3 — Subscription Details ═══ */}
+      <section className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-8 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Current Plan</div>
+            <h2 className="mt-2 text-2xl font-semibold text-white">{planLabel}</h2>
+            <div className="mt-3 space-y-1 text-sm text-slate-400">
+              <div>Status: <span className="text-white">{statusLabel}</span></div>
+              <div>
+                {profile?.cancel_at_period_end
+                  ? <>Cancels: <span className="text-white">{formatDate(profile?.current_period_end)}</span></>
+                  : <>Renews: <span className="text-white">{formatDate(profile?.current_period_end)}</span></>
+                }
+              </div>
+            </div>
+          </div>
+          <Link
+            href="/dashboard/settings/billing"
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-white/10"
+          >
+            <CreditCard className="h-4 w-4" /> Manage Plan
+          </Link>
+        </div>
 
-      {/* Email Preferences */}
-      {profileError ? (
-        <SectionError label="email preferences" />
-      ) : (
-        <EmailPreferences
+        <div className="my-6 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Plan Features</div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {features.map((f) => (
+            <div key={f} className="flex items-center gap-2.5 text-sm text-slate-300">
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-400/15 text-xs text-emerald-400">&#10003;</span>
+              {f}
+            </div>
+          ))}
+        </div>
+
+        {plan.toLowerCase() !== "elite" && (
+          <div className="mt-6">
+            <Link
+              href="/dashboard/upgrade"
+              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-400 to-violet-400 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:brightness-110"
+            >
+              <Sparkles className="h-4 w-4" /> Upgrade Plan
+            </Link>
+          </div>
+        )}
+      </section>
+
+      {/* ═══ SECTION 4 — Profile Settings ═══ */}
+      <section className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-8 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Profile Settings</div>
+
+        <AccountProfileForm
+          defaultName={fullName}
+          defaultEmail={email}
+          defaultPhone={phone}
+          lastLogin={user.last_sign_in_at || null}
           userId={user.id}
-          defaults={emailPrefs}
         />
-      )}
+
+        <div className="my-6 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Security</div>
+        <div className="mt-3 flex flex-wrap gap-3">
+          <Link
+            href="/reset-password"
+            className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-white/10"
+          >
+            Change password
+          </Link>
+          <form action="/auth/signout" method="post">
+            <button
+              type="submit"
+              className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              Sign out all devices
+            </button>
+          </form>
+        </div>
+      </section>
+
+      {/* ═══ SECTION 5 — Referral System ═══ */}
+      <section className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-8 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
+        <div className="flex items-center gap-3">
+          <span className="text-xl">🎁</span>
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Refer a Friend</div>
+            <p className="mt-1 text-sm text-slate-300">Get 1 free month for every friend who subscribes</p>
+          </div>
+        </div>
+
+        <div className="mt-5">
+          <label className="mb-2 block text-xs text-slate-500">Your referral link</label>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 rounded-2xl border border-white/10 bg-slate-950/50 px-5 py-3 font-mono text-sm text-cyan-300">
+              app.auroragrowth.co.uk/signup?ref={referralCode || "..."}
+            </div>
+            <CopyButton text={`https://app.auroragrowth.co.uk/signup?ref=${referralCode || ""}`} />
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-5 py-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Friends Referred</div>
+            <div className="mt-2 text-2xl font-semibold text-white">0</div>
+          </div>
+          <div className="rounded-2xl border border-white/8 bg-white/[0.03] px-5 py-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Free Months Earned</div>
+            <div className="mt-2 text-2xl font-semibold text-white">0</div>
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ SECTION 6 — Account Actions ═══ */}
+      <section className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-8 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
+        <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Account Actions</div>
+
+        <div className="mt-5 flex flex-wrap gap-3">
+          <RestartTourButton />
+
+          <form action="/auth/signout" method="post">
+            <button
+              type="submit"
+              className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+            >
+              📤 Sign out
+            </button>
+          </form>
+
+          <button
+            type="button"
+            className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/5 px-5 py-3 text-sm font-medium text-rose-300 transition hover:bg-rose-400/10"
+            title="Contact support to delete your account"
+          >
+            🗑 Delete account
+          </button>
+        </div>
+
+        <p className="mt-3 text-xs text-slate-500">
+          Account deletion is permanent. Contact support@auroragrowth.co.uk to request deletion.
+        </p>
+      </section>
     </div>
   );
 }

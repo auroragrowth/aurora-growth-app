@@ -1,11 +1,44 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 
-export default function WelcomeModal({ firstName }: { firstName: string }) {
+const QUOTES = [
+  {
+    text: "The stock market is a device for transferring money from the impatient to the patient.",
+    author: "Warren Buffett",
+  },
+  {
+    text: "Risk comes from not knowing what you're doing.",
+    author: "Warren Buffett",
+  },
+  {
+    text: "In investing, what is comfortable is rarely profitable.",
+    author: "Robert Arnott",
+  },
+  {
+    text: "Know what you own, and know why you own it.",
+    author: "Peter Lynch",
+  },
+  {
+    text: "An investment in knowledge pays the best interest.",
+    author: "Benjamin Franklin",
+  },
+];
+
+type Props = {
+  firstName: string;
+};
+
+export default function WelcomeModal({ firstName }: Props) {
+  const router = useRouter();
   const [visible, setVisible] = useState(false);
   const [dismissing, setDismissing] = useState(false);
+
+  const quote = useMemo(
+    () => QUOTES[Math.floor(Math.random() * QUOTES.length)],
+    []
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -15,10 +48,12 @@ export default function WelcomeModal({ firstName }: { firstName: string }) {
         const res = await fetch("/api/onboarding", { cache: "no-store" });
         if (!res.ok) return;
         const data = await res.json();
-        // Show only if user has a plan but hasn't seen this modal
-        const hasPlan = ["core", "pro", "elite"].includes(data.plan_key ?? "");
-        const seen = data.has_seen_welcome === true;
-        if (!cancelled && hasPlan && !seen) {
+
+        const hasPlan = data.has_completed_plan_selection === true;
+        const brokerConnected = data.trading212_connected === true;
+        const notSeenYet = data.has_seen_welcome !== true;
+
+        if (!cancelled && hasPlan && brokerConnected && notSeenYet) {
           setVisible(true);
         }
       } catch {
@@ -27,78 +62,114 @@ export default function WelcomeModal({ firstName }: { firstName: string }) {
     }
 
     check();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function dismiss() {
     setDismissing(true);
     try {
-      await fetch("/api/onboarding", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ has_seen_welcome: true }),
-      });
+      await fetch("/api/onboarding/welcome-seen", { method: "POST" });
     } catch {
       // best-effort
     }
     setVisible(false);
+    router.push("/dashboard/market-scanner");
   }
 
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-[32px] border border-cyan-400/20 bg-[linear-gradient(160deg,rgba(4,21,45,0.97),rgba(2,14,31,0.98))] p-8 shadow-[0_0_120px_rgba(34,211,238,0.12)] md:p-10">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 px-4 backdrop-blur-sm">
+      <div className="relative w-full max-w-lg rounded-[32px] border border-cyan-400/20 bg-[linear-gradient(160deg,rgba(4,21,45,0.97),rgba(2,14,31,0.98))] p-8 shadow-[0_0_120px_rgba(34,211,238,0.12)] md:p-10">
         <button
           onClick={dismiss}
           disabled={dismissing}
           className="absolute right-5 top-5 text-slate-400 transition hover:text-white"
           aria-label="Close"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         </button>
 
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-400/30">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} className="h-7 w-7 text-emerald-400">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-          </svg>
+        <div className="text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-cyan-500/15 ring-1 ring-cyan-400/30">
+            <span className="text-2xl">✦</span>
+          </div>
+
+          <h2 className="mt-5 text-2xl font-bold text-white md:text-3xl">
+            Welcome to Aurora Growth
+          </h2>
+
+          <p className="mt-3 text-base text-slate-300">
+            {firstName}, you are all set and ready to go.
+          </p>
         </div>
 
-        <h2 className="mt-5 text-center text-2xl font-bold text-white md:text-3xl">
-          You&apos;re all set, {firstName}!
-        </h2>
+        {/* Quote */}
+        <div className="mt-6 rounded-2xl border border-white/8 bg-white/[0.03] px-5 py-4">
+          <p className="text-sm italic leading-6 text-slate-300">
+            &ldquo;{quote.text}&rdquo;
+          </p>
+          <p className="mt-2 text-xs text-slate-500">&mdash; {quote.author}</p>
+        </div>
 
-        <p className="mt-3 text-center text-sm leading-7 text-slate-300">
-          Your Aurora scanner, watchlist and calculator are ready.
-          Here&apos;s what to do first:
+        {/* Ready checklist */}
+        <div className="mt-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+            Your Aurora is ready
+          </p>
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center gap-2.5 text-sm text-emerald-300">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400/15 text-xs">&#10003;</span>
+              Plan active
+            </div>
+            <div className="flex items-center gap-2.5 text-sm text-emerald-300">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400/15 text-xs">&#10003;</span>
+              Broker connected
+            </div>
+            <div className="flex items-center gap-2.5 text-sm text-emerald-300">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-400/15 text-xs">&#10003;</span>
+              Alerts available
+            </div>
+          </div>
+        </div>
+
+        <div className="my-5 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+        {/* What to do first */}
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+          What to do first
         </p>
-
-        <div className="mt-6 space-y-3">
+        <div className="mt-3 space-y-2.5">
           {[
-            { step: "1", title: "Run the scanner", desc: "Find high-scoring stocks with Aurora analysis", href: "/dashboard/market-scanner" },
-            { step: "2", title: "Add stocks to watchlist", desc: "Save names you want to track", href: "/dashboard/watchlist" },
-            { step: "3", title: "Use the calculator", desc: "Build your investment ladder plan", href: "/dashboard/investments/calculator" },
-            { step: "4", title: "Connect Trading 212", desc: "Link your broker for live portfolio data", href: "/dashboard/connections" },
-          ].map((item) => (
-            <div key={item.step} className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
+            { n: "1", title: "Run the scanner", desc: "Find high-conviction opportunities" },
+            { n: "2", title: "Add stocks to your watchlist", desc: "Track the ones that interest you" },
+            { n: "3", title: "Build your first ladder", desc: "Calculate staged entry levels" },
+            { n: "4", title: "Set a price alert", desc: "Get notified via Telegram" },
+          ].map((step) => (
+            <div key={step.n} className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-cyan-400/15 text-xs font-bold text-cyan-300">
-                {item.step}
+                {step.n}
               </span>
               <div className="min-w-0">
-                <div className="text-sm font-medium text-white">{item.title}</div>
-                <div className="text-xs text-slate-400">{item.desc}</div>
+                <div className="text-sm font-medium text-white">{step.title}</div>
+                <div className="text-xs text-slate-400">{step.desc}</div>
               </div>
             </div>
           ))}
         </div>
 
-        <Link
-          href="/dashboard/market-scanner"
+        <button
           onClick={dismiss}
-          className="mt-8 flex w-full items-center justify-center rounded-full bg-[linear-gradient(90deg,#22d3ee_0%,#3b82f6_50%,#d946ef_100%)] px-6 py-4 text-base font-semibold text-white shadow-[0_8px_32px_rgba(59,130,246,0.35)] transition hover:brightness-110"
+          disabled={dismissing}
+          className="mt-7 flex w-full items-center justify-center rounded-full bg-[linear-gradient(90deg,#22d3ee_0%,#3b82f6_50%,#d946ef_100%)] px-6 py-4 text-base font-semibold text-white shadow-[0_8px_32px_rgba(59,130,246,0.35)] transition hover:brightness-110 disabled:opacity-50"
         >
-          Start scanning
-        </Link>
+          {dismissing ? "Loading..." : "Start exploring Aurora \u2192"}
+        </button>
       </div>
     </div>
   );

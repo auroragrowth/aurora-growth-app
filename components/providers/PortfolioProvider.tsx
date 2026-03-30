@@ -307,8 +307,12 @@ export function PortfolioProvider({ children }: { children: React.ReactNode }) {
     mountedRef.current = true;
     load(true);
 
+    // Auto-refresh every 60 seconds
+    const interval = setInterval(() => load(true), 60_000);
+
     return () => {
       mountedRef.current = false;
+      clearInterval(interval);
     };
   }, [load]);
 

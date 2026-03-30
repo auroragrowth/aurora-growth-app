@@ -171,7 +171,7 @@ export default function AuroraOverlayChart({
 
     return () => {
       window.removeEventListener("resize", handleResize);
-      chart.remove();
+      try { chart.remove(); } catch { /* already removed */ }
       chartRef.current = null;
       candleSeriesRef.current = null;
     };

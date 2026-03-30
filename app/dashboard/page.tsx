@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import MarketCountdown from "@/components/dashboard/MarketCountdown";
 
 type ScannerRow = {
   ticker?: string;
@@ -67,6 +68,8 @@ export default async function DashboardPage() {
   return (
     <main className="text-white">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8 md:px-8 lg:px-10">
+        <MarketCountdown />
+
         {/* Welcome hero */}
         <section className="overflow-hidden rounded-[28px] border border-cyan-500/15 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_34%),linear-gradient(135deg,rgba(3,7,18,0.96),rgba(2,6,23,0.92))] shadow-[0_0_0_1px_rgba(14,165,233,0.04),0_20px_80px_rgba(2,6,23,0.65)] p-6 md:p-8">
           <div className="mb-4 inline-flex w-fit items-center rounded-full border border-cyan-400/25 bg-cyan-500/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-cyan-300">

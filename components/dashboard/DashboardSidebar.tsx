@@ -18,6 +18,9 @@ import {
   LogOut,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import ChangelogModal from "@/components/dashboard/ChangelogModal";
+
+const AURORA_VERSION = "1.1.0";
 
 type Trading212Status = "connected" | "attention" | "disconnected";
 
@@ -125,6 +128,16 @@ export default function DashboardSidebar({
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [changelogOpen, setChangelogOpen] = useState(false);
+  const [showNewBadge, setShowNewBadge] = useState(false);
+
+  useState(() => {
+    if (typeof window === "undefined") return;
+    const lastSeen = localStorage.getItem("aurora_last_seen_version");
+    if (lastSeen !== AURORA_VERSION) {
+      setShowNewBadge(true);
+    }
+  });
 
   const planTheme = useMemo(
     () => getPlanTheme(currentPlan, planActive),
@@ -295,7 +308,32 @@ export default function DashboardSidebar({
             </div>
           </div>
         )}
+
+        <div className="mt-3 flex justify-center">
+          <button
+            type="button"
+            onClick={() => {
+              setChangelogOpen(true);
+              setShowNewBadge(false);
+            }}
+            className="inline-flex items-center gap-1.5 text-[11px] text-white/25 transition hover:text-white/50"
+            title="View changelog"
+          >
+            {!collapsed && <>Aurora v{AURORA_VERSION}</>}
+            {collapsed && <>v{AURORA_VERSION}</>}
+            {showNewBadge && (
+              <span className="rounded-full bg-cyan-500/80 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                NEW
+              </span>
+            )}
+          </button>
+        </div>
       </div>
+
+      <ChangelogModal
+        open={changelogOpen}
+        onClose={() => setChangelogOpen(false)}
+      />
     </aside>
   );
 }

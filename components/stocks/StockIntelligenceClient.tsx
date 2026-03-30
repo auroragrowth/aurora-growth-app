@@ -270,13 +270,21 @@ export default function StockIntelligenceClient({ ticker }: Props) {
               <button
                 type="button"
                 onClick={() => toggleTicker(symbol, company)}
-                className={`rounded-full border px-3 py-1 text-xs font-medium transition ${
+                className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-sm font-medium transition ${
                   onWatchlist
-                    ? "border-amber-400/30 bg-amber-400/10 text-amber-300"
-                    : "border-white/15 bg-white/5 text-white/60 hover:bg-white/10"
+                    ? "border-teal-400/30 bg-teal-400/15 text-teal-300"
+                    : "border-white/15 bg-white/5 text-white/60 hover:border-yellow-400/30 hover:bg-yellow-400/10 hover:text-yellow-300"
                 }`}
               >
-                {onWatchlist ? "★ On Watchlist" : "☆ Add to Watchlist"}
+                {onWatchlist ? (
+                  <>
+                    <span>✓</span> In watchlist
+                  </>
+                ) : (
+                  <>
+                    <span>⭐</span> Add to watchlist
+                  </>
+                )}
               </button>
             </div>
           </div>

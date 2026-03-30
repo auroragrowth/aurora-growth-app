@@ -53,9 +53,13 @@ export async function POST(req: Request) {
 
     // Verify against Trading 212 API
     try {
+      const authValue = apiSecret
+        ? `Basic ${Buffer.from(`${apiKey}:${apiSecret}`, "utf8").toString("base64")}`
+        : apiKey;
+
       const res = await fetch(`${BASE_URL}/equity/account/info`, {
         method: "GET",
-        headers: { Authorization: apiKey, Accept: "application/json" },
+        headers: { Authorization: authValue, Accept: "application/json" },
         cache: "no-store",
       });
 

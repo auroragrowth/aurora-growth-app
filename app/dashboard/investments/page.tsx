@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { usePortfolio, usePortfolioHelpers, type Position } from "@/components/providers/PortfolioProvider";
+import MarketCountdown from "@/components/dashboard/MarketCountdown";
 
 type SortKey =
   | "ticker"
@@ -288,7 +289,8 @@ export default function InvestmentsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] px-4 py-6 md:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-[1400px] space-y-6 px-4 py-6 md:px-6 lg:px-8">
+      <MarketCountdown />
       <section className="rounded-[32px] border border-cyan-500/12 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.08),transparent_26%),radial-gradient(circle_at_top_right,rgba(99,102,241,0.08),transparent_22%),linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-8 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div>

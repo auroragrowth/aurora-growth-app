@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useWatchlist } from "@/components/watchlist/WatchlistProvider";
 import { ExpiredBlur } from "@/components/dashboard/ExpiredOverlay";
+import MarketCountdown from "@/components/dashboard/MarketCountdown";
 
 type ScannerRow = {
   id?: string;
@@ -419,6 +420,15 @@ export default function MarketScannerPage() {
     loadAiOverview();
   }, [loadAiOverview]);
 
+  // Log scanner view for quickstart tracking
+  useEffect(() => {
+    fetch("/api/activity", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event_type: "scanner_view", event_label: "Viewed market scanner" }),
+    }).catch(() => {});
+  }, []);
+
   function clearHover() {
     if (hoverTimerRef.current) {
       clearTimeout(hoverTimerRef.current);
@@ -658,6 +668,7 @@ export default function MarketScannerPage() {
 
   return (
     <div className="space-y-6 p-4 md:p-6">
+      <MarketCountdown />
       {/* Hover popup portal */}
       {hoverRow && hoverRect && (
         <TickerPopup

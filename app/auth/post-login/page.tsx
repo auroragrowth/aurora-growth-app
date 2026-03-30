@@ -29,6 +29,8 @@ export default async function PostLoginPage() {
         full_name: user.user_metadata?.full_name || "",
         phone: user.user_metadata?.phone || null,
         role: "member",
+        login_count: 1,
+        last_login: new Date().toISOString(),
       },
       { onConflict: "id" }
     );
@@ -39,6 +41,17 @@ export default async function PostLoginPage() {
     );
 
     redirect("/select-plan");
+  }
+
+  // Increment login_count and update last_login on every login
+  try {
+    await supabase.rpc("increment_login_count", { uid: user.id });
+  } catch {
+    // Fallback: direct update if RPC not available
+    await supabase
+      .from("profiles")
+      .update({ last_login: new Date().toISOString() })
+      .eq("id", user.id);
   }
 
   // Go to dashboard if user has a paid plan OR has completed plan selection

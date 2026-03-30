@@ -1,25 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ExpiredLock } from "@/components/dashboard/ExpiredOverlay";
+import dynamic from "next/dynamic";
+
+const LadderMiniChart = dynamic(
+  () => import("@/components/charts/LadderMiniChart"),
+  { ssr: false }
+);
+
+/* ─── types ─── */
 
 type WatchlistItem = {
   id: string;
   symbol: string;
   company_name?: string | null;
-  sector?: string | null;
-  industry?: string | null;
-  market_cap?: string | number | null;
-  price?: string | number | null;
-  change_percent?: string | number | null;
-  source_list?: string | null;
-  created_at?: string | null;
 };
 
 type CurrencyCode = "USD" | "GBP" | "EUR";
 type LadderType = 30 | 40 | 50 | 60 | 70;
+type RefSource = "recent_high" | "covid_high" | "custom";
 
 type LadderRow = {
   step: number;
@@ -30,7 +32,33 @@ type LadderRow = {
   shares: number;
   cumulativeShares: number;
   remainingCash: number;
+  pctFromHigh: number;
 };
+
+type CandleRow = {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+};
+
+type RefData = {
+  current_price: number;
+  recent_20pct_high: number | null;
+  recent_20pct_high_date: string | null;
+  days_since_high: number | null;
+  high_since_covid: number;
+  high_since_covid_date: string | null;
+  low_covid_crash: number;
+  low_covid_crash_date: string | null;
+  high_52w: number;
+  high_52w_date: string | null;
+  pct_below_recent: number;
+  pct_above_covid_low: number;
+};
+
+/* ─── helpers ─── */
 
 function parseNumber(value: string | number | null | undefined): number | null {
   if (value === null || value === undefined || value === "") return null;
@@ -52,235 +80,238 @@ function formatPercent(value: number): string {
 }
 
 function formatNumber(value: number, digits = 4): string {
-  return new Intl.NumberFormat("en-GB", {
-    maximumFractionDigits: digits,
-  }).format(value);
+  return new Intl.NumberFormat("en-GB", { maximumFractionDigits: digits }).format(value);
 }
 
 function getCurrencyPrefix(currency: CurrencyCode): string {
   switch (currency) {
-    case "GBP":
-      return "£";
-    case "EUR":
-      return "€";
-    default:
-      return "US$";
+    case "GBP": return "£";
+    case "EUR": return "€";
+    default: return "$";
   }
 }
 
 function getLadderDrops(type: LadderType): number[] {
   switch (type) {
-    case 30:
-      return [10, 20, 30];
-    case 40:
-      return [10, 20, 30, 40];
-    case 50:
-      return [20, 30, 40, 50];
-    case 60:
-      return [30, 40, 50, 60];
-    case 70:
-      return [20, 30, 40, 50, 60, 70];
-    default:
-      return [20, 30, 40, 50];
+    case 30: return [10, 20, 30];
+    case 40: return [10, 20, 30, 40];
+    case 50: return [20, 30, 40, 50];
+    case 60: return [30, 40, 50, 60];
+    case 70: return [20, 30, 40, 50, 60, 70];
+    default: return [20, 30, 40, 50];
   }
 }
 
 function getBaseAllocation(lineCount: number): number {
   let total = 0;
-  for (let i = 0; i < lineCount; i += 1) {
-    total += Math.pow(1.25, i);
-  }
+  for (let i = 0; i < lineCount; i++) total += Math.pow(1.25, i);
   return 1 / total;
 }
 
 function getMidpointStep(type: LadderType): number {
-  if (type === 70) return 3;
-  return 2;
+  return type === 70 ? 3 : 2;
 }
+
+function shortDate(dateStr: string | null): string {
+  if (!dateStr) return "—";
+  const d = new Date(dateStr + "T00:00:00Z");
+  return d.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+}
+
+/* ─── component ─── */
 
 export default function InvestmentsCalculatorPage() {
   const supabase = createClient();
 
+  // Watchlist
   const [loadingWatchlist, setLoadingWatchlist] = useState(true);
-  const [watchlistError, setWatchlistError] = useState("");
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
+  const [watchlistError, setWatchlistError] = useState("");
 
+  // Inputs
   const [selectedWatchlistId, setSelectedWatchlistId] = useState("");
   const [ticker, setTicker] = useState("");
   const [companyName, setCompanyName] = useState("");
-  const [referencePrice, setReferencePrice] = useState("");
   const [cashAvailable, setCashAvailable] = useState("5000");
-  const [currency, setCurrency] = useState<CurrencyCode>("USD");
+  const [currency, setCurrency] = useState<CurrencyCode>("GBP");
   const [ladderType, setLadderType] = useState<LadderType>(50);
+  const [customRefPrice, setCustomRefPrice] = useState("");
 
-  const [loadingLivePrice, setLoadingLivePrice] = useState(false);
-  const [livePriceError, setLivePriceError] = useState("");
+  // Reference price state
+  const [refSource, setRefSource] = useState<RefSource>("recent_high");
+  const [currentPrice, setCurrentPrice] = useState(0);
+  const [refData, setRefData] = useState<RefData | null>(null);
+  const [loadingRef, setLoadingRef] = useState(false);
 
+  // Profit target (0 = no target)
+  const [profitTargetPct, setProfitTargetPct] = useState(20);
+  const [customProfitPct, setCustomProfitPct] = useState("");
+  const showProfitTargets = profitTargetPct > 0;
+
+  // Chart data
+  const [candles, setCandles] = useState<CandleRow[]>([]);
+  const [loadingCandles, setLoadingCandles] = useState(false);
+
+  // Loading state
+  const [loadingTicker, setLoadingTicker] = useState(false);
+  const [tickerError, setTickerError] = useState("");
+
+  /* ── Watchlist load ── */
   useEffect(() => {
     let active = true;
-
-    async function loadWatchlist() {
+    async function load() {
       setLoadingWatchlist(true);
-      setWatchlistError("");
-
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user) {
-          if (active) {
-            setWatchlist([]);
-            setLoadingWatchlist(false);
-          }
-          return;
-        }
-
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setWatchlist([]); return; }
         const { data, error } = await supabase
           .from("watchlist_items")
-          .select("id,symbol,company_name,created_at")
+          .select("id,symbol,company_name")
           .order("created_at", { ascending: false });
-
         if (error) throw error;
-
-        if (active) {
-          setWatchlist((data || []) as WatchlistItem[]);
-        }
+        if (active) setWatchlist((data || []) as WatchlistItem[]);
       } catch (err: any) {
-        console.error("Failed loading watchlist:", err);
-        if (active) {
-          setWatchlist([]);
-          setWatchlistError(err?.message || "Failed loading watchlist.");
-        }
+        if (active) setWatchlistError(err?.message || "Failed loading watchlist.");
       } finally {
-        if (active) {
-          setLoadingWatchlist(false);
-        }
+        if (active) setLoadingWatchlist(false);
       }
     }
-
-    loadWatchlist();
-
-    return () => {
-      active = false;
-    };
+    load();
+    return () => { active = false; };
   }, [supabase]);
 
+  /* ── Auto-select first watchlist item ── */
   useEffect(() => {
-    if (!watchlist.length) return;
-    if (selectedWatchlistId) return;
-
+    if (!watchlist.length || selectedWatchlistId) return;
     const first = watchlist[0];
-    if (!first) return;
-
     setSelectedWatchlistId(first.id);
     setTicker(first.symbol || "");
     setCompanyName(first.company_name || "");
-
-    setReferencePrice("");
-    void loadLiveTicker(first.symbol || "");
+    loadTickerData(first.symbol || "");
   }, [watchlist, selectedWatchlistId]);
 
-  async function loadLiveTicker(symbol: string) {
+  /* ── Load ticker data: price + history + reference ── */
+  const loadTickerData = useCallback(async (symbol: string) => {
     const clean = symbol.trim().toUpperCase();
     if (!clean) return;
 
-    setLoadingLivePrice(true);
-    setLivePriceError("");
+    setLoadingTicker(true);
+    setTickerError("");
+    setLoadingCandles(true);
+    setLoadingRef(true);
 
+    // 1. Get current price from scanner
+    let price = 0;
     try {
-      const res = await fetch(`/api/stocks/search?q=${encodeURIComponent(clean)}`, {
-        cache: "no-store",
-      });
-
-      const contentType = res.headers.get("content-type") || "";
-      const rawText = await res.text();
-
-      if (!res.ok) {
-        throw new Error(`Ticker lookup failed (${res.status})`);
-      }
-
-      if (!contentType.includes("application/json")) {
-        console.error("Non-JSON ticker response:", rawText.slice(0, 300));
-        throw new Error("Live price endpoint returned HTML instead of JSON.");
-      }
-
-      const data = JSON.parse(rawText);
+      const res = await fetch(`/api/stocks/search?q=${encodeURIComponent(clean)}`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`Lookup failed (${res.status})`);
+      const data = await res.json();
       const rows = Array.isArray(data?.rows) ? data.rows : [];
-      const match =
-        rows.find((row: any) => String(row?.symbol || "").toUpperCase() === clean) ||
-        rows[0] ||
-        null;
-
-      if (!match) {
-        throw new Error("No stock data found for this ticker.");
-      }
-
-      const liveCompany = match.company_name || match.company || "";
-      const livePrice =
-        parseNumber(match.price) ??
-        parseNumber(match.current_price) ??
-        parseNumber(match.last_price) ??
-        parseNumber(match.close);
-
-      if (liveCompany) {
-        setCompanyName(liveCompany);
-      }
-
-      if (livePrice !== null) {
-        setReferencePrice(String(livePrice));
-      } else {
-        setLivePriceError("Ticker loaded but no live price was returned.");
-      }
+      const match = rows.find((r: any) => String(r?.symbol || "").toUpperCase() === clean) || rows[0];
+      if (!match) throw new Error("No stock data found.");
+      const p = parseNumber(match.price) ?? parseNumber(match.current_price) ?? parseNumber(match.close);
+      if (p !== null) price = p;
+      if (match.company_name || match.company) setCompanyName(match.company_name || match.company);
     } catch (err: any) {
-      console.error("Failed loading live ticker:", err);
-      setLivePriceError(err?.message || "Could not load live ticker price.");
-    } finally {
-      setLoadingLivePrice(false);
+      setTickerError(err?.message || "Could not load ticker.");
     }
-  }
+    setCurrentPrice(price);
+    setLoadingTicker(false);
 
+    // 2. Fetch price history (1y for chart)
+    try {
+      const res = await fetch(`/api/stock/history?ticker=${encodeURIComponent(clean)}&range=1y`, { cache: "no-store" });
+      const data = await res.json();
+      if (data?.ok && Array.isArray(data.candles)) {
+        setCandles(data.candles);
+      }
+    } catch {} finally {
+      setLoadingCandles(false);
+    }
+
+    // 3. Fetch reference price data (needs history to exist first, so slight delay)
+    if (price > 0) {
+      try {
+        // First ensure we have 5y history for reference calculations
+        await fetch(`/api/stock/history?ticker=${encodeURIComponent(clean)}&range=5y`, { cache: "no-store" });
+        const res = await fetch(
+          `/api/stock/reference-price?ticker=${encodeURIComponent(clean)}&current_price=${price}`,
+          { cache: "no-store" }
+        );
+        const data = await res.json();
+        if (data?.ok) setRefData(data as RefData);
+      } catch {} finally {
+        setLoadingRef(false);
+      }
+    } else {
+      setLoadingRef(false);
+    }
+
+    // Log calculator usage for quickstart tracking
+    if (price > 0) {
+      fetch("/api/activity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event_type: "calculator_use", event_label: `Calculator used for ${clean}` }),
+      }).catch(() => {});
+    }
+  }, []);
+
+  /* ── Watchlist change ── */
   function handleWatchlistChange(id: string) {
     setSelectedWatchlistId(id);
-
-    const item = watchlist.find((row) => row.id === id);
+    const item = watchlist.find((r) => r.id === id);
     if (!item) return;
-
     setTicker(item.symbol || "");
     setCompanyName(item.company_name || "");
-
-    setReferencePrice("");
-    void loadLiveTicker(item.symbol || "");
+    setRefSource("recent_high");
+    setCustomRefPrice("");
+    setRefData(null);
+    setCandles([]);
+    loadTickerData(item.symbol || "");
   }
 
   function clearTicker() {
     setSelectedWatchlistId("");
     setTicker("");
     setCompanyName("");
-    setReferencePrice("");
-    setLivePriceError("");
+    setCurrentPrice(0);
+    setRefData(null);
+    setCandles([]);
+    setRefSource("recent_high");
+    setCustomRefPrice("");
+    setTickerError("");
   }
 
-  const reference = parseNumber(referencePrice) || 0;
+  /* ── Derived reference price based on selected source ── */
+  const referencePrice = useMemo(() => {
+    switch (refSource) {
+      case "recent_high": return currentPrice > 0 ? Math.round(currentPrice * 1.20 * 100) / 100 : 0;
+      case "covid_high": return refData?.high_since_covid || currentPrice;
+      case "custom": return parseNumber(customRefPrice) || 0;
+      default: return 0;
+    }
+  }, [refSource, currentPrice, refData, customRefPrice]);
+
   const cash = parseNumber(cashAvailable) || 0;
   const ladderDrops = getLadderDrops(ladderType);
   const baseAllocation = getBaseAllocation(ladderDrops.length);
   const midpointStep = getMidpointStep(ladderType);
 
+  /* ── Ladder calculation ── */
   const ladderRows = useMemo<LadderRow[]>(() => {
-    if (reference <= 0 || cash <= 0) return [];
-
+    if (referencePrice <= 0 || cash <= 0) return [];
     let cumulativeShares = 0;
     let runningAllocated = 0;
 
     return ladderDrops.map((drop, index) => {
       const investmentPercentDecimal = baseAllocation * Math.pow(1.25, index);
       const investmentAmount = cash * investmentPercentDecimal;
-      const entryPrice = reference * (1 - drop / 100);
+      const entryPrice = referencePrice * (1 - drop / 100);
       const shares = entryPrice > 0 ? investmentAmount / entryPrice : 0;
-
       cumulativeShares += shares;
       runningAllocated += investmentAmount;
+      const pctFromHigh = currentPrice > 0 ? ((currentPrice - entryPrice) / currentPrice) * 100 : 0;
 
       return {
         step: index + 1,
@@ -291,444 +322,531 @@ export default function InvestmentsCalculatorPage() {
         shares,
         cumulativeShares,
         remainingCash: Math.max(0, cash - runningAllocated),
+        pctFromHigh,
       };
     });
-  }, [reference, cash, ladderDrops, baseAllocation]);
+  }, [referencePrice, cash, ladderDrops, baseAllocation, currentPrice]);
 
-  const totalShares = ladderRows.length
-    ? ladderRows[ladderRows.length - 1].cumulativeShares
-    : 0;
+  const totalShares = ladderRows.length ? ladderRows[ladderRows.length - 1].cumulativeShares : 0;
 
   const combinedFirstTwo = useMemo(() => {
     const firstTwo = ladderRows.slice(0, 2);
-    const amount = firstTwo.reduce((sum, row) => sum + row.investmentAmount, 0);
-    const shares = firstTwo.reduce((sum, row) => sum + row.shares, 0);
-    const averagePrice = shares > 0 ? amount / shares : 0;
-
-    return {
-      amount,
-      shares,
-      averagePrice,
-    };
+    const amount = firstTwo.reduce((s, r) => s + r.investmentAmount, 0);
+    const shares = firstTwo.reduce((s, r) => s + r.shares, 0);
+    return { amount, shares, averagePrice: shares > 0 ? amount / shares : 0 };
   }, [ladderRows]);
 
   const profitLines = useMemo(() => {
-    const bepPrice = combinedFirstTwo.averagePrice;
+    const bep = combinedFirstTwo.averagePrice;
     const bepShares = combinedFirstTwo.shares;
-
-    if (bepPrice <= 0 || bepShares <= 0) return [];
-
+    if (bep <= 0 || bepShares <= 0) return [];
     return [10, 15, 20, 25].map((pct) => {
-      const price = bepPrice * (1 + pct / 100);
-      const cashProfit = (price - bepPrice) * bepShares;
-
-      return {
-        percent: pct,
-        price,
-        cashProfit,
-      };
+      const price = bep * (1 + pct / 100);
+      return { percent: pct, price, cashProfit: (price - bep) * bepShares };
     });
   }, [combinedFirstTwo]);
 
+  const cp = getCurrencyPrefix(currency);
+
+  /* ── Chart lines ── */
+  const chartLines = useMemo(() => {
+    const out: { label: string; price: number; color: string; style: "solid" | "dashed"; lineWidth?: number }[] = [];
+
+    // Reference price line (amber)
+    if (referencePrice > 0) {
+      out.push({
+        label: `Reference · ${cp}${referencePrice.toFixed(2)}`,
+        price: referencePrice,
+        color: "#D97706",
+        style: "solid",
+        lineWidth: 2,
+      });
+    }
+
+    // Ladder buy lines (blue, solid)
+    ladderRows.forEach((row) => {
+      out.push({
+        label: `Step ${row.step} · ${cp}${row.entryPrice.toFixed(2)}`,
+        price: row.entryPrice,
+        color: "#3B82F6",
+        style: "solid",
+        lineWidth: 2,
+      });
+    });
+
+    // Profit target lines (gold, dashed) — only when a target % is set
+    if (showProfitTargets) {
+      ladderRows.forEach((row) => {
+        const targetPrice = row.entryPrice * (1 + profitTargetPct / 100);
+        out.push({
+          label: `Target ${row.step} · ${cp}${targetPrice.toFixed(2)}`,
+          price: targetPrice,
+          color: "#F59E0B",
+          style: "dashed",
+          lineWidth: 2,
+        });
+      });
+    }
+
+    return out;
+  }, [referencePrice, ladderRows, currency, cp, profitTargetPct, showProfitTargets]);
+
+  /* ── Chart link ── */
   const chartHref = useMemo(() => {
     const line1 = ladderRows[0]?.entryPrice || 0;
     const line2 = ladderRows[1]?.entryPrice || 0;
     const bep = combinedFirstTwo.averagePrice || 0;
-    const p10 = profitLines.find((line) => line.percent === 10)?.price || 0;
-    const p15 = profitLines.find((line) => line.percent === 15)?.price || 0;
-    const p20 = profitLines.find((line) => line.percent === 20)?.price || 0;
-    const p25 = profitLines.find((line) => line.percent === 25)?.price || 0;
-
+    const p10 = profitLines.find((l) => l.percent === 10)?.price || 0;
+    const p15 = profitLines.find((l) => l.percent === 15)?.price || 0;
+    const p20 = profitLines.find((l) => l.percent === 20)?.price || 0;
+    const p25 = profitLines.find((l) => l.percent === 25)?.price || 0;
     const params = new URLSearchParams({
       ticker: ticker || "MSFT",
-      current: reference > 0 ? String(reference) : "0",
-      line1: line1 > 0 ? String(line1) : "0",
-      line2: line2 > 0 ? String(line2) : "0",
-      bep: bep > 0 ? String(bep) : "0",
-      p10: p10 > 0 ? String(p10) : "0",
-      p15: p15 > 0 ? String(p15) : "0",
-      p20: p20 > 0 ? String(p20) : "0",
-      p25: p25 > 0 ? String(p25) : "0",
+      current: referencePrice > 0 ? String(referencePrice) : "0",
+      line1: String(line1), line2: String(line2), bep: String(bep),
+      p10: String(p10), p15: String(p15), p20: String(p20), p25: String(p25),
     });
-
     return `/dashboard/chart?${params.toString()}`;
-  }, [ticker, reference, ladderRows, combinedFirstTwo, profitLines]);
+  }, [ticker, referencePrice, ladderRows, combinedFirstTwo, profitLines]);
 
+  /* ── Reference card helper ── */
+  const refCards: { key: RefSource; title: string; value: string; sub1: string; sub2: string; borderColor?: string }[] = [
+    {
+      key: "recent_high",
+      title: "RECENT HIGH",
+      value: currentPrice > 0
+        ? `${cp}${(currentPrice * 1.20).toFixed(2)}`
+        : refData?.recent_20pct_high
+        ? `${cp}${refData.recent_20pct_high.toFixed(2)}`
+        : "—",
+      sub1: "20% above current price",
+      sub2: currentPrice > 0 ? `Current: ${cp}${currentPrice.toFixed(2)}` : "",
+      borderColor: "border-teal-400/40",
+    },
+  ];
+
+  /* ─── render ─── */
   return (
     <ExpiredLock>
     <div className="space-y-6">
-      <section className="rounded-[30px] border border-cyan-500/15 bg-[linear-gradient(180deg,rgba(4,16,48,0.98),rgba(5,20,56,0.96))] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.3)]">
-        <div className="mb-6">
-          <h2 className="text-2xl font-semibold text-white">
-            Aurora Investment Ladder Calculator
-          </h2>
-          <p className="mt-2 max-w-4xl text-slate-300">
-            Select a watchlist ticker or enter one manually, then build a staged Aurora ladder plan.
+
+      {/* ═══ TOP: Two-column layout ═══ */}
+      <div className="grid gap-6 xl:grid-cols-[2fr_3fr]">
+
+        {/* ─── LEFT COLUMN: Inputs ─── */}
+        <section className="rounded-[30px] border border-cyan-500/15 bg-[linear-gradient(180deg,rgba(4,16,48,0.98),rgba(5,20,56,0.96))] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.3)]">
+          <div className="mb-5">
+            <h2 className="text-2xl font-semibold text-white">
+              Aurora Ladder Calculator
+            </h2>
+            <p className="mt-2 text-sm text-slate-300">
+              Select a ticker, choose your reference price source, and build a staged ladder plan.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {/* Watchlist */}
+            <div>
+              <label className="mb-2 block text-sm text-slate-300">Watchlist</label>
+              <select
+                value={selectedWatchlistId}
+                onChange={(e) => handleWatchlistChange(e.target.value)}
+                className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+              >
+                <option value="">
+                  {loadingWatchlist ? "Loading..." : watchlist.length ? "Select from watchlist" : "No items"}
+                </option>
+                {watchlist.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.symbol}{item.company_name ? ` — ${item.company_name}` : ""}
+                  </option>
+                ))}
+              </select>
+              {watchlistError && <p className="mt-2 text-sm text-rose-300">{watchlistError}</p>}
+            </div>
+
+            {/* Ticker */}
+            <div>
+              <label className="mb-2 block text-sm text-slate-300">Ticker</label>
+              <input
+                value={ticker}
+                onChange={(e) => setTicker(e.target.value.toUpperCase())}
+                className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                placeholder="ANET"
+              />
+            </div>
+
+            {/* Cash + Ladder in a row */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-2 block text-sm text-slate-300">Cash Available</label>
+                <input
+                  value={cashAvailable}
+                  onChange={(e) => setCashAvailable(e.target.value)}
+                  className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                  placeholder="5000"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-slate-300">Ladder Type</label>
+                <select
+                  value={ladderType}
+                  onChange={(e) => setLadderType(Number(e.target.value) as LadderType)}
+                  className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                >
+                  <option value={30}>30%</option>
+                  <option value={40}>40%</option>
+                  <option value={50}>50%</option>
+                  <option value={60}>60%</option>
+                  <option value={70}>70%</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Currency */}
+            <div>
+              <label className="mb-2 block text-sm text-slate-300">Currency</label>
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value as CurrencyCode)}
+                className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+              >
+                <option value="USD">$ USD</option>
+                <option value="GBP">£ GBP</option>
+                <option value="EUR">€ EUR</option>
+              </select>
+            </div>
+
+            {/* Reference price source selector */}
+            <div>
+              <label className="mb-2 block text-sm text-slate-300">Reference Price</label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["recent_high", "custom"] as RefSource[]).map((src) => (
+                  <button
+                    key={src}
+                    type="button"
+                    onClick={() => setRefSource(src)}
+                    className={`rounded-xl border px-3 py-2.5 text-xs font-semibold transition ${
+                      refSource === src
+                        ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-200"
+                        : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/8"
+                    }`}
+                  >
+                    {src === "recent_high" ? "Recent High" : "Custom"}
+                  </button>
+                ))}
+              </div>
+              {refSource === "custom" && (
+                <input
+                  value={customRefPrice}
+                  onChange={(e) => setCustomRefPrice(e.target.value)}
+                  className="mt-3 w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                  placeholder="Enter custom reference price"
+                />
+              )}
+              {referencePrice > 0 && refSource === "recent_high" && currentPrice > 0 && (
+                <p className="mt-2 text-sm text-cyan-300/80">
+                  {cp}{referencePrice.toFixed(2)} · 20% above current price
+                </p>
+              )}
+              {referencePrice > 0 && refSource === "custom" && (
+                <p className="mt-2 text-sm text-cyan-300/80">
+                  Reference: {cp}{referencePrice.toFixed(2)}
+                </p>
+              )}
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => loadTickerData(ticker)}
+                disabled={loadingTicker}
+                className="flex-1 rounded-[22px] bg-gradient-to-r from-cyan-300 via-sky-300 to-blue-300 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_10px_30px_rgba(34,211,238,0.25)] transition hover:brightness-105 disabled:opacity-60"
+              >
+                {loadingTicker ? "Loading..." : "Calculate Ladder"}
+              </button>
+              <button
+                type="button"
+                onClick={clearTicker}
+                className="rounded-[22px] border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10"
+              >
+                Clear
+              </button>
+            </div>
+
+            {tickerError && <p className="text-sm text-rose-300">{tickerError}</p>}
+
+            {(selectedWatchlistId || companyName) && (
+              <div className="flex flex-wrap gap-2">
+                {selectedWatchlistId && (
+                  <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-300">
+                    {ticker}
+                  </span>
+                )}
+                {companyName && (
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
+                    {companyName}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* ─── RIGHT COLUMN: Chart ─── */}
+        <section className="rounded-[30px] border border-cyan-500/15 bg-[linear-gradient(180deg,rgba(4,16,48,0.98),rgba(5,20,56,0.96))] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.3)]">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h3 className="text-base font-semibold text-white">
+                {ticker ? `${ticker} — Price History` : "Price Chart"}
+              </h3>
+              <p className="mt-1 text-sm text-white/45">
+                {candles.length > 0
+                  ? `${candles.length} days · Ladder lines overlaid`
+                  : "Select a ticker to load chart"}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs">
+              <span className="rounded-full border border-amber-600/30 bg-amber-600/10 px-2.5 py-1 text-amber-300">Reference</span>
+              <span className="rounded-full border border-blue-400/30 bg-blue-400/10 px-2.5 py-1 text-blue-300">Buy Levels</span>
+              <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-amber-200">Profit Targets</span>
+            </div>
+          </div>
+
+          {loadingCandles ? (
+            <div className="flex h-[400px] items-center justify-center rounded-2xl border border-white/10 bg-[#030916] text-sm text-white/40">
+              Loading chart data...
+            </div>
+          ) : (
+            <LadderMiniChart
+              ticker={ticker}
+              candles={candles}
+              lines={chartLines}
+              height={400}
+            />
+          )}
+        </section>
+      </div>
+
+      {/* ═══ REFERENCE PRICE CARDS ═══ */}
+      <section className="grid gap-4 sm:grid-cols-2">
+        {refCards.map((card) => {
+          const isSelected = refSource === card.key;
+          return (
+            <button
+              key={card.key + card.title}
+              type="button"
+              onClick={() => setRefSource(card.key)}
+              className={`rounded-3xl border p-5 text-left transition ${
+                isSelected
+                  ? `${card.borderColor || "border-cyan-400/40"} bg-cyan-500/10 shadow-[0_0_30px_rgba(34,211,238,0.08)]`
+                  : "border-white/10 bg-slate-950/40 hover:border-white/20"
+              }`}
+            >
+              <div className="text-xs uppercase tracking-[0.22em] text-slate-400">{card.title}</div>
+              <div className="mt-3 text-3xl font-semibold text-white">{loadingRef ? "..." : card.value}</div>
+              <div className="mt-2 text-sm text-slate-300">{card.sub1}</div>
+              {card.sub2 && <div className="mt-1 text-sm text-slate-400">{card.sub2}</div>}
+            </button>
+          );
+        })}
+      </section>
+
+      {/* ═══ TOP SUMMARY BAR ═══ */}
+      {showProfitTargets && ladderRows.length > 0 && (() => {
+        const totalInvested = ladderRows.reduce((s, r) => s + r.investmentAmount, 0);
+        const totalAtTargets = ladderRows.reduce((s, r) => {
+          const targetPrice = r.entryPrice * (1 + profitTargetPct / 100);
+          return s + targetPrice * r.shares;
+        }, 0);
+        const totalGain = totalAtTargets - totalInvested;
+        const totalGainPct = totalInvested > 0 ? (totalGain / totalInvested) * 100 : 0;
+        return (
+          <section className="rounded-2xl border border-white/10 bg-slate-950/80 p-5">
+            <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
+              Total Potential Return
+            </div>
+            <div className="grid gap-6 sm:grid-cols-3">
+              <div>
+                <div className="text-[11px] uppercase tracking-wider text-slate-500">Total Invested</div>
+                <div className="mt-1 text-xl font-semibold text-white">{formatMoney(totalInvested, currency)}</div>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-wider text-slate-500">Total at Targets</div>
+                <div className="mt-1 text-xl font-semibold text-white">{formatMoney(totalAtTargets, currency)}</div>
+              </div>
+              <div>
+                <div className="text-[11px] uppercase tracking-wider text-slate-500">Total Gain</div>
+                <div className="mt-1 text-xl font-semibold text-emerald-400">
+                  +{formatMoney(totalGain, currency)}{" "}
+                  <span className="text-sm text-emerald-400/80">(+{totalGainPct.toFixed(1)}%)</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        );
+      })()}
+
+      {/* ═══ THREE STAT CARDS ═══ */}
+      <section className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">First 2 Lines</div>
+          <div className="mt-0.5 text-xs uppercase tracking-[0.18em] text-slate-400">Avg Price</div>
+          <div className="mt-2 text-2xl font-semibold text-white">
+            {combinedFirstTwo.averagePrice > 0 ? `${cp}${combinedFirstTwo.averagePrice.toFixed(2)}` : "—"}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500">Blended avg entry</div>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">First 2 Lines</div>
+          <div className="mt-0.5 text-xs uppercase tracking-[0.18em] text-slate-400">Shares</div>
+          <div className="mt-2 text-2xl font-semibold text-white">
+            {combinedFirstTwo.shares > 0 ? formatNumber(combinedFirstTwo.shares, 3) : "—"}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500">Combined 1 &amp; 2</div>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+          <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">First 2 Lines</div>
+          <div className="mt-0.5 text-xs uppercase tracking-[0.18em] text-slate-400">Amount</div>
+          <div className="mt-2 text-2xl font-semibold text-white">
+            {formatMoney(combinedFirstTwo.amount, currency)}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-500">Total invested</div>
+        </div>
+      </section>
+
+      {/* ═══ ENTRY LINES TABLE ═══ */}
+      <section className="rounded-2xl border border-white/10 bg-slate-950/60 p-5">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-white">Entry Lines</h3>
+          <p className="mt-1 text-xs text-slate-400">Your staged buy points from the reference price</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/10 text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                <th className="px-4 py-2.5 text-left font-medium">Line</th>
+                <th className="px-4 py-2.5 text-left font-medium">Level</th>
+                <th className="px-4 py-2.5 text-left font-medium">Entry Price</th>
+                <th className="px-4 py-2.5 text-left font-medium">Investment</th>
+                <th className="px-4 py-2.5 text-left font-medium">Shares</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ladderRows.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-4 py-4 text-slate-500">No entry lines yet.</td>
+                </tr>
+              ) : (
+                ladderRows.map((row) => (
+                  <tr
+                    key={`entry-${row.step}`}
+                    className={`border-t border-white/5 ${
+                      row.step === 1
+                        ? "bg-blue-500/[0.08]"
+                        : row.step === midpointStep
+                        ? "bg-teal-500/[0.08]"
+                        : ""
+                    }`}
+                  >
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center gap-2">
+                        <span className="inline-block h-2 w-2 rounded-full bg-[#3B82F6]" />
+                        <span className="font-medium text-white">{row.step}</span>
+                        {row.step === midpointStep && (
+                          <span className="rounded-full border border-teal-400/20 bg-teal-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-teal-300">
+                            BEP
+                          </span>
+                        )}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-300">{row.entryLevel}</td>
+                    <td className="px-4 py-3 font-medium text-blue-300">{cp}{row.entryPrice.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-white">{formatMoney(row.investmentAmount, currency)}</td>
+                    <td className="px-4 py-3 text-white">{formatNumber(row.shares, 2)}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* ═══ PROFIT TARGETS ═══ */}
+      <section className="rounded-2xl border border-white/10 bg-slate-950/60 p-5">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-white">Profit Targets</h3>
+          <p className="mt-1 text-xs text-slate-400">
+            {showProfitTargets && combinedFirstTwo.averagePrice > 0
+              ? <>Calculated from your blended entry price of {cp}{combinedFirstTwo.averagePrice.toFixed(2)}</>
+              : "Select a profit target percentage below"}
           </p>
         </div>
 
-        <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr_1fr_1fr_1fr_auto_auto]">
-          <div>
-            <label className="mb-2 block text-sm text-slate-300">Watchlist</label>
-            <select
-              value={selectedWatchlistId}
-              onChange={(e) => handleWatchlistChange(e.target.value)}
-              className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-            >
-              <option value="">
-                {loadingWatchlist
-                  ? "Loading watchlist..."
-                  : watchlist.length
-                    ? "Select from watchlist"
-                    : "No watchlist items found"}
-              </option>
-              {watchlist.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.symbol}
-                  {item.company_name ? ` - ${item.company_name}` : ""}
-                </option>
-              ))}
-            </select>
-            {watchlistError ? (
-              <p className="mt-2 text-sm text-rose-300">{watchlistError}</p>
-            ) : null}
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm text-slate-300">Ticker</label>
-            <input
-              value={ticker}
-              onChange={(e) => setTicker(e.target.value.toUpperCase())}
-              className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-              placeholder="ANET"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm text-slate-300">Reference Price</label>
-            <input
-              value={referencePrice}
-              onChange={(e) => setReferencePrice(e.target.value)}
-              className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-              placeholder="399.82"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm text-slate-300">Cash Available</label>
-            <input
-              value={cashAvailable}
-              onChange={(e) => setCashAvailable(e.target.value)}
-              className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-              placeholder="5000"
-            />
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm text-slate-300">Ladder Type</label>
-            <select
-              value={ladderType}
-              onChange={(e) => setLadderType(Number(e.target.value) as LadderType)}
-              className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-            >
-              <option value={30}>30%</option>
-              <option value={40}>40%</option>
-              <option value={50}>50%</option>
-              <option value={60}>60%</option>
-              <option value={70}>70%</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="mb-2 block text-sm text-slate-300">Currency</label>
-            <select
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value as CurrencyCode)}
-              className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-            >
-              <option value="USD">$ USD</option>
-              <option value="GBP">£ GBP</option>
-              <option value="EUR">€ EUR</option>
-            </select>
-          </div>
-
-          <div className="flex items-end">
+        {/* Profit % selector */}
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => { setProfitTargetPct(0); setCustomProfitPct(""); }}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+              profitTargetPct === 0
+                ? "border-amber-400/40 bg-amber-500/20 text-amber-200"
+                : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/8"
+            }`}
+          >
+            No target
+          </button>
+          {[10, 15, 20, 25, 30].map((pct) => (
             <button
+              key={pct}
               type="button"
-              onClick={() => void loadLiveTicker(ticker)}
-              className="min-w-[160px] rounded-[22px] bg-gradient-to-r from-cyan-300 via-sky-300 to-blue-300 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_10px_30px_rgba(34,211,238,0.25)] transition hover:brightness-105"
+              onClick={() => { setProfitTargetPct(pct); setCustomProfitPct(""); }}
+              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+                profitTargetPct === pct && !customProfitPct
+                  ? "border-amber-400/40 bg-amber-500/20 text-amber-200"
+                  : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/8"
+              }`}
             >
-              {loadingLivePrice ? "Loading..." : "Calculate Ladder"}
+              {pct}%
             </button>
-          </div>
-
-          <div className="flex items-end">
-            <button
-              type="button"
-              onClick={clearTicker}
-              className="min-w-[120px] rounded-[22px] border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10"
-            >
-              Clear Ticker
-            </button>
-          </div>
+          ))}
         </div>
 
-        {(selectedWatchlistId || companyName) && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {selectedWatchlistId ? (
-              <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-300">
-                Selected: {ticker || "Ticker"}
-              </span>
-            ) : null}
-            {selectedWatchlistId ? (
-              <span className="rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-300">
-                In Watchlist
-              </span>
-            ) : null}
-            {companyName ? (
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
-                {companyName}
-              </span>
-            ) : null}
+        {showProfitTargets && (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {profitLines.length === 0 ? (
+              <div className="text-sm text-slate-500">No profit targets yet.</div>
+            ) : (
+              profitLines.map((line) => (
+                <div
+                  key={`pt-${line.percent}`}
+                  className={`rounded-xl border p-4 transition ${
+                    profitTargetPct === line.percent
+                      ? "border-amber-400/40 bg-amber-500/15"
+                      : "border-white/10 bg-white/[0.03]"
+                  }`}
+                >
+                  <div className="text-sm font-semibold text-[#F59E0B]">+{line.percent}%</div>
+                  <div className="mt-1 text-xl font-semibold text-white">{cp}{line.price.toFixed(2)}</div>
+                  <div className="mt-2 text-[11px] text-slate-400">Cash:</div>
+                  <div className="text-sm font-medium text-emerald-400">+{formatMoney(line.cashProfit, currency)}</div>
+                </div>
+              ))
+            )}
           </div>
         )}
 
-        {livePriceError ? (
-          <p className="mt-4 text-sm text-rose-300">{livePriceError}</p>
-        ) : null}
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-5">
-        <div className="rounded-3xl border border-white/10 bg-slate-950/40 p-5">
-          <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
-            Ticker
-          </div>
-          <div className="mt-3 text-3xl font-semibold text-white">
-            {ticker || "-"}
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-white/10 bg-slate-950/40 p-5">
-          <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
-            Reference Price
-          </div>
-          <div className="mt-3 text-3xl font-semibold text-white">
-            {reference > 0 ? `${getCurrencyPrefix(currency)}${reference.toFixed(2)}` : "-"}
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-white/10 bg-slate-950/40 p-5">
-          <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
-            Cash Available
-          </div>
-          <div className="mt-3 text-3xl font-semibold text-white">
-            {cash > 0 ? formatMoney(cash, currency) : "-"}
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-white/10 bg-slate-950/40 p-5">
-          <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
-            Total Shares
-          </div>
-          <div className="mt-3 text-3xl font-semibold text-white">
-            {totalShares > 0 ? formatNumber(totalShares, 4) : "-"}
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-white/10 bg-slate-950/40 p-5">
-          <div className="text-xs uppercase tracking-[0.22em] text-slate-400">
-            Ladder
-          </div>
-          <div className="mt-3 text-3xl font-semibold text-white">
-            {ladderType}%
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-[30px] border border-cyan-500/15 bg-[linear-gradient(180deg,rgba(4,16,48,0.98),rgba(5,20,56,0.96))] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.3)]">
-        <div className="mb-5">
-          <h3 className="text-2xl font-semibold text-white">
-            Investment Ladder
-          </h3>
-          <p className="mt-2 text-slate-300">
-            Highlighted entry step is the midpoint of the selected ladder.
-          </p>
-        </div>
-
-        <div className="overflow-hidden rounded-2xl border border-white/10">
-          <div className="grid grid-cols-8 bg-white/5 text-xs uppercase tracking-[0.2em] text-slate-400">
-            <div className="px-4 py-3">Step</div>
-            <div className="px-4 py-3">Entry Level</div>
-            <div className="px-4 py-3">Entry Price</div>
-            <div className="px-4 py-3">Investment</div>
-            <div className="px-4 py-3">% of Total</div>
-            <div className="px-4 py-3">Shares</div>
-            <div className="px-4 py-3">Cumulative Shares</div>
-            <div className="px-4 py-3">Remaining Cash</div>
-          </div>
-
-          {ladderRows.length === 0 ? (
-            <div className="px-4 py-6 text-sm text-slate-300">
-              Enter a valid ticker, reference price and cash amount to build the ladder.
-            </div>
-          ) : (
-            ladderRows.map((row) => (
-              <div
-                key={row.step}
-                className={`grid grid-cols-8 border-t border-white/10 text-sm ${
-                  row.step === midpointStep
-                    ? "bg-cyan-500/10 text-white"
-                    : "text-white"
-                }`}
-              >
-                <div className="flex items-center gap-2 px-4 py-4">
-                  <span className="font-medium">{row.step}</span>
-                  {row.step === midpointStep ? (
-                    <span className="rounded-full border border-cyan-400/20 bg-cyan-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300">
-                      Entry Step
-                    </span>
-                  ) : null}
-                </div>
-                <div className="px-4 py-4">{row.entryLevel}</div>
-                <div className="px-4 py-4">
-                  {getCurrencyPrefix(currency)}{row.entryPrice.toFixed(2)}
-                </div>
-                <div className="px-4 py-4">{formatMoney(row.investmentAmount, currency)}</div>
-                <div className="px-4 py-4">{formatPercent(row.investmentPercent)}</div>
-                <div className="px-4 py-4">{formatNumber(row.shares, 4)}</div>
-                <div className="px-4 py-4">{formatNumber(row.cumulativeShares, 4)}</div>
-                <div className="px-4 py-4">{formatMoney(row.remainingCash, currency)}</div>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-3">
-        <div className="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5">
-          <div className="text-xs uppercase tracking-[0.22em] text-emerald-200/80">
-            First 2 Lines Average Price
-          </div>
-          <div className="mt-3 text-3xl font-semibold text-white">
-            {combinedFirstTwo.averagePrice > 0
-              ? `${getCurrencyPrefix(currency)}${combinedFirstTwo.averagePrice.toFixed(2)}`
-              : "-"}
-          </div>
-          <div className="mt-2 text-sm text-slate-200">
-            Combine line 1 and line 2 to get the blended average entry price.
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5">
-          <div className="text-xs uppercase tracking-[0.22em] text-emerald-200/80">
-            First 2 Lines Shares
-          </div>
-          <div className="mt-3 text-3xl font-semibold text-white">
-            {combinedFirstTwo.shares > 0 ? formatNumber(combinedFirstTwo.shares, 4) : "-"}
-          </div>
-          <div className="mt-2 text-sm text-slate-200">
-            Add the shares from line 1 and line 2 together.
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-emerald-400/20 bg-emerald-500/10 p-5">
-          <div className="text-xs uppercase tracking-[0.22em] text-emerald-200/80">
-            First 2 Lines Amount
-          </div>
-          <div className="mt-3 text-3xl font-semibold text-white">
-            {formatMoney(combinedFirstTwo.amount, currency)}
-          </div>
-          <div className="mt-2 text-sm text-slate-200">
-            Total amount invested across the first 2 ladder lines.
-          </div>
-        </div>
-      </section>
-
-      <section className="rounded-[30px] border border-sky-400/20 bg-sky-500/10 p-6">
-        <h3 className="text-xl font-semibold text-white">
-          Buying In Lines
-        </h3>
-        <p className="mt-2 text-sm text-slate-200">
-          Use these levels for your buying lines on the chart.
-        </p>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
-          {ladderRows.length === 0 ? (
-            <div className="text-sm text-slate-200">
-              No buying lines yet.
-            </div>
-          ) : (
-            ladderRows.map((row) => (
-              <div
-                key={`buy-${row.step}`}
-                className="rounded-2xl border border-sky-300/20 bg-sky-400/10 p-4"
-              >
-                <div className="text-xs uppercase tracking-[0.22em] text-sky-100/80">
-                  Buy In Point {row.step}
-                </div>
-                <div className="mt-2 text-2xl font-semibold text-white">
-                  {getCurrencyPrefix(currency)}{row.entryPrice.toFixed(2)}
-                </div>
-                <div className="mt-1 text-sm text-slate-200">
-                  {row.entryLevel}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-
-      <section className="rounded-[30px] border border-amber-400/20 bg-amber-500/10 p-6">
-        <h3 className="text-xl font-semibold text-white">
-          Profit Lines
-        </h3>
-        <p className="mt-2 text-sm text-slate-200">
-          Calculated from the BEP using the first 2 ladder lines.
-        </p>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          {profitLines.length === 0 ? (
-            <div className="text-sm text-slate-200">
-              No profit lines yet.
-            </div>
-          ) : (
-            profitLines.map((line) => (
-              <div
-                key={`profit-${line.percent}`}
-                className="rounded-2xl border border-amber-300/20 bg-amber-400/10 p-4"
-              >
-                <div className="text-xs uppercase tracking-[0.22em] text-amber-100/80">
-                  +{line.percent}% Profit
-                </div>
-                <div className="mt-2 text-2xl font-semibold text-white">
-                  {getCurrencyPrefix(currency)}{line.price.toFixed(2)}
-                </div>
-                <div className="mt-1 text-sm text-slate-200">
-                  Price target from BEP
-                </div>
-                <div className="mt-3 text-xs uppercase tracking-[0.18em] text-amber-100/70">
-                  Cash Profit
-                </div>
-                <div className="mt-1 text-lg font-semibold text-white">
-                  {formatMoney(line.cashProfit, currency)}
-                </div>
-                <div className="mt-1 text-xs text-slate-200">
-                  From BEP {combinedFirstTwo.averagePrice > 0 ? `${getCurrencyPrefix(currency)}${combinedFirstTwo.averagePrice.toFixed(2)}` : "-"}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="mt-6">
+        <div className="mt-4">
           <Link
             href={chartHref}
-            className="inline-flex items-center justify-center rounded-[22px] bg-gradient-to-r from-cyan-300 via-sky-300 to-blue-300 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_10px_30px_rgba(34,211,238,0.25)] transition hover:brightness-105"
+            className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-cyan-300 via-sky-300 to-blue-300 px-5 py-2.5 text-xs font-semibold text-slate-950 shadow-[0_10px_30px_rgba(34,211,238,0.15)] transition hover:brightness-105"
           >
             Analyze on Chart
           </Link>
         </div>
       </section>
+
     </div>
     </ExpiredLock>
   );

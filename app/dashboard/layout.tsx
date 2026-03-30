@@ -4,7 +4,11 @@ import BrokerConnectModal from "@/components/dashboard/BrokerConnectModal";
 import WelcomeModal from "@/components/dashboard/WelcomeModal";
 import ExpiryBanner from "@/components/dashboard/ExpiryBanner";
 import { BrokerPopupProvider } from "@/components/providers/BrokerPopupProvider";
+import { PortfolioProvider } from "@/components/providers/PortfolioProvider";
 import { SubscriptionProvider } from "@/components/providers/SubscriptionProvider";
+import OnboardingTour from "@/components/onboarding/OnboardingTour";
+import QuickStartGuide from "@/components/onboarding/QuickStartGuide";
+import AuroraChatWidget from "@/components/chat/AuroraChatWidget";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -86,18 +90,20 @@ export default async function DashboardLayout({
       brokerConnected = !!connection.is_connected;
       brokerStatus = brokerConnected ? "Connected" : "Disconnected";
     } else {
-      // No connection row — check if popup was dismissed
-      let dismissed = false;
+      // No connection row — check welcome_popup_shown_count and trading212_connected
       try {
         const { data: flags } = await supabaseAdmin
           .from("profiles")
-          .select("has_seen_trading212_prompt, trading212_connected")
+          .select("trading212_connected, welcome_popup_shown_count")
           .eq("id", user.id)
           .maybeSingle();
-        dismissed = !!(flags?.has_seen_trading212_prompt || flags?.trading212_connected);
-      } catch { /* columns may not exist */ }
 
-      showBrokerPopup = !dismissed;
+        const t212Connected = !!flags?.trading212_connected;
+        const shownCount = flags?.welcome_popup_shown_count ?? 0;
+
+        // Show broker popup only if not connected AND shown fewer than 3 times
+        showBrokerPopup = !t212Connected && shownCount < 3;
+      } catch { /* columns may not exist */ }
     }
   } catch (err) {
     console.error("Failed to check trading212 in layout:", err);
@@ -110,6 +116,7 @@ export default async function DashboardLayout({
       subscriptionStatus={subscriptionStatus}
       currentPeriodEnd={currentPeriodEnd}
     >
+      <PortfolioProvider>
       <BrokerPopupProvider>
         <DashboardShell
           userName={fullName}
@@ -127,8 +134,12 @@ export default async function DashboardLayout({
           {children}
           {showBrokerPopup && <BrokerConnectModal />}
           <WelcomeModal firstName={fullName.split(" ")[0]} />
+          <OnboardingTour />
+          <QuickStartGuide />
+          <AuroraChatWidget />
         </DashboardShell>
       </BrokerPopupProvider>
+      </PortfolioProvider>
     </SubscriptionProvider>
   );
 }

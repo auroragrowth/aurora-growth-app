@@ -18,6 +18,7 @@ import {
   Menu,
   ChevronDown,
 } from "lucide-react";
+import { usePortfolio } from "@/components/providers/PortfolioProvider";
 
 type DashboardShellProps = {
   children: React.ReactNode;
@@ -37,17 +38,18 @@ type NavItem = {
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  tourId?: string;
 };
 
 const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutGrid },
-  { label: "Market Scanner", href: "/dashboard/market-scanner", icon: ScanSearch },
-  { label: "Watchlist", href: "/dashboard/watchlist", icon: Star },
-  { label: "Calculator", href: "/dashboard/investments/calculator", icon: Calculator },
+  { label: "Market Scanner", href: "/dashboard/market-scanner", icon: ScanSearch, tourId: "scanner" },
+  { label: "Watchlist", href: "/dashboard/watchlist", icon: Star, tourId: "watchlist" },
+  { label: "Calculator", href: "/dashboard/investments/calculator", icon: Calculator, tourId: "calculator" },
   { label: "Chart", href: "/dashboard/chart", icon: LineChart },
   { label: "Investments", href: "/dashboard/investments", icon: BriefcaseBusiness },
   { label: "Volatility Compass", href: "/dashboard/volatility", icon: Activity },
-  { label: "Connections", href: "/dashboard/connections", icon: Link2 },
+  { label: "Connections", href: "/dashboard/connections", icon: Link2, tourId: "connections" },
   { label: "Upgrade Plan", href: "/dashboard/upgrade", icon: CreditCard },
   { label: "Account", href: "/dashboard/account", icon: User },
 ];
@@ -150,6 +152,13 @@ export default function DashboardShell({
   const initials = useMemo(() => getInitials(userName, userEmail), [userName, userEmail]);
   const pageTitle = useMemo(() => getPageTitle(pathname), [pathname]);
 
+  const { data: portfolio } = usePortfolio();
+  const fmtMoney = useCallback((v: number) => {
+    const prefix = v > 0 ? "+" : v < 0 ? "-" : "";
+    return `${prefix}\u00a3${Math.abs(v).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }, []);
+  const plColor = useCallback((v: number) => v > 0 ? "text-emerald-300" : v < 0 ? "text-rose-300" : "text-slate-400", []);
+
   useEffect(() => {
     const saved = window.localStorage.getItem("aurora-sidebar-collapsed");
     if (saved === null) {
@@ -232,6 +241,7 @@ export default function DashboardShell({
                     <Link
                       key={item.href}
                       href={item.href}
+                      data-tour={item.tourId || undefined}
                       title={collapsed ? item.label : undefined}
                       className={[
                         "group relative flex items-center overflow-hidden rounded-2xl px-3 py-3 text-sm transition-all duration-200",
@@ -310,18 +320,32 @@ export default function DashboardShell({
                   </div>
                 )}
 
-                <div className={`hidden items-center gap-2 rounded-full border px-3 py-2 text-xs font-medium xl:flex ${
-                  brokerConnected
-                    ? "border-emerald-300/18 bg-emerald-400/10 text-emerald-100"
-                    : "border-rose-300/18 bg-rose-400/10 text-rose-100"
-                }`}>
-                  <span className={`h-2 w-2 rounded-full ${
-                    brokerConnected
-                      ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]"
-                      : "bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.7)]"
-                  }`} />
-                  {brokerStatus}
-                </div>
+                {brokerConnected ? (
+                  portfolio.connected && !portfolio.loading && portfolio.portfolioValue > 0 ? (
+                    <div className="hidden items-center gap-1.5 rounded-full border border-emerald-300/18 bg-emerald-400/10 px-3 py-2 text-xs font-medium text-emerald-100 xl:flex">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
+                      <span>Live</span>
+                      <span className="mx-1 text-white/20">|</span>
+                      <span className="text-white">Portfolio {"\u00a3"}{portfolio.portfolioValue.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="mx-1 text-white/20">|</span>
+                      <span className={plColor(portfolio.todayPnl)}>Today {fmtMoney(portfolio.todayPnl)}</span>
+                      <span className="mx-1 text-white/20">|</span>
+                      <span className={plColor(portfolio.portfolioValue - (portfolio.overview?.total_cost ? Number(portfolio.overview.total_cost) : 0))}>
+                        Open {fmtMoney(portfolio.portfolioValue - (portfolio.overview?.total_cost ? Number(portfolio.overview.total_cost) : 0))}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="hidden items-center gap-2 rounded-full border border-emerald-300/18 bg-emerald-400/10 px-3 py-2 text-xs font-medium text-emerald-100 xl:flex">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]" />
+                      {portfolio.loading ? "Loading..." : "Connected"}
+                    </div>
+                  )
+                ) : (
+                  <div className="hidden items-center gap-2 rounded-full border border-rose-300/18 bg-rose-400/10 px-3 py-2 text-xs font-medium text-rose-100 xl:flex">
+                    <span className="h-2 w-2 rounded-full bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.7)]" />
+                    Disconnected
+                  </div>
+                )}
 
                 <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/6 px-3 py-2 text-xs font-medium text-white/88 lg:flex">
                   <span>{planName}</span>

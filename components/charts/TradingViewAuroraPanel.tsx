@@ -276,7 +276,9 @@ export default function TradingViewAuroraPanel({
       if (readyTimeout) window.clearTimeout(readyTimeout);
       if (redrawTimerRef.current) window.clearTimeout(redrawTimerRef.current);
       const widget = widgetRef.current;
-      if (widget?.remove) widget.remove();
+      if (widget?.remove) {
+        try { widget.remove(); } catch { /* container already removed from DOM */ }
+      }
       widgetRef.current = null;
       overlayIdsRef.current = [];
       if (chartRef.current) chartRef.current.innerHTML = "";
@@ -303,6 +305,13 @@ export default function TradingViewAuroraPanel({
       }
 
       chartRef.current.innerHTML = "";
+
+      // Verify the container element exists in the DOM before creating widget
+      const containerEl = document.getElementById(chartContainerId);
+      if (!containerEl) {
+        failToIframe();
+        return;
+      }
 
       try {
         const widget = new window.TradingView.widget({
