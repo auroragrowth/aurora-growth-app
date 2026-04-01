@@ -5,9 +5,19 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const planKey = body.planKey as string;
-    const billingInterval = body.billingInterval as string;
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "Not authenticated" },
+        { status: 401 }
+      );
+    }
+
+    const { planKey, billingInterval } = await req.json();
 
     if (!planKey || !billingInterval) {
       return NextResponse.json(
@@ -30,24 +40,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError || !user) {
-      return NextResponse.json(
-        { error: "You must be logged in" },
-        { status: 401 }
-      );
-    }
-
-    // Look up Stripe price ID from stripe_plans table
+    // Get price from DATABASE only - never from env vars or Stripe API
     const { data: plan, error: planError } = await supabaseAdmin
       .from("stripe_plans")
-      .select("stripe_price_id_monthly, stripe_price_id_yearly")
+      .select("*")
       .eq("plan_key", planKey)
       .eq("is_active", true)
       .single();
@@ -61,9 +57,9 @@ export async function POST(req: NextRequest) {
     }
 
     const priceId =
-      billingInterval === "monthly"
-        ? plan.stripe_price_id_monthly
-        : plan.stripe_price_id_yearly;
+      billingInterval === "yearly"
+        ? plan.stripe_price_id_yearly
+        : plan.stripe_price_id_monthly;
 
     if (!priceId) {
       return NextResponse.json(
@@ -72,14 +68,30 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Get or create Stripe customer
     const { data: profile } = await supabase
       .from("profiles")
-      .select("stripe_customer_id")
+      .select("stripe_customer_id, email, full_name")
       .eq("id", user.id)
-      .maybeSingle();
+      .single();
 
-    // Record the plan selection intent before going to Stripe
-    await supabase
+    let customerId = profile?.stripe_customer_id;
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: profile?.email || user.email!,
+        name: profile?.full_name || undefined,
+        metadata: { user_id: user.id },
+      });
+      customerId = customer.id;
+      await supabaseAdmin
+        .from("profiles")
+        .update({ stripe_customer_id: customerId })
+        .eq("id", user.id);
+    }
+
+    // Record plan selection intent
+    await supabaseAdmin
       .from("profiles")
       .update({
         has_completed_plan_selection: true,
@@ -89,30 +101,30 @@ export async function POST(req: NextRequest) {
       })
       .eq("id", user.id);
 
-    const appUrl =
+    const siteUrl =
       process.env.NEXT_PUBLIC_APP_URL?.trim() ||
       "https://app.auroragrowth.co.uk";
 
+    // Create checkout session - price ID from DB, no Stripe price lookups
     const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
+      customer: customerId,
       payment_method_types: ["card"],
       line_items: [{ price: priceId, quantity: 1 }],
-      ...(profile?.stripe_customer_id
-        ? { customer: profile.stripe_customer_id }
-        : { customer_email: user.email ?? undefined }),
-      success_url: `${appUrl}/checkout/success`,
-      cancel_url: `${appUrl}/select-plan`,
-      metadata: {
-        user_id: user.id,
-        plan_key: planKey,
-        billing_interval: billingInterval,
-      },
+      mode: "subscription",
       subscription_data: {
+        ...(planKey === "core" ? { trial_period_days: 7 } : {}),
         metadata: {
           user_id: user.id,
           plan_key: planKey,
           billing_interval: billingInterval,
         },
+      },
+      success_url: `${siteUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${siteUrl}/select-plan`,
+      metadata: {
+        user_id: user.id,
+        plan_key: planKey,
+        billing_interval: billingInterval,
       },
       allow_promotion_codes: true,
     });
@@ -125,10 +137,13 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ url: session.url });
-  } catch (error: unknown) {
-    console.error("Stripe checkout error:", error);
+  } catch (err: unknown) {
+    console.error("Checkout error:", err);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Something went wrong creating checkout" },
+      {
+        error:
+          err instanceof Error ? err.message : "Something went wrong creating checkout",
+      },
       { status: 500 }
     );
   }

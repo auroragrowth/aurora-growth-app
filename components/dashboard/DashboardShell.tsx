@@ -156,15 +156,23 @@ export default function DashboardShell({
   const { data: portfolio } = usePortfolio();
   const [modeToast, setModeToast] = useState<string | null>(null);
   const [demoBannerDismissed, setDemoBannerDismissed] = useState(false);
+  const isDemo = portfolio.brokerMode === "demo";
   const fmtMoney = useCallback((v: number) => {
     const prefix = v > 0 ? "+" : v < 0 ? "-" : "";
     return `${prefix}\u00a3${Math.abs(v).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }, []);
   const plColor = useCallback((v: number) => v > 0 ? "text-emerald-300" : v < 0 ? "text-rose-300" : "text-slate-400", []);
   const handleModeChange = useCallback((mode: "live" | "demo") => {
-    setModeToast(`Switched to ${mode === "demo" ? "Demo" : "Live"} mode`);
+    setModeToast(`Switched to ${mode === "demo" ? "Demo" : "Live"} Account`);
     setDemoBannerDismissed(false);
     setTimeout(() => setModeToast(null), 3000);
+    window.dispatchEvent(new CustomEvent("aurora:toast", {
+      detail: {
+        id: `mode-${mode}`,
+        title: `Switched to ${mode === "demo" ? "Demo" : "Live"} Account`,
+        tone: mode === "demo" ? "info" : "success",
+      },
+    }));
   }, []);
 
   useEffect(() => {
@@ -268,8 +276,13 @@ export default function DashboardShell({
                       </span>
 
                       {!collapsed && (
-                        <span className={item.label === "Dashboard" ? "text-[1rem] font-semibold" : "truncate"}>
+                        <span className={`flex items-center gap-2 ${item.label === "Dashboard" ? "text-[1rem] font-semibold" : "truncate"}`}>
                           {item.label}
+                          {isDemo && (item.label === "Investments" || item.label === "Watchlist") && (
+                            <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-300">
+                              DEMO
+                            </span>
+                          )}
                         </span>
                       )}
                     </Link>
@@ -327,12 +340,17 @@ export default function DashboardShell({
                   <div className="hidden items-center gap-2 xl:flex">
                     <BrokerModeToggle initialMode={portfolio.brokerMode || "live"} compact onModeChange={handleModeChange} />
                     {portfolio.connected && !portfolio.loading && portfolio.portfolioValue > 0 && (() => {
-                      const isDemo = portfolio.brokerMode === "demo";
                       const openPl = portfolio.portfolioValue - (portfolio.overview?.total_cost ? Number(portfolio.overview.total_cost) : 0);
                       return (
                         <div className={`flex items-center gap-1.5 rounded-full border px-3 py-2 text-xs font-medium ${
                           isDemo ? "border-amber-300/18 bg-amber-400/10 text-amber-100 border-dashed" : "border-emerald-300/18 bg-emerald-400/10 text-emerald-100"
                         }`}>
+                          {isDemo && (
+                            <>
+                              <span className="rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">🟡 DEMO</span>
+                              <span className="text-white/20">|</span>
+                            </>
+                          )}
                           <span className="text-white">{"\u00a3"}{portfolio.portfolioValue.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                           <span className="text-white/20">|</span>
                           <span className={isDemo ? "text-amber-200" : plColor(portfolio.todayPnl)}>Today {fmtMoney(portfolio.todayPnl)}</span>
@@ -361,9 +379,10 @@ export default function DashboardShell({
                       );
                     }
                     if (days !== null && days > 0) {
+                      const color = days <= 2 ? "text-rose-400" : days <= 7 ? "text-amber-400" : "text-white/50";
                       return (
-                        <span className="text-white/50">
-                          · {days}d remaining
+                        <span className={color}>
+                          · {days}d{days <= 7 ? " ⚠" : ""}
                         </span>
                       );
                     }
@@ -444,9 +463,9 @@ export default function DashboardShell({
           </header>
 
           {/* Demo mode banner */}
-          {portfolio.brokerMode === "demo" && brokerConnected && !demoBannerDismissed && (
-            <div className="flex h-7 items-center justify-center gap-2 bg-amber-400/10 text-xs text-amber-300">
-              <span>Demo mode — viewing practice account</span>
+          {isDemo && brokerConnected && !demoBannerDismissed && (
+            <div className="flex h-8 items-center justify-center gap-2 bg-amber-400/10 text-xs text-amber-300">
+              <span>🟡 Demo mode — all data shown is from your practice account</span>
               <button onClick={() => setDemoBannerDismissed(true)} className="ml-2 text-amber-400/50 hover:text-amber-300">&times;</button>
             </div>
           )}
