@@ -220,11 +220,14 @@ export default function BrokerConnectModal({ onClose }: Props) {
               </button>
               <button
                 onClick={dismissPrompt}
-                className="rounded-full border border-white/10 bg-white/[0.03] px-5 py-3.5 text-sm font-medium text-slate-400 transition hover:bg-white/[0.06] hover:text-white"
+                className="flex-1 rounded-full border border-white/20 bg-white/[0.03] px-5 py-3.5 text-sm font-medium text-white/70 transition hover:bg-white/[0.06] hover:text-white"
               >
-                Skip
+                Skip for now
               </button>
             </div>
+            <p className="mt-2 text-center text-xs text-white/40">
+              You can connect anytime from the Connections page
+            </p>
           </div>
         )}
       </div>

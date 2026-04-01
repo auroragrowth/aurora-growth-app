@@ -90,11 +90,16 @@ export default function OnboardingTour() {
     // localStorage is the primary gate — survives even if DB save fails
     if (localStorage.getItem("aurora_tour_done") === "true") return;
 
-    // "Skip for now" expires at end of day
+    // "Skip for now" expires after 24 hours
+    const skipTime = localStorage.getItem("aurora_tour_skip_session");
+    if (skipTime) {
+      const hoursSinceSkip = (Date.now() - Number(skipTime)) / 3600000;
+      if (hoursSinceSkip < 24) return; // still within 24h — stay hidden
+      // Expired — clear so the tour can show again
+      localStorage.removeItem("aurora_tour_skip_session");
+    }
+    // Legacy end-of-day skip — also check and clear
     if (localStorage.getItem("aurora_tour_skip") === "true") {
-      const skipDate = localStorage.getItem("aurora_tour_skip_date");
-      if (skipDate === new Date().toDateString()) return; // still today — stay hidden
-      // New day — clear the skip so the tour can show again
       localStorage.removeItem("aurora_tour_skip");
       localStorage.removeItem("aurora_tour_skip_date");
     }
@@ -194,8 +199,7 @@ export default function OnboardingTour() {
 
   const skipForNow = useCallback(() => {
     setVisible(false);
-    localStorage.setItem("aurora_tour_skip", "true");
-    localStorage.setItem("aurora_tour_skip_date", new Date().toDateString());
+    localStorage.setItem("aurora_tour_skip_session", Date.now().toString());
     localStorage.removeItem("aurora_tour_step");
     // Don't set completed — will show again next day
     showDismissToast();
@@ -218,6 +222,7 @@ export default function OnboardingTour() {
       localStorage.removeItem("aurora_tour_done");
       localStorage.removeItem("aurora_tour_skip");
       localStorage.removeItem("aurora_tour_skip_date");
+      localStorage.removeItem("aurora_tour_skip_session");
       localStorage.setItem("aurora_tour_step", "0");
       setStep(0);
       setVisible(true);
