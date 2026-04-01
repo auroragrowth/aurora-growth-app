@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePortfolio, usePortfolioHelpers, type Position } from "@/components/providers/PortfolioProvider";
 import MarketCountdown from "@/components/dashboard/MarketCountdown";
 
@@ -15,6 +16,20 @@ type SortKey =
   | "pnl"
   | "return"
   | "aurora";
+
+type OrderRow = {
+  id: string;
+  ticker: string;
+  broker_ticker?: string;
+  order_type: string;
+  order_mode: string;
+  quantity: number;
+  limit_price: number;
+  status: string;
+  placed_at: string;
+  ladder_step?: number | null;
+  notes?: string | null;
+};
 
 function toNumber(value: unknown): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
@@ -131,8 +146,42 @@ export default function InvestmentsPage() {
 
   const [sortKey, setSortKey] = useState<SortKey>("value");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [demoOrders, setDemoOrders] = useState<OrderRow[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
 
+  const isDemo = data.brokerMode === "demo";
   const positions = Array.isArray(data.positions) ? data.positions : [];
+
+  // Fetch demo orders when in demo mode
+  useEffect(() => {
+    if (!isDemo) {
+      setDemoOrders([]);
+      return;
+    }
+    setOrdersLoading(true);
+    fetch("/api/broker/orders?mode=demo", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : { orders: [] }))
+      .then((json) => setDemoOrders(Array.isArray(json?.orders) ? json.orders : []))
+      .catch(() => setDemoOrders([]))
+      .finally(() => setOrdersLoading(false));
+  }, [isDemo]);
+
+  const switchToLive = useCallback(async () => {
+    try {
+      const res = await fetch("/api/broker/set-mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "live" }),
+      });
+      if (res.ok) {
+        window.dispatchEvent(new CustomEvent("aurora:broker-mode-changed", { detail: "live" }));
+        window.dispatchEvent(new CustomEvent("aurora:broker-connected"));
+        window.dispatchEvent(new CustomEvent("aurora:toast", {
+          detail: { id: "mode-live", title: "Switched to Live Account", tone: "success" },
+        }));
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   const totals = useMemo(() => {
     const totalCost =
@@ -252,6 +301,14 @@ export default function InvestmentsPage() {
     setSortDirection(key === "ticker" || key === "company" ? "asc" : "desc");
   }
 
+  // Accent colours based on mode
+  const accent = isDemo ? "amber" : "cyan";
+  const accentBorder = isDemo ? "border-amber-500/12" : "border-cyan-500/12";
+  const accentText = isDemo ? "text-amber-300" : "text-cyan-300";
+  const accentBadgeBg = isDemo ? "bg-amber-400/10" : "bg-cyan-400/10";
+  const accentBadgeBorder = isDemo ? "border-amber-400/20" : "border-cyan-400/20";
+  const accentBadgeText = isDemo ? "text-amber-200" : "text-cyan-200";
+
   function SortHeader({
     label,
     column,
@@ -266,7 +323,7 @@ export default function InvestmentsPage() {
 
     return (
       <th
-        className={`px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-100/80 ${
+        className={`px-5 py-4 text-[11px] font-semibold uppercase tracking-[0.24em] ${isDemo ? "text-amber-100/80" : "text-cyan-100/80"} ${
           align === "right"
             ? "text-right"
             : align === "center"
@@ -278,7 +335,7 @@ export default function InvestmentsPage() {
           type="button"
           onClick={() => handleSort(column)}
           className={`inline-flex items-center gap-2 rounded-md transition ${
-            active ? "text-cyan-300" : "hover:text-white"
+            active ? accentText : "hover:text-white"
           }`}
         >
           <span>{label}</span>
@@ -291,20 +348,53 @@ export default function InvestmentsPage() {
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-6 px-4 py-6 md:px-6 lg:px-8">
       <MarketCountdown />
-      <section className="rounded-[32px] border border-cyan-500/12 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.08),transparent_26%),radial-gradient(circle_at_top_right,rgba(99,102,241,0.08),transparent_22%),linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-8 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
+
+      {/* Demo mode top banner */}
+      {isDemo && (
+        <div className="rounded-2xl border border-amber-400/20 bg-amber-400/5 px-6 py-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 text-xl">🟡</span>
+              <div>
+                <div className="text-sm font-semibold text-amber-300">DEMO MODE — Practice Account</div>
+                <div className="mt-1 text-sm text-amber-300/70">
+                  You are viewing your practice account. All figures shown are from your demo account.
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={switchToLive}
+              className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm font-medium text-amber-200 transition hover:bg-amber-400/20"
+            >
+              Switch to Live Account
+              <span>&rarr;</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      <section className={`rounded-[32px] border ${accentBorder} bg-[radial-gradient(circle_at_top_left,${isDemo ? "rgba(245,158,11,0.08)" : "rgba(34,211,238,0.08)"},transparent_26%),radial-gradient(circle_at_top_right,rgba(99,102,241,0.08),transparent_22%),linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-8 shadow-[0_28px_90px_rgba(0,0,0,0.32)]`}>
         <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <h1 className="text-4xl font-semibold tracking-tight text-white">
-              Your investments in Trading 212
+              {isDemo ? "Demo Investments" : "Your investments in Trading 212"}
+              {isDemo && (
+                <span className="ml-3 inline-flex items-center rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1 text-sm font-semibold text-amber-300">
+                  DEMO
+                </span>
+              )}
             </h1>
             <p className="mt-3 text-base text-slate-300">
-              Live portfolio view with Aurora ranking and performance overlays.
+              {isDemo
+                ? "Practice portfolio — demo positions and performance overlays."
+                : "Live portfolio view with Aurora ranking and performance overlays."}
             </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-5 py-2.5 text-sm text-cyan-200">
-              Live refresh every 30s
+            <div className={`rounded-full border px-5 py-2.5 text-sm ${accentBadgeBorder} ${accentBadgeBg} ${accentBadgeText}`}>
+              {isDemo ? "Demo account" : "Live refresh every 30s"}
             </div>
             <div className="rounded-full border border-white/10 bg-white/[0.04] px-5 py-2.5 text-sm text-slate-300">
               Last updated:{" "}
@@ -325,263 +415,396 @@ export default function InvestmentsPage() {
           </div>
         ) : null}
 
+        {/* Portfolio overview cards */}
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <StatCard
             label="Portfolio value"
             value={moneyGBP(totals.totalValue)}
-            sublabel="Live valuation"
+            sublabel={isDemo ? "Demo account" : "Live valuation"}
+            isDemo={isDemo}
           />
           <StatCard
             label="Invested"
             value={moneyGBP(totals.totalCost)}
             sublabel="Cost basis"
+            isDemo={isDemo}
           />
           <StatCard
             label="Profit / loss"
             value={`${totals.totalPnL >= 0 ? "+" : ""}${moneyGBP(totals.totalPnL)}`}
             sublabel="Real-time P/L"
             positive={totals.totalPnL >= 0}
+            isDemo={isDemo}
           />
           <StatCard
             label="Return"
             value={pct(totals.totalReturn)}
             sublabel="Portfolio efficiency"
             positive={totals.totalReturn >= 0}
+            isDemo={isDemo}
           />
         </div>
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-[1.7fr_1.05fr]">
-          <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-[2rem] font-semibold text-white">
-                  Portfolio allocation
-                </h2>
-                <p className="mt-2 text-slate-400">
-                  Top weighted holdings in your live account.
-                </p>
-              </div>
-
-              <div className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm uppercase tracking-[0.20em] text-slate-400">
-                {positions.length} holdings
-              </div>
-            </div>
-
-            <div className="mt-6 space-y-5">
-              {topHoldings.map((row, index) => {
-                const ticker = getTicker(row);
-                const company = getCompany(row);
-                const value = getValue(row);
-                const weight = totals.totalValue ? (value / totals.totalValue) * 100 : 0;
-
-                return (
-                  <div key={`${ticker}-${index}`}>
-                    <div className="flex items-end justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="text-[1.1rem] font-semibold text-white">{ticker}</div>
-                        <div className="truncate text-slate-300">{company}</div>
-                      </div>
-
-                      <div className="text-right">
-                        <div className="text-[1.1rem] font-semibold text-white">
-                          {moneyGBP(value)}
-                        </div>
-                        <div className="text-sm text-slate-400">
-                          {weight.toFixed(1)}%
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 h-3 overflow-hidden rounded-full bg-white/[0.06]">
-                      <div
-                        className="h-full rounded-full bg-[linear-gradient(90deg,#22d3ee,#3b82f6,#8b5cf6)]"
-                        style={{ width: `${Math.max(weight, 6)}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+        {/* No positions empty state for demo */}
+        {isDemo && positions.length === 0 && !data.loading && (
+          <div className="mt-8 rounded-[28px] border border-amber-400/15 bg-amber-400/[0.03] p-8 text-center">
+            <h3 className="text-xl font-semibold text-white">No demo positions yet</h3>
+            <p className="mx-auto mt-3 max-w-md text-sm text-slate-400">
+              Use the Make Investment button on any stock chart page to place practice orders.
+            </p>
+            <Link
+              href="/dashboard/market-scanner"
+              className="mt-6 inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-6 py-3 text-sm font-medium text-amber-200 transition hover:bg-amber-400/20"
+            >
+              Go to Scanner
+              <span>&rarr;</span>
+            </Link>
           </div>
+        )}
 
-          <div className="grid gap-6">
-            <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-[2rem] font-semibold text-white">Aurora score</h2>
-                <div className="rounded-full border border-cyan-400/25 bg-cyan-400/10 px-3 py-1.5 text-sm font-medium text-cyan-300">
-                  {auroraScore}/99
+        {/* Portfolio allocation + Aurora score (only if positions exist) */}
+        {positions.length > 0 && (
+          <>
+            <div className="mt-6 grid gap-6 xl:grid-cols-[1.7fr_1.05fr]">
+              <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <h2 className="text-[2rem] font-semibold text-white">
+                      Portfolio allocation
+                    </h2>
+                    <p className="mt-2 text-slate-400">
+                      {isDemo
+                        ? "Top weighted holdings in your demo account."
+                        : "Top weighted holdings in your live account."}
+                    </p>
+                  </div>
+
+                  <div className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm uppercase tracking-[0.20em] text-slate-400">
+                    {positions.length} holdings
+                  </div>
+                </div>
+
+                <div className="mt-6 space-y-5">
+                  {topHoldings.map((row, index) => {
+                    const ticker = getTicker(row);
+                    const company = getCompany(row);
+                    const value = getValue(row);
+                    const weight = totals.totalValue ? (value / totals.totalValue) * 100 : 0;
+
+                    return (
+                      <div key={`${ticker}-${index}`}>
+                        <div className="flex items-end justify-between gap-4">
+                          <div className="min-w-0">
+                            <div className="text-[1.1rem] font-semibold text-white">{ticker}</div>
+                            <div className="truncate text-slate-300">{company}</div>
+                          </div>
+
+                          <div className="text-right">
+                            <div className="text-[1.1rem] font-semibold text-white">
+                              {moneyGBP(value)}
+                            </div>
+                            <div className="text-sm text-slate-400">
+                              {weight.toFixed(1)}%
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 h-3 overflow-hidden rounded-full bg-white/[0.06]">
+                          <div
+                            className={`h-full rounded-full ${
+                              isDemo
+                                ? "bg-[linear-gradient(90deg,#f59e0b,#d97706,#b45309)]"
+                                : "bg-[linear-gradient(90deg,#22d3ee,#3b82f6,#8b5cf6)]"
+                            }`}
+                            style={{ width: `${Math.max(weight, 6)}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
-              <div className="mt-5 h-4 overflow-hidden rounded-full bg-white/[0.06]">
-                <div
-                  className="h-full rounded-full bg-[linear-gradient(90deg,#06b6d4,#3b82f6,#8b5cf6)]"
-                  style={{ width: `${Math.min(Math.max(auroraScore, 4), 99)}%` }}
-                />
+              <div className="grid gap-6">
+                <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-6">
+                  <div className="flex items-center justify-between gap-3">
+                    <h2 className="text-[2rem] font-semibold text-white">Aurora score</h2>
+                    <div className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
+                      isDemo
+                        ? "border-amber-400/25 bg-amber-400/10 text-amber-300"
+                        : "border-cyan-400/25 bg-cyan-400/10 text-cyan-300"
+                    }`}>
+                      {auroraScore}/99
+                    </div>
+                  </div>
+
+                  <div className="mt-5 h-4 overflow-hidden rounded-full bg-white/[0.06]">
+                    <div
+                      className={`h-full rounded-full ${
+                        isDemo
+                          ? "bg-[linear-gradient(90deg,#f59e0b,#d97706,#92400e)]"
+                          : "bg-[linear-gradient(90deg,#06b6d4,#3b82f6,#8b5cf6)]"
+                      }`}
+                      style={{ width: `${Math.min(Math.max(auroraScore, 4), 99)}%` }}
+                    />
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-3 gap-3">
+                    <MiniMetric label="Winners" value={String(winners)} positive />
+                    <MiniMetric label="Losers" value={String(losers)} negative />
+                    <MiniMetric label="Conviction" value={conviction} amber={isDemo} cyan={!isDemo} />
+                  </div>
+
+                  <p className="mt-5 text-base leading-8 text-slate-400">
+                    Aurora Score blends position size, return strength and portfolio quality into a quick confidence view.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <PerformerCard
+                    title="Best performer"
+                    row={bestPerformer}
+                    getTicker={getTicker}
+                    getCompany={getCompany}
+                    getPnL={getPnL}
+                    getReturn={getReturn}
+                    positive
+                    isDemo={isDemo}
+                  />
+                  <PerformerCard
+                    title="Weakest performer"
+                    row={worstPerformer}
+                    getTicker={getTicker}
+                    getCompany={getCompany}
+                    getPnL={getPnL}
+                    getReturn={getReturn}
+                    isDemo={isDemo}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Positions table */}
+            <div className="mt-6 overflow-hidden rounded-[28px] border border-white/10 bg-[#07162f]/95">
+              <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
+                <div>
+                  <h2 className="text-[1.85rem] font-semibold text-white">
+                    {isDemo ? "Demo positions" : "Your investments in Trading 212"}
+                  </h2>
+                  <p className="mt-1 text-slate-300">
+                    {isDemo
+                      ? "Practice positions with Aurora ranking and performance overlay."
+                      : "Live positions with Aurora ranking and performance overlay."}
+                  </p>
+                </div>
+
+                <div className={`rounded-full border px-4 py-2 text-sm uppercase tracking-[0.22em] ${
+                  isDemo
+                    ? "border-amber-400/20 bg-amber-400/10 text-amber-200"
+                    : "border-cyan-400/20 bg-cyan-400/10 text-cyan-200"
+                }`}>
+                  {isDemo ? "Trading 212 demo" : "Trading 212 live"}
+                </div>
               </div>
 
-              <div className="mt-5 grid grid-cols-3 gap-3">
-                <MiniMetric label="Winners" value={String(winners)} positive />
-                <MiniMetric label="Losers" value={String(losers)} negative />
-                <MiniMetric label="Conviction" value={conviction} cyan />
-              </div>
-
-              <p className="mt-5 text-base leading-8 text-slate-400">
-                Aurora Score blends position size, return strength and portfolio quality into a quick confidence view.
-              </p>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <PerformerCard
-                title="Best performer"
-                row={bestPerformer}
-                getTicker={getTicker}
-                getCompany={getCompany}
-                getPnL={getPnL}
-                getReturn={getReturn}
-                positive
-              />
-              <PerformerCard
-                title="Weakest performer"
-                row={worstPerformer}
-                getTicker={getTicker}
-                getCompany={getCompany}
-                getPnL={getPnL}
-                getReturn={getReturn}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 overflow-hidden rounded-[28px] border border-white/10 bg-[#07162f]/95">
-          <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
-            <div>
-              <h2 className="text-[1.85rem] font-semibold text-white">
-                Your investments in Trading 212
-              </h2>
-              <p className="mt-1 text-slate-300">
-                Live positions with Aurora ranking and performance overlay.
-              </p>
-            </div>
-
-            <div className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm uppercase tracking-[0.22em] text-cyan-200">
-              Trading 212 live
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-white/[0.03]">
-                <tr className="border-b border-white/10">
-                  <SortHeader label="Ticker" column="ticker" />
-                  <SortHeader label="Company" column="company" />
-                  <SortHeader label="Qty" column="qty" align="right" />
-                  <SortHeader label="Avg Price" column="avgPrice" align="right" />
-                  <SortHeader label="Current" column="current" align="right" />
-                  <SortHeader label="Cost" column="cost" align="right" />
-                  <SortHeader label="Value" column="value" align="right" />
-                  <SortHeader label="P/L" column="pnl" align="right" />
-                  <SortHeader label="Return" column="return" align="right" />
-                  <SortHeader label="Aurora" column="aurora" align="center" />
-                </tr>
-              </thead>
-
-              <tbody>
-                {sortedPositions.map((row, index) => {
-                  const ticker = getTicker(row);
-                  const company = getCompany(row);
-                  const quantity = getQty(row);
-                  const avgPrice = getAvgPrice(row);
-                  const current = getCurrent(row);
-                  const cost = getCost(row);
-                  const value = getValue(row);
-                  const pnl = getPnL(row);
-
-                  const fallbackReturn =
-                    cost > 0 ? (pnl / cost) * 100 : 0;
-
-                  const ret = getReturn(row) || fallbackReturn;
-                  const aurora = getAurora(row);
-                  const currency = getCurrency(row);
-
-                  return (
-                    <tr
-                      key={`${ticker}-${index}`}
-                      className="border-b border-white/5 transition hover:bg-cyan-400/[0.04]"
-                    >
-                      <td className="px-5 py-5 text-[1.05rem] font-semibold text-cyan-300">
-                        {ticker}
-                      </td>
-
-                      <td className="px-5 py-5 text-[1rem] text-slate-200">
-                        {company}
-                      </td>
-
-                      <td className="px-5 py-5 text-right text-[1rem] text-slate-200">
-                        {qtyFormat(quantity)}
-                      </td>
-
-                      <td className="px-5 py-5 text-right text-[1rem] text-slate-200">
-                        <div>{toNumber(avgPrice).toFixed(2)}</div>
-                        <div className="text-xs text-slate-400">{currency}</div>
-                      </td>
-
-                      <td className="px-5 py-5 text-right text-[1rem] text-slate-200">
-                        <div>{toNumber(current).toFixed(2)}</div>
-                        <div className="text-xs text-slate-400">{currency}</div>
-                      </td>
-
-                      <td className="px-5 py-5 text-right text-[1rem] text-slate-200">
-                        {moneyGBP(cost)}
-                      </td>
-
-                      <td className="px-5 py-5 text-right text-[1rem] text-slate-200">
-                        {moneyGBP(value)}
-                      </td>
-
-                      <td
-                        className={`px-5 py-5 text-right text-[1rem] font-semibold ${
-                          pnl >= 0 ? "text-emerald-400" : "text-rose-400"
-                        }`}
-                      >
-                        {pnl >= 0 ? "+" : ""}
-                        {moneyGBP(pnl)}
-                      </td>
-
-                      <td
-                        className={`px-5 py-5 text-right text-[1rem] font-semibold ${
-                          ret >= 0 ? "text-emerald-400" : "text-rose-400"
-                        }`}
-                      >
-                        {pct(ret)}
-                      </td>
-
-                      <td className="px-5 py-5 text-center">
-                        <div className="flex items-center justify-center gap-3">
-                          <div className="h-2.5 w-[80px] overflow-hidden rounded-full bg-white/[0.06]">
-                            <div
-                              className="h-full rounded-full bg-[linear-gradient(90deg,#22d3ee,#8b5cf6)]"
-                              style={{ width: `${Math.min(Math.max(aurora, 8), 99)}%` }}
-                            />
-                          </div>
-                          <span className="text-cyan-300">{aurora.toFixed(0)}</span>
-                        </div>
-                      </td>
+              <div className="overflow-x-auto">
+                <table className="min-w-full">
+                  <thead className="bg-white/[0.03]">
+                    <tr className="border-b border-white/10">
+                      <SortHeader label="Ticker" column="ticker" />
+                      <SortHeader label="Company" column="company" />
+                      <SortHeader label="Qty" column="qty" align="right" />
+                      <SortHeader label="Avg Price" column="avgPrice" align="right" />
+                      <SortHeader label="Current" column="current" align="right" />
+                      <SortHeader label="Cost" column="cost" align="right" />
+                      <SortHeader label="Value" column="value" align="right" />
+                      <SortHeader label="P/L" column="pnl" align="right" />
+                      <SortHeader label="Return" column="return" align="right" />
+                      <SortHeader label="Aurora" column="aurora" align="center" />
                     </tr>
-                  );
-                })}
+                  </thead>
 
-                {!sortedPositions.length && !data.loading ? (
-                  <tr>
-                    <td colSpan={10} className="px-6 py-16 text-center text-slate-400">
-                      No portfolio positions found.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
+                  <tbody>
+                    {sortedPositions.map((row, index) => {
+                      const ticker = getTicker(row);
+                      const company = getCompany(row);
+                      const quantity = getQty(row);
+                      const avgPrice = getAvgPrice(row);
+                      const current = getCurrent(row);
+                      const cost = getCost(row);
+                      const value = getValue(row);
+                      const pnl = getPnL(row);
+
+                      const fallbackReturn =
+                        cost > 0 ? (pnl / cost) * 100 : 0;
+
+                      const ret = getReturn(row) || fallbackReturn;
+                      const aurora = getAurora(row);
+                      const currency = getCurrency(row);
+
+                      return (
+                        <tr
+                          key={`${ticker}-${index}`}
+                          className={`border-b border-white/5 transition ${
+                            isDemo ? "hover:bg-amber-400/[0.04]" : "hover:bg-cyan-400/[0.04]"
+                          }`}
+                        >
+                          <td className={`px-5 py-5 text-[1.05rem] font-semibold ${accentText}`}>
+                            {ticker}
+                          </td>
+
+                          <td className="px-5 py-5 text-[1rem] text-slate-200">
+                            {company}
+                          </td>
+
+                          <td className="px-5 py-5 text-right text-[1rem] text-slate-200">
+                            {qtyFormat(quantity)}
+                          </td>
+
+                          <td className="px-5 py-5 text-right text-[1rem] text-slate-200">
+                            <div>{toNumber(avgPrice).toFixed(2)}</div>
+                            <div className="text-xs text-slate-400">{currency}</div>
+                          </td>
+
+                          <td className="px-5 py-5 text-right text-[1rem] text-slate-200">
+                            <div>{toNumber(current).toFixed(2)}</div>
+                            <div className="text-xs text-slate-400">{currency}</div>
+                          </td>
+
+                          <td className="px-5 py-5 text-right text-[1rem] text-slate-200">
+                            {moneyGBP(cost)}
+                          </td>
+
+                          <td className="px-5 py-5 text-right text-[1rem] text-slate-200">
+                            {moneyGBP(value)}
+                          </td>
+
+                          <td
+                            className={`px-5 py-5 text-right text-[1rem] font-semibold ${
+                              isDemo
+                                ? pnl >= 0 ? "text-amber-300" : "text-rose-400"
+                                : pnl >= 0 ? "text-emerald-400" : "text-rose-400"
+                            }`}
+                          >
+                            {pnl >= 0 ? "+" : ""}
+                            {moneyGBP(pnl)}
+                          </td>
+
+                          <td
+                            className={`px-5 py-5 text-right text-[1rem] font-semibold ${
+                              isDemo
+                                ? ret >= 0 ? "text-amber-300" : "text-rose-400"
+                                : ret >= 0 ? "text-emerald-400" : "text-rose-400"
+                            }`}
+                          >
+                            {pct(ret)}
+                          </td>
+
+                          <td className="px-5 py-5 text-center">
+                            <div className="flex items-center justify-center gap-3">
+                              <div className="h-2.5 w-[80px] overflow-hidden rounded-full bg-white/[0.06]">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    isDemo
+                                      ? "bg-[linear-gradient(90deg,#f59e0b,#d97706)]"
+                                      : "bg-[linear-gradient(90deg,#22d3ee,#8b5cf6)]"
+                                  }`}
+                                  style={{ width: `${Math.min(Math.max(aurora, 8), 99)}%` }}
+                                />
+                              </div>
+                              <span className={accentText}>{aurora.toFixed(0)}</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                    {!sortedPositions.length && !data.loading ? (
+                      <tr>
+                        <td colSpan={10} className="px-6 py-16 text-center text-slate-400">
+                          {isDemo ? "No demo positions found." : "No portfolio positions found."}
+                        </td>
+                      </tr>
+                    ) : null}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Demo Orders section */}
+        {isDemo && (
+          <div className="mt-6 overflow-hidden rounded-[28px] border border-amber-400/15 bg-[#07162f]/95">
+            <div className="flex items-center justify-between border-b border-amber-400/10 px-6 py-5">
+              <div>
+                <h2 className="text-[1.85rem] font-semibold text-white">Demo Orders</h2>
+                <p className="mt-1 text-slate-400">Orders placed on your demo account.</p>
+              </div>
+              <div className="rounded-full border border-amber-400/20 bg-amber-400/10 px-4 py-2 text-sm uppercase tracking-[0.22em] text-amber-200">
+                Demo orders
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              {ordersLoading ? (
+                <div className="px-6 py-12 text-center text-slate-400">Loading orders...</div>
+              ) : demoOrders.length === 0 ? (
+                <div className="px-6 py-12 text-center text-slate-400">
+                  No demo orders placed yet. Use the calculator to create practice orders.
+                </div>
+              ) : (
+                <table className="min-w-full">
+                  <thead className="bg-white/[0.03]">
+                    <tr className="border-b border-white/10 text-left text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100/80">
+                      <th className="px-5 py-4">Ticker</th>
+                      <th className="px-5 py-4">Type</th>
+                      <th className="px-5 py-4 text-right">Qty</th>
+                      <th className="px-5 py-4 text-right">Limit Price</th>
+                      <th className="px-5 py-4">Status</th>
+                      <th className="px-5 py-4">Step</th>
+                      <th className="px-5 py-4">Placed</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {demoOrders.map((order) => (
+                      <tr key={order.id} className="border-b border-white/5 transition hover:bg-amber-400/[0.04]">
+                        <td className="px-5 py-4 font-semibold text-amber-300">{order.ticker}</td>
+                        <td className="px-5 py-4 text-sm text-slate-300">{order.order_mode}</td>
+                        <td className="px-5 py-4 text-right text-sm text-slate-200">{order.quantity}</td>
+                        <td className="px-5 py-4 text-right text-sm text-slate-200">{moneyGBP(order.limit_price)}</td>
+                        <td className="px-5 py-4">
+                          <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+                            order.status === "placed"
+                              ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+                              : order.status === "rejected"
+                              ? "border-rose-400/30 bg-rose-400/10 text-rose-300"
+                              : "border-white/15 bg-white/5 text-white/60"
+                          }`}>
+                            {order.status}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-sm text-slate-400">
+                          {order.ladder_step ? `Step ${order.ladder_step}` : "—"}
+                        </td>
+                        <td className="px-5 py-4 text-sm text-slate-400">
+                          {order.placed_at
+                            ? new Date(order.placed_at).toLocaleString("en-GB", {
+                                day: "2-digit",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </section>
     </div>
   );
@@ -592,19 +815,27 @@ function StatCard({
   value,
   sublabel,
   positive,
+  isDemo = false,
 }: {
   label: string;
   value: string;
   sublabel: string;
   positive?: boolean;
+  isDemo?: boolean;
 }) {
   return (
-    <div className="rounded-[28px] border border-white/10 bg-white/[0.03] px-5 py-5 shadow-[0_20px_60px_rgba(0,0,0,0.22)]">
+    <div className={`rounded-[28px] border px-5 py-5 shadow-[0_20px_60px_rgba(0,0,0,0.22)] ${
+      isDemo ? "border-amber-400/10 bg-amber-400/[0.03]" : "border-white/10 bg-white/[0.03]"
+    }`}>
       <div className="text-[1rem] text-slate-400">{label}</div>
       <div
         className={`mt-3 text-3xl font-semibold tracking-tight ${
           positive === undefined
             ? "text-white"
+            : isDemo
+            ? positive
+              ? "text-amber-300"
+              : "text-rose-400"
             : positive
             ? "text-emerald-400"
             : "text-rose-400"
@@ -625,17 +856,21 @@ function MiniMetric({
   positive,
   negative,
   cyan,
+  amber,
 }: {
   label: string;
   value: string;
   positive?: boolean;
   negative?: boolean;
   cyan?: boolean;
+  amber?: boolean;
 }) {
   const color = positive
     ? "text-emerald-400"
     : negative
     ? "text-rose-300"
+    : amber
+    ? "text-amber-300"
     : cyan
     ? "text-cyan-300"
     : "text-white";
@@ -658,6 +893,7 @@ function PerformerCard({
   getPnL,
   getReturn,
   positive = false,
+  isDemo = false,
 }: {
   title: string;
   row: Position | null;
@@ -666,14 +902,27 @@ function PerformerCard({
   getPnL: (row: Position) => number;
   getReturn: (row: Position) => number;
   positive?: boolean;
+  isDemo?: boolean;
 }) {
   const pnl = row ? getPnL(row) : 0;
   const fallbackReturn = 0;
   const ret = row ? getReturn(row) || fallbackReturn : 0;
-  const tone = positive
+
+  const tone = isDemo
+    ? positive
+      ? "border-amber-400/20 bg-amber-400/[0.04]"
+      : "border-rose-400/20 bg-rose-400/[0.04]"
+    : positive
     ? "border-emerald-400/20 bg-emerald-400/[0.04]"
     : "border-rose-400/20 bg-rose-400/[0.04]";
-  const valueTone = positive ? "text-emerald-400" : "text-rose-300";
+
+  const valueTone = isDemo
+    ? positive ? "text-amber-300" : "text-rose-300"
+    : positive ? "text-emerald-400" : "text-rose-300";
+
+  const barColor = isDemo
+    ? positive ? "bg-amber-300/70" : "bg-rose-300/70"
+    : positive ? "bg-emerald-300/70" : "bg-rose-300/70";
 
   return (
     <div className={`rounded-[28px] border p-6 ${tone}`}>
@@ -698,7 +947,7 @@ function PerformerCard({
         {[18, 20, 14, 6, 20].map((h, i) => (
           <div
             key={i}
-            className={`w-8 rounded-t-md ${positive ? "bg-emerald-300/70" : "bg-rose-300/70"}`}
+            className={`w-8 rounded-t-md ${barColor}`}
             style={{ height: `${h * 1.4}px` }}
           />
         ))}

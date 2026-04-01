@@ -35,10 +35,10 @@ export async function GET() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      // Table may not exist — fall back to watchlist_items
+      // Table may not exist — fall back to watchlist_live
       if (error.message?.includes("relation") || error.code === "42P01") {
         const { data: fallback } = await supabase
-          .from("watchlist_items")
+          .from("watchlist_live")
           .select("id,symbol,company_name,market,created_at,updated_at")
           .eq("user_id", auth.user.id)
           .order("created_at", { ascending: false });

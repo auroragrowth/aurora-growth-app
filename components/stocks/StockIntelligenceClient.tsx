@@ -141,6 +141,173 @@ function MetricCard({
   );
 }
 
+/* ─── Investment Modal ─── */
+function InvestmentModal({ ticker, currentPrice, onClose }: { ticker: string; currentPrice: number; onClose: () => void }) {
+  const [cash, setCash] = useState("5000");
+  const [step, setStep] = useState<"plan" | "review" | "result">("plan");
+  const [placing, setPlacing] = useState(false);
+  const [placingStep, setPlacingStep] = useState(0);
+  const [results, setResults] = useState<{ step: number; success: boolean; orderId?: string; error?: string }[]>([]);
+
+  const refPrice = currentPrice * 1.20;
+  const drops = [10, 20, 30, 40];
+  const cashNum = parseFloat(cash) || 0;
+
+  const ladder = useMemo(() => {
+    if (refPrice <= 0 || cashNum <= 0) return [];
+    let totalWeight = 0;
+    for (let i = 0; i < drops.length; i++) totalWeight += Math.pow(1.25, i);
+
+    let cumShares = 0;
+    return drops.map((drop, i) => {
+      const pct = Math.pow(1.25, i) / totalWeight;
+      const amount = cashNum * pct;
+      const price = refPrice * (1 - drop / 100);
+      const shares = price > 0 ? Math.floor(amount / price) : 0;
+      cumShares += shares;
+      return { step: i + 1, drop, price, amount, shares, cumShares };
+    });
+  }, [refPrice, cashNum]);
+
+  const bep = useMemo(() => {
+    const first2 = ladder.slice(0, 2);
+    const totalAmt = first2.reduce((s, r) => s + r.amount, 0);
+    const totalShares = first2.reduce((s, r) => s + r.shares, 0);
+    return totalShares > 0 ? totalAmt / totalShares : 0;
+  }, [ladder]);
+
+  const totalShares = ladder.reduce((s, r) => s + r.shares, 0);
+  const totalCost = ladder.reduce((s, r) => s + r.shares * r.price, 0);
+
+  async function placeOrders() {
+    setPlacing(true);
+    setPlacingStep(0);
+    const res: typeof results = [];
+    for (let i = 0; i < ladder.length; i++) {
+      const row = ladder[i];
+      setPlacingStep(i + 1);
+      if (row.shares <= 0) { res.push({ step: row.step, success: false, error: "0 shares" }); continue; }
+      try {
+        const r = await fetch("/api/broker/place-order", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ticker, quantity: row.shares, limitPrice: parseFloat(row.price.toFixed(2)), ladderStep: row.step }),
+        });
+        const data = await r.json();
+        const errMsg = !r.ok
+          ? r.status === 429 ? "Rate limit — please wait and retry"
+            : r.status === 403 ? "Insufficient permissions"
+            : data.error || `Failed (${r.status})`
+          : undefined;
+        res.push({ step: row.step, success: r.ok, orderId: data.orderId?.toString(), error: errMsg });
+      } catch (e) {
+        res.push({ step: row.step, success: false, error: "Network error" });
+      }
+      // Wait 2s between orders to avoid broker rate limits
+      if (i < ladder.length - 1) await new Promise((r) => setTimeout(r, 2000));
+    }
+    setResults(res);
+    setStep("result");
+    setPlacing(false);
+  }
+
+  const successCount = results.filter((r) => r.success).length;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[32px] border border-cyan-400/20 bg-[linear-gradient(180deg,rgba(6,18,42,0.98),rgba(4,12,28,0.98))] p-8 shadow-2xl">
+        <button onClick={onClose} className="absolute right-5 top-5 text-slate-400 hover:text-white" aria-label="Close">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+
+        {step === "plan" && (
+          <div>
+            <div className="text-xs uppercase tracking-[0.3em] text-cyan-300/80">Investment Plan</div>
+            <h2 className="mt-2 text-2xl font-semibold text-white">{ticker}</h2>
+            <div className="mt-1 text-sm text-slate-400">Current: ${currentPrice.toFixed(2)} · Ref: ${refPrice.toFixed(2)} (+20%)</div>
+
+            <div className="mt-5">
+              <label className="mb-2 block text-sm text-slate-300">Cash to invest</label>
+              <input value={cash} onChange={(e) => setCash(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-slate-950/50 px-4 py-3 text-white outline-none focus:border-cyan-400/40" placeholder="5000" />
+            </div>
+
+            <div className="mt-5 space-y-2">
+              {ladder.map((r) => (
+                <div key={r.step} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm">
+                  <div><span className="font-semibold text-blue-300">Step {r.step}</span> <span className="text-slate-400">-{r.drop}%</span></div>
+                  <div className="text-right"><span className="text-white">${r.price.toFixed(2)}</span> <span className="text-slate-500">× {r.shares} shares</span></div>
+                </div>
+              ))}
+            </div>
+
+            {bep > 0 && <div className="mt-3 text-sm text-emerald-300">BEP: ${bep.toFixed(2)} · Total: {totalShares} shares · ${totalCost.toFixed(2)}</div>}
+
+            <button onClick={() => setStep("review")} disabled={!ladder.length || totalShares === 0} className="mt-5 w-full rounded-full bg-[linear-gradient(90deg,#22d3ee,#60a5fa,#a855f7)] px-6 py-3.5 text-base font-semibold text-slate-950 transition hover:brightness-110 disabled:opacity-50">
+              Review Orders
+            </button>
+          </div>
+        )}
+
+        {step === "review" && (
+          <div>
+            <div className="text-xs uppercase tracking-[0.3em] text-cyan-300/80">Review Orders</div>
+            <h2 className="mt-2 text-xl font-semibold text-white">{ticker} — {ladder.length} limit orders</h2>
+
+            <div className="mt-5 space-y-2">
+              {ladder.map((r) => (
+                <div key={r.step} className="rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3 text-sm">
+                  <div className="flex justify-between">
+                    <span className="font-semibold text-white">Step {r.step}: LIMIT BUY</span>
+                    <span className="text-cyan-300">${(r.shares * r.price).toFixed(2)}</span>
+                  </div>
+                  <div className="mt-1 text-slate-400">${r.price.toFixed(2)} × {r.shares} shares</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/5 px-4 py-3 text-xs text-amber-300">
+              These orders will be placed on your broker account. Please review carefully.
+            </div>
+
+            <div className="mt-5 flex gap-3">
+              <button onClick={() => setStep("plan")} className="flex-1 rounded-full border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10">Back</button>
+              <button onClick={placeOrders} disabled={placing} className="flex-1 rounded-full bg-[linear-gradient(90deg,#22d3ee,#60a5fa,#a855f7)] px-5 py-3 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:opacity-50">
+                {placing ? `Placing order ${placingStep} of ${ladder.length}...` : `Place ${ladder.length} orders`}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === "result" && (
+          <div>
+            <div className="text-xs uppercase tracking-[0.3em] text-cyan-300/80">Order Results</div>
+            <h2 className="mt-2 text-xl font-semibold text-white">
+              {successCount === ladder.length ? `${successCount} orders placed` : `${successCount} of ${ladder.length} orders placed`}
+            </h2>
+
+            <div className="mt-5 space-y-2">
+              {results.map((r) => (
+                <div key={r.step} className={`rounded-xl border px-4 py-3 text-sm ${r.success ? "border-emerald-400/20 bg-emerald-400/5" : "border-rose-400/20 bg-rose-400/5"}`}>
+                  <div className="flex justify-between">
+                    <span className="font-semibold text-white">Step {r.step}</span>
+                    <span className={r.success ? "text-emerald-300" : "text-rose-300"}>{r.success ? "Placed" : "Failed"}</span>
+                  </div>
+                  {r.orderId && <div className="mt-1 text-xs text-slate-400">Order ID: {r.orderId}</div>}
+                  {r.error && <div className="mt-1 text-xs text-rose-300">{r.error}</div>}
+                </div>
+              ))}
+            </div>
+
+            <button onClick={onClose} className="mt-5 w-full rounded-full bg-[linear-gradient(90deg,#22d3ee,#60a5fa,#a855f7)] px-6 py-3.5 text-base font-semibold text-slate-950 transition hover:brightness-110">
+              Done
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function StockIntelligenceClient({ ticker }: Props) {
   const router = useRouter();
   const { hasTicker, toggleTicker, items: watchlistItems } = useWatchlist();
@@ -151,6 +318,7 @@ export default function StockIntelligenceClient({ ticker }: Props) {
   const [loading, setLoading] = useState(true);
   const [aiText, setAiText] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [showInvestModal, setShowInvestModal] = useState(false);
   const [aiTimestamp, setAiTimestamp] = useState<string | null>(null);
   const [showAi, setShowAi] = useState(true);
   const [speaking, setSpeaking] = useState(false);
@@ -376,12 +544,13 @@ export default function StockIntelligenceClient({ ticker }: Props) {
                 )}
               </button>
 
-              <Link
-                href={`/dashboard/investments/calculator?ticker=${symbol}`}
+              <button
+                type="button"
+                onClick={() => setShowInvestModal(true)}
                 className="inline-flex items-center gap-1.5 rounded-full bg-[linear-gradient(90deg,#22d3ee_0%,#60a5fa_45%,#a855f7_100%)] px-5 py-2 text-sm font-semibold text-slate-950 transition hover:brightness-110"
               >
                 📊 Make Investment
-              </Link>
+              </button>
             </div>
           </div>
 
@@ -595,6 +764,14 @@ export default function StockIntelligenceClient({ ticker }: Props) {
           </div>
         </div>
       </div>
+
+      {showInvestModal && (
+        <InvestmentModal
+          ticker={symbol}
+          currentPrice={asNumber(row?.price, 0)}
+          onClose={() => setShowInvestModal(false)}
+        />
+      )}
     </div>
   );
 }

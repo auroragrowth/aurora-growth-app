@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useWatchlist } from "@/components/watchlist/WatchlistProvider";
+import { usePortfolio } from "@/components/providers/PortfolioProvider";
 import { ExpiredBlur } from "@/components/dashboard/ExpiredOverlay";
 import PriceAlertModal from "@/components/watchlist/PriceAlertModal";
 
@@ -177,8 +178,6 @@ export default function WatchlistPage() {
     };
   }
 
-  // alertModalRow computed after filteredRows below
-
   const rows: WatchlistRow[] = useMemo(() => {
     return (items || []).map((item: any) => ({
       id: item.id,
@@ -293,23 +292,111 @@ export default function WatchlistPage() {
     }
   }
 
+  const { data: portfolio } = usePortfolio();
+  const isDemo = portfolio.brokerMode === "demo";
+  const [switching, setSwitching] = useState(false);
+
+  const switchMode = useCallback(async (next: "live" | "demo") => {
+    if (switching) return;
+    setSwitching(true);
+    try {
+      const res = await fetch("/api/broker/set-mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: next }),
+      });
+      if (res.ok) {
+        window.dispatchEvent(new CustomEvent("aurora:broker-mode-changed", { detail: next }));
+        window.dispatchEvent(new CustomEvent("aurora:broker-connected"));
+        window.dispatchEvent(new CustomEvent("aurora:toast", {
+          detail: {
+            id: `mode-${next}`,
+            title: `Switched to ${next === "demo" ? "Demo" : "Live"} Account`,
+            tone: "info",
+          },
+        }));
+      }
+    } catch { /* ignore */ } finally {
+      setSwitching(false);
+    }
+  }, [switching]);
+
   return (
     <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-white">
-          Watchlist
-        </h1>
-        <p className="mt-2 text-sm text-white/60">
-          Saved companies from Aurora Market Scanner and your personal picks.
-        </p>
+      {/* Mode switcher + title row */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-white">
+            {isDemo ? "Demo Watchlist" : "My Watchlist"}
+            {isDemo && (
+              <span className="ml-3 inline-flex items-center rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1 text-sm font-semibold text-amber-300">
+                DEMO MODE
+              </span>
+            )}
+          </h1>
+          <p className="mt-2 text-sm text-white/60">
+            {isDemo
+              ? "Practice watchlist for your demo account."
+              : "Saved companies from Aurora Market Scanner and your personal picks."}
+          </p>
+        </div>
+
+        {/* Live / Demo switcher */}
+        <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
+          <button
+            type="button"
+            onClick={() => switchMode("live")}
+            disabled={switching || !isDemo}
+            className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
+              !isDemo
+                ? "bg-emerald-400/15 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.15)]"
+                : "text-white/50 hover:text-white/70"
+            }`}
+          >
+            <span className={`h-2 w-2 rounded-full ${!isDemo ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" : "bg-slate-600"}`} />
+            Live Watchlist
+          </button>
+          <button
+            type="button"
+            onClick={() => switchMode("demo")}
+            disabled={switching || isDemo}
+            className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
+              isDemo
+                ? "bg-amber-400/15 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.15)]"
+                : "text-white/50 hover:text-white/70"
+            }`}
+          >
+            <span className={`h-2 w-2 rounded-full ${isDemo ? "bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.7)]" : "bg-slate-600"}`} />
+            Demo Watchlist
+          </button>
+        </div>
       </div>
 
+      {/* Demo banner */}
+      {isDemo && (
+        <div className="rounded-2xl border border-amber-400/20 bg-amber-400/5 px-5 py-4">
+          <div className="flex items-start gap-3 text-sm text-amber-300">
+            <span className="mt-0.5 text-lg">🟡</span>
+            <div>
+              <div className="font-semibold">You are viewing your Demo Watchlist</div>
+              <div className="mt-1 text-amber-300/70">
+                Stocks added here are for practice trading only and separate from your live watchlist.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-4">
-        <div className="rounded-3xl border border-cyan-500/20 bg-[#07152f]/90 p-5 shadow-[0_0_30px_rgba(0,180,255,0.08)]">
+        <div className={`rounded-3xl border p-5 shadow-[0_0_30px_rgba(0,180,255,0.08)] ${
+          isDemo
+            ? "border-amber-500/20 bg-[#07152f]/90"
+            : "border-cyan-500/20 bg-[#07152f]/90"
+        }`}>
           <div className="text-xs uppercase tracking-[0.28em] text-white/45">
             Total Saved
           </div>
-          <div className="mt-3 text-3xl font-semibold text-cyan-300">
+          <div className={`mt-3 text-3xl font-semibold ${isDemo ? "text-amber-300" : "text-cyan-300"}`}>
             {rows.length}
           </div>
           <div className="mt-2 text-sm text-white/55">

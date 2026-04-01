@@ -89,7 +89,11 @@ export default function AuroraChatWidget() {
         const data = await res.json();
 
         if (!res.ok) {
-          setError(data.error || "Something went wrong.");
+          setError(
+            res.status === 429
+              ? "Aurora Assistant is resting. Please try again in a few minutes."
+              : data.error || "Something went wrong."
+          );
           return;
         }
 

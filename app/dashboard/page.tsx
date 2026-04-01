@@ -48,9 +48,15 @@ export default async function DashboardPage() {
     plan === "pro" ? "Aurora Pro" :
     plan === "core" ? "Aurora Core" : "Free";
 
-  // Watchlist count
+  // Watchlist count (mode-aware)
+  const { data: modeProfile } = await supabase
+    .from("profiles")
+    .select("active_broker_mode")
+    .eq("id", user.id)
+    .maybeSingle();
+  const wlTable = modeProfile?.active_broker_mode === "demo" ? "watchlist_demo" : "watchlist_live";
   const { count: watchlistCount } = await supabase
-    .from("watchlist_items")
+    .from(wlTable)
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id);
 

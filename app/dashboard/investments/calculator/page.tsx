@@ -139,7 +139,7 @@ function InvestmentsCalculatorInner() {
   const [ticker, setTicker] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [cashAvailable, setCashAvailable] = useState("5000");
-  const [currency, setCurrency] = useState<CurrencyCode>("GBP");
+  const [currency, setCurrency] = useState<CurrencyCode>("USD");
   const [ladderType, setLadderType] = useState<LadderType>(50);
   const [customRefPrice, setCustomRefPrice] = useState("");
 
@@ -166,14 +166,9 @@ function InvestmentsCalculatorInner() {
     async function load() {
       setLoadingWatchlist(true);
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) { setWatchlist([]); return; }
-        const { data, error } = await supabase
-          .from("watchlist_items")
-          .select("id,symbol,company_name")
-          .order("created_at", { ascending: false });
-        if (error) throw error;
-        if (active) setWatchlist((data || []) as WatchlistItem[]);
+        const res = await fetch("/api/watchlist", { cache: "no-store" });
+        const json = await res.json();
+        if (active) setWatchlist((json?.items || []) as WatchlistItem[]);
       } catch (err: any) {
         if (active) setWatchlistError(err?.message || "Failed loading watchlist.");
       } finally {

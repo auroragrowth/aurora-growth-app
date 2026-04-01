@@ -4,16 +4,64 @@ import { getTrading212AuthHeader } from "@/lib/trading212/client";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import type { BrokerMode } from "@/lib/trading212/types";
 
+// Cache instruments per mode to avoid repeated lookups
+const instrumentCache = new Map<string, { data: any[]; cachedAt: number }>();
+const INSTRUMENT_CACHE_TTL = 300_000; // 5 minutes
+
+async function getInstruments(baseUrl: string, authHeader: string, mode: string): Promise<any[]> {
+  const cached = instrumentCache.get(mode);
+  if (cached && Date.now() - cached.cachedAt < INSTRUMENT_CACHE_TTL) return cached.data;
+
+  const res = await fetch(`${baseUrl}/equity/metadata/instruments`, {
+    headers: { Authorization: authHeader },
+    cache: "no-store",
+  });
+
+  if (!res.ok) return [];
+
+  const data = await res.json();
+  const instruments = Array.isArray(data) ? data : [];
+  instrumentCache.set(mode, { data: instruments, cachedAt: Date.now() });
+  return instruments;
+}
+
+function findInstrument(instruments: any[], ticker: string): string | null {
+  const upper = ticker.toUpperCase();
+
+  // Try exact matches first
+  for (const inst of instruments) {
+    const t = String(inst.ticker || "").toUpperCase();
+    if (t === upper) return inst.ticker;
+    if (t === `${upper}_US_EQ`) return inst.ticker;
+    if (t === `${upper}_EQ`) return inst.ticker;
+  }
+
+  // Try shortName/name match
+  for (const inst of instruments) {
+    const short = String(inst.shortName || inst.name || "").toUpperCase();
+    if (short === upper) return inst.ticker;
+  }
+
+  // Try prefix match
+  for (const inst of instruments) {
+    const t = String(inst.ticker || "").toUpperCase();
+    if (t.startsWith(`${upper}_`)) return inst.ticker;
+  }
+
+  return null;
+}
+
 export async function POST(req: Request) {
   try {
     const user = await getCurrentUser();
     const body = await req.json();
 
-    const { ticker, quantity, limitPrice, accountMode } = body as {
+    const { ticker, quantity, limitPrice, accountMode, ladderStep } = body as {
       ticker: string;
       quantity: number;
       limitPrice: number;
       accountMode?: BrokerMode;
+      ladderStep?: number;
     };
 
     if (!ticker || !quantity || !limitPrice) {
@@ -35,11 +83,13 @@ export async function POST(req: Request) {
       ? "https://demo.trading212.com/api/v0"
       : "https://live.trading212.com/api/v0");
 
-    // Map ticker to broker format (US stocks use _US_EQ suffix)
-    const brokerTicker = ticker.includes("_") ? ticker : `${ticker}_US_EQ`;
+    // Step 1: Look up correct instrument ticker
+    const instruments = await getInstruments(baseUrl, authHeader, mode);
+    const brokerTicker = findInstrument(instruments, ticker) || `${ticker}_US_EQ`;
 
-    console.log("[Place Order]", { ticker: brokerTicker, quantity, limitPrice, mode, baseUrl });
+    console.log("[Place Order]", { ticker, brokerTicker, quantity, limitPrice, mode, ladderStep });
 
+    // Step 2: Place the order
     const response = await fetch(`${baseUrl}/equity/orders/limit`, {
       method: "POST",
       headers: {
@@ -55,40 +105,41 @@ export async function POST(req: Request) {
     });
 
     const result = await response.json().catch(() => ({}));
+    const success = response.ok;
+    const errorMsg = !success ? (result?.message || result?.error || `Order failed (${response.status})`) : null;
 
-    if (!response.ok) {
-      console.error("[Place Order] Failed:", response.status, result);
-
-      const errorMsg = result?.message || result?.error || `Order failed (${response.status})`;
-      return NextResponse.json(
-        { error: errorMsg, details: result },
-        { status: response.status }
-      );
-    }
-
-    // Save to orders table
+    // Step 3: Save to orders table (success or failure)
     try {
       await supabaseAdmin.from("orders").insert({
         user_id: user.id,
         ticker,
+        broker_ticker: brokerTicker,
         order_type: "buy",
         order_mode: "limit",
         account_mode: mode,
         quantity,
         limit_price: limitPrice,
-        status: "placed",
+        status: success ? "placed" : "rejected",
         broker_order_id: result?.id?.toString() || null,
         broker_response: result,
+        ladder_step: ladderStep || null,
         placed_at: new Date().toISOString(),
+        notes: errorMsg,
       });
     } catch {
-      // Table may not exist yet — don't block the response
+      // Table may not exist yet
+    }
+
+    if (!success) {
+      console.error("[Place Order] Failed:", response.status, result);
+      return NextResponse.json({ error: errorMsg, details: result }, { status: response.status });
     }
 
     return NextResponse.json({
       success: true,
       orderId: result?.id,
       status: result?.status || "placed",
+      brokerTicker,
     });
   } catch (error) {
     console.error("[Place Order] Error:", error instanceof Error ? error.message : error);

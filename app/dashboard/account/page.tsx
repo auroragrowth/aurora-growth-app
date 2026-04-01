@@ -81,7 +81,7 @@ export default async function AccountPage() {
         full_name, email, phone, plan, plan_key,
         subscription_status, current_period_end, cancel_at_period_end,
         telegram_chat_id, trading212_connected, referral_code,
-        login_count
+        login_count, active_broker_mode
       `)
       .eq("id", user.id)
       .single();
@@ -94,8 +94,9 @@ export default async function AccountPage() {
   // Watchlist count
   let watchlistCount = 0;
   try {
+    const wlTbl = (profile as any)?.active_broker_mode === "demo" ? "watchlist_demo" : "watchlist_live";
     const { count } = await supabaseAdmin
-      .from("watchlist_items")
+      .from(wlTbl)
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id);
     watchlistCount = count ?? 0;
