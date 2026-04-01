@@ -87,6 +87,18 @@ export default function OnboardingTour() {
     // Only auto-start on dashboard pages
     if (!pathname.startsWith("/dashboard")) return;
 
+    // localStorage is the primary gate — survives even if DB save fails
+    if (localStorage.getItem("aurora_tour_done") === "true") return;
+
+    // "Skip for now" expires at end of day
+    if (localStorage.getItem("aurora_tour_skip") === "true") {
+      const skipDate = localStorage.getItem("aurora_tour_skip_date");
+      if (skipDate === new Date().toDateString()) return; // still today — stay hidden
+      // New day — clear the skip so the tour can show again
+      localStorage.removeItem("aurora_tour_skip");
+      localStorage.removeItem("aurora_tour_skip_date");
+    }
+
     const stored = localStorage.getItem("aurora_tour_completed");
     if (stored === "true") return;
 
@@ -100,6 +112,7 @@ export default function OnboardingTour() {
 
         if (data.onboarding_tour_completed) {
           localStorage.setItem("aurora_tour_completed", "true");
+          localStorage.setItem("aurora_tour_done", "true");
           return;
         }
 
@@ -169,19 +182,22 @@ export default function OnboardingTour() {
   const completeTour = useCallback(async () => {
     setVisible(false);
     localStorage.setItem("aurora_tour_completed", "true");
+    localStorage.setItem("aurora_tour_done", "true");
     localStorage.removeItem("aurora_tour_step");
     try {
       await fetch("/api/onboarding/complete", { method: "POST" });
     } catch {
-      // best effort
+      // best effort — localStorage already blocks re-show
     }
     showDismissToast();
   }, [showDismissToast]);
 
   const skipForNow = useCallback(() => {
     setVisible(false);
+    localStorage.setItem("aurora_tour_skip", "true");
+    localStorage.setItem("aurora_tour_skip_date", new Date().toDateString());
     localStorage.removeItem("aurora_tour_step");
-    // Don't set completed — will show again next login
+    // Don't set completed — will show again next day
     showDismissToast();
   }, [showDismissToast]);
 
@@ -199,6 +215,9 @@ export default function OnboardingTour() {
   useEffect(() => {
     const handler = () => {
       localStorage.removeItem("aurora_tour_completed");
+      localStorage.removeItem("aurora_tour_done");
+      localStorage.removeItem("aurora_tour_skip");
+      localStorage.removeItem("aurora_tour_skip_date");
       localStorage.setItem("aurora_tour_step", "0");
       setStep(0);
       setVisible(true);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type ConnectionStatus = "idle" | "saving" | "connected" | "failed";
 
@@ -9,11 +9,19 @@ type Props = {
 };
 
 export default function BrokerConnectModal({ onClose }: Props) {
+  const [hidden, setHidden] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
   const [mode, setMode] = useState<"live" | "demo">("live");
   const [status, setStatus] = useState<ConnectionStatus>("idle");
   const [error, setError] = useState("");
+
+  // localStorage is the primary gate — survives even if DB save fails
+  useEffect(() => {
+    if (localStorage.getItem("t212_popup_skip") === "true") {
+      setHidden(true);
+    }
+  }, []);
 
   function close() {
     onClose?.();
@@ -22,18 +30,14 @@ export default function BrokerConnectModal({ onClose }: Props) {
   async function dismissPrompt() {
     close();
     try {
-      // Fetch current count and increment
-      const res = await fetch("/api/onboarding", { cache: "no-store" });
-      const data = res.ok ? await res.json() : {};
-      const currentCount = data.welcome_popup_shown_count ?? 0;
-      const newCount = currentCount + 1;
-
+      localStorage.setItem("broker_popup_skipped", "true");
+      localStorage.setItem("t212_popup_skip", "true");
       await fetch("/api/onboarding", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          has_seen_trading212_prompt: newCount >= 3,
-          welcome_popup_shown_count: newCount,
+          has_seen_trading212_prompt: true,
+          welcome_popup_shown_count: 3,
         }),
       });
     } catch { /* best-effort */ }
@@ -103,6 +107,8 @@ export default function BrokerConnectModal({ onClose }: Props) {
       setError(err instanceof Error ? err.message : "Connection failed.");
     }
   }
+
+  if (hidden) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">

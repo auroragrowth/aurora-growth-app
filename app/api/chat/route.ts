@@ -1,146 +1,100 @@
-import { NextResponse } from "next/server";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import { createClient } from "@/lib/supabase/server";
+import { NextRequest, NextResponse } from 'next/server'
 
-const SYSTEM_PROMPT = `You are Aurora Assistant, the helpful AI guide for Aurora Growth — a premium investment platform. You help members understand how to use the platform, explain investment concepts clearly, and guide them through the Aurora methodology.
+const SYSTEM_PROMPT = `You are Aurora Assistant, the helpful AI guide for Aurora Growth — a premium investment platform. You help members understand how to use the platform and explain investment concepts clearly.
 
-Key Aurora features you know about:
-- Market Scanner: scores stocks out of 30, Core list (38 stocks) and Alternative list (98 stocks)
-- Momentum badges: STRONG (25+), BUILDING (18-24), WATCH (below 18)
-- Investment Ladder Calculator: uses a reference price set to 20% above current price, calculates 4 staged buy points at -10%, -20%, -30%, -40% from reference
-- Blue lines on chart = entry/buy levels
-- Gold lines on chart = profit targets
-- Telegram alerts: connect via QR code on Connections page
-- Aurora Intelligence: AI analysis on every stock
+Key facts:
+- Market Scanner scores stocks out of 30
+- Core list has 38 stocks, Alternative list has 98
+- STRONG = 25+, BUILDING = 18-24, WATCH = below 18
+- Investment Ladder Calculator uses reference price 20% above current price
+- 4 staged entry points at -10%, -20%, -30%, -40% from reference
+- Blue lines on chart = buy entry levels, Gold lines = profit targets
+- BEP (green line) = blended entry price across all positions
+- Telegram alerts via QR code on Connections page
 - Plans: Core £49.99/mo, Pro £99.99/mo, Elite £249.99/mo
+- 7-day free trial on Core plan
+- Live and Demo modes available for broker connection
 
 Rules:
-- Keep answers concise and helpful — max 3 paragraphs
-- Use Aurora language only, never mention external tools
-- If asked about specific stocks, say you cannot give financial advice but can explain how Aurora scores them
-- If asked about account/billing issues, direct to the account page or suggest contacting support
-- Be warm, confident and professional
-- Never make up information about markets or stocks`;
+- Keep answers concise — max 3 short paragraphs
+- Aurora language only, never mention external tool names
+- Never give specific financial or investment advice
+- Be warm, helpful and professional`
 
-const DAILY_LIMIT = 20;
-
-export async function POST(req: Request) {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
-
-  if (userError || !user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  let body: { message: string; sessionId?: string; history?: Array<{ role: string; content: string }> };
+export async function POST(req: NextRequest) {
   try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
-  }
+    const { message, history = [] } = await req.json()
 
-  if (!body.message || typeof body.message !== "string" || body.message.trim().length === 0) {
-    return NextResponse.json({ error: "Message is required" }, { status: 400 });
-  }
-
-  if (body.message.length > 1000) {
-    return NextResponse.json({ error: "Message too long (max 1000 chars)" }, { status: 400 });
-  }
-
-  // Rate limit: 20 messages per day
-  const todayStart = new Date();
-  todayStart.setHours(0, 0, 0, 0);
-
-  const { count } = await supabase
-    .from("user_activity_log")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .eq("event_type", "chat_message")
-    .gte("created_at", todayStart.toISOString());
-
-  if ((count ?? 0) >= DAILY_LIMIT) {
-    return NextResponse.json(
-      { error: "You have reached your daily limit of 20 messages. Try again tomorrow." },
-      { status: 429 }
-    );
-  }
-
-  // Log the message
-  await supabase.from("user_activity_log").insert({
-    user_id: user.id,
-    email: user.email || null,
-    event_type: "chat_message",
-    event_label: "Chat message sent",
-    metadata: { sessionId: body.sessionId || null },
-    created_at: new Date().toISOString(),
-  });
-
-  // Build conversation history for Gemini
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: "Chat service not configured" }, { status: 503 });
-  }
-
-  const MODELS = ["gemini-2.0-flash", "gemini-2.0-flash-lite"];
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-
-  const history = (body.history || [])
-    .filter((m) => m.role === "user" || m.role === "model")
-    .slice(-10)
-    .map((m) => ({
-      role: m.role === "user" ? "user" as const : "model" as const,
-      parts: [{ text: m.content }],
-    }));
-
-  let lastError: any = null;
-
-  for (const modelId of MODELS) {
-    try {
-      const model = genAI.getGenerativeModel({ model: modelId });
-
-      const chat = model.startChat({
-        history,
-        systemInstruction: { role: "user" as const, parts: [{ text: SYSTEM_PROMPT }] },
-      });
-
-      const result = await chat.sendMessage(body.message);
-      const text = result.response.text();
-
-      // Save conversation
-      try {
-        await supabase.from("chat_conversations").insert({
-          user_id: user.id,
-          session_id: body.sessionId || null,
-          user_message: body.message,
-          assistant_message: text,
-          created_at: new Date().toISOString(),
-        });
-      } catch {
-        // Table may not exist yet — don't block response
-      }
-
-      return NextResponse.json({ ok: true, message: text });
-    } catch (err: any) {
-      console.error(`Chat API error (${modelId}):`, err?.message || err);
-      lastError = err;
-      // If rate limited (429), try next model
-      if (err?.message?.includes("429") || err?.message?.includes("quota")) {
-        continue;
-      }
-      // For other errors, don't retry
-      break;
+    if (!message) {
+      return NextResponse.json(
+        { error: 'No message provided' },
+        { status: 400 }
+      )
     }
-  }
 
-  return NextResponse.json(
-    { error: lastError?.message?.includes("429")
-        ? "Aurora Assistant is busy right now. Please try again in a minute."
-        : "Aurora Assistant is temporarily unavailable. Please try again." },
-    { status: lastError?.message?.includes("429") ? 429 : 500 }
-  );
+    const apiKey = process.env.GEMINI_API_KEY
+
+    if (!apiKey) {
+      console.error('GEMINI_API_KEY not set')
+      return NextResponse.json({
+        response: 'Aurora Assistant is starting up. Please check back shortly.'
+      })
+    }
+
+    // Build conversation history for Gemini
+    const contents = [
+      ...history.map((msg: any) => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }]
+      })),
+      {
+        role: 'user',
+        parts: [{ text: message }]
+      }
+    ]
+
+    // Call Gemini API directly via fetch (no SDK needed)
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: {
+            parts: [{ text: SYSTEM_PROMPT }]
+          },
+          contents,
+          generationConfig: {
+            maxOutputTokens: 500,
+            temperature: 0.7
+          }
+        })
+      }
+    )
+
+    if (!response.ok) {
+      const err = await response.text()
+      console.error('Gemini error:', err)
+      return NextResponse.json({
+        response: 'Aurora Assistant is temporarily busy. Please try again.'
+      })
+    }
+
+    const data = await response.json()
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text
+
+    if (!text) {
+      return NextResponse.json({
+        response: 'Sorry, I could not generate a response. Please try again.'
+      })
+    }
+
+    return NextResponse.json({ response: text })
+
+  } catch (error: any) {
+    console.error('Chat route error:', error.message)
+    return NextResponse.json({
+      response: 'Aurora Assistant encountered an error. Please try again.'
+    })
+  }
 }

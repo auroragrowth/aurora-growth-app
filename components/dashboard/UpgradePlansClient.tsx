@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 
-type Billing = "monthly" | "yearly";
+type BillingInterval = "monthly" | "yearly";
 
 export default function UpgradePlansClient() {
 
-  const [billing,setBilling] = useState<Billing>("monthly")
+  const [billingInterval,setBillingInterval] = useState<BillingInterval>("monthly")
 
   const prices = {
     core:{monthly:79,yearly:790},
@@ -14,11 +14,11 @@ export default function UpgradePlansClient() {
     elite:{monthly:345,yearly:3450}
   }
 
-  const startCheckout = async(plan:string)=>{
+  const startCheckout = async(planKey:string)=>{
     const res = await fetch("/api/stripe/checkout",{
       method:"POST",
       headers:{ "Content-Type":"application/json"},
-      body:JSON.stringify({plan,billing})
+      body:JSON.stringify({planKey,billingInterval})
     })
 
     const data = await res.json()
@@ -34,14 +34,14 @@ export default function UpgradePlansClient() {
       <div className="flex gap-4">
 
         <button
-        onClick={()=>setBilling("monthly")}
-        className={`px-6 py-2 rounded-full ${billing==="monthly"?"bg-white text-black":"bg-white/10 text-white"}`}>
+        onClick={()=>setBillingInterval("monthly")}
+        className={`px-6 py-2 rounded-full ${billingInterval==="monthly"?"bg-white text-black":"bg-white/10 text-white"}`}>
         Monthly
         </button>
 
         <button
-        onClick={()=>setBilling("yearly")}
-        className={`px-6 py-2 rounded-full ${billing==="yearly"?"bg-white text-black":"bg-white/10 text-white"}`}>
+        onClick={()=>setBillingInterval("yearly")}
+        className={`px-6 py-2 rounded-full ${billingInterval==="yearly"?"bg-white text-black":"bg-white/10 text-white"}`}>
         Yearly (Save 20%)
         </button>
 
@@ -51,7 +51,7 @@ export default function UpgradePlansClient() {
 
         {Object.entries(prices).map(([plan,price])=>{
 
-          const value = billing==="monthly"?price.monthly:price.yearly
+          const value = billingInterval==="monthly"?price.monthly:price.yearly
 
           return(
             <div key={plan}
@@ -62,7 +62,7 @@ export default function UpgradePlansClient() {
               <div className="text-4xl font-bold mt-4">
                 £{value}
                 <span className="text-lg text-slate-400">
-                /{billing==="monthly"?"mo":"yr"}
+                /{billingInterval==="monthly"?"mo":"yr"}
                 </span>
               </div>
 
