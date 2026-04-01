@@ -41,8 +41,12 @@ export default function CheckoutSuccessPage() {
 
   useEffect(() => {
     let cancelled = false;
+    let attemptCount = 0;
+    const maxAttempts = 15; // 30 seconds (15 x 2s)
 
     async function checkStatus() {
+      attemptCount++;
+
       try {
         const {
           data: { user },
@@ -56,23 +60,47 @@ export default function CheckoutSuccessPage() {
 
         const { data: profile } = await supabase
           .from("profiles")
-          .select("subscription_status, plan_key")
+          .select("subscription_status, plan_key, has_completed_plan_selection")
           .eq("id", user.id)
           .single();
+
+        if (!cancelled) {
+          setAttempts((n) => n + 1);
+          if (profile?.plan_key) setPlanKey(profile.plan_key);
+        }
 
         const isActive =
           profile?.subscription_status === "active" ||
           profile?.subscription_status === "trialing";
 
-        if (!cancelled) {
-          setAttempts((n) => n + 1);
-          if (profile?.plan_key) setPlanKey(profile.plan_key);
-
-          if (isActive) {
+        if (isActive && profile?.has_completed_plan_selection) {
+          if (!cancelled) {
             setStatus("active");
-          } else {
-            setStatus("waiting");
+            clearInterval(interval);
           }
+          return;
+        }
+
+        // After 30 seconds, try manual activation via session_id
+        if (attemptCount >= maxAttempts) {
+          clearInterval(interval);
+
+          const params = new URLSearchParams(window.location.search);
+          const sessionId = params.get("session_id");
+
+          if (sessionId) {
+            try {
+              await fetch("/api/stripe/activate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sessionId }),
+              });
+            } catch {
+              // best effort
+            }
+          }
+
+          if (!cancelled) setStatus("active");
         }
       } catch {
         if (!cancelled) setStatus("error");
