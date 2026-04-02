@@ -197,11 +197,6 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
         </div>
       </div>
 
-      {/* MAIN CHART - FULL WIDTH, TALL */}
-      <div className="w-full bg-[#070d1b] relative overflow-hidden" style={{ height: '600px' }}>
-        <TVChart symbol={tvSymbol} height={600} />
-      </div>
-
       {/* STOCK INFO BAR */}
       <div className="border-b border-white/10 px-6 py-4 bg-[#080f1e]">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
@@ -328,6 +323,20 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
               </p>
             </div>
           ))}
+        </div>
+
+        {/* Chart Card */}
+        <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+          <div className="px-5 pt-4 pb-2 border-b border-white/5 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-white font-bold text-sm">Chart</h2>
+              <span className="text-white/30 text-xs">{ticker}</span>
+            </div>
+            <span className="text-white/20 text-xs">TradingView</span>
+          </div>
+          <div className="relative overflow-hidden" style={{ height: '500px' }}>
+            <TVChart symbol={tvSymbol} height={500} />
+          </div>
         </div>
 
         {/* Two column layout */}
