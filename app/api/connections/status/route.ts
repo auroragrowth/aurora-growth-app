@@ -14,8 +14,9 @@ export async function GET() {
     return NextResponse.json({ ok: false, authenticated: false }, { status: 401 });
   }
 
+  let activeMode: "live" | "demo" = "live";
   try {
-    const activeMode = await getActiveMode(user.id);
+    activeMode = await getActiveMode(user.id);
     const connection = await getUserConnection(user.id, activeMode);
 
     return NextResponse.json({
@@ -33,8 +34,8 @@ export async function GET() {
     return NextResponse.json({
       ok: false,
       authenticated: true,
-      active_broker_mode: "live",
-      trading212: { is_connected: false },
+      active_broker_mode: activeMode,
+      trading212: { mode: activeMode, is_connected: false },
       error: err instanceof Error ? err.message : "Status failed",
     });
   }
