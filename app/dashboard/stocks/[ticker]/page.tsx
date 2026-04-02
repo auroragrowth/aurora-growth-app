@@ -1,4 +1,4 @@
-import StockIntelligenceClient from "@/components/stocks/StockIntelligenceClient";
+import StockPageClient from './StockPageClient'
 
 type Props = {
   params: Promise<{
@@ -9,5 +9,5 @@ type Props = {
 export default async function StockPage({ params }: Props) {
   const { ticker } = await params;
 
-  return <StockIntelligenceClient ticker={ticker} />;
+  return <StockPageClient ticker={ticker.toUpperCase()} />;
 }
