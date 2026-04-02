@@ -23,23 +23,38 @@ function CalculatorContent() {
 
   // Load watchlist
   useEffect(() => {
-    const loadWatchlist = async () => {
+    const load = async () => {
       try {
-        const res = await fetch('/api/watchlist')
-        if (!res.ok) throw new Error('Failed')
-        const data = await res.json()
-        setWatchlistStocks(Array.isArray(data) ? data : [])
+        const res = await fetch('/api/watchlist', {
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' }
+        })
+        const text = await res.text()
+        console.log('[Calculator] Watchlist response:', text.slice(0, 100))
+        const data = JSON.parse(text)
+        const stocks = Array.isArray(data) ? data : []
+        console.log('[Calculator] Stocks loaded:', stocks.length)
+        setWatchlistStocks(stocks)
+
+        // Set mode indicator
+        if (stocks.length === 0) {
+          setBrokerMode('unknown')
+        }
       } catch (e) {
-        console.error('Watchlist load error:', e)
+        console.error('[Calculator] Watchlist error:', e)
         setWatchlistStocks([])
       }
-    }
-    loadWatchlist()
 
-    fetch('/api/broker/mode')
-      .then(r => r.json())
-      .then(d => setBrokerMode(d.mode || 'live'))
-      .catch(() => {})
+      // Also fetch current mode
+      try {
+        const modeRes = await fetch('/api/broker/mode', {
+          credentials: 'include'
+        })
+        const modeData = await modeRes.json()
+        setBrokerMode(modeData.mode || 'live')
+      } catch {}
+    }
+    load()
   }, [])
 
   // Auto-run if ticker in URL
@@ -112,31 +127,31 @@ function CalculatorContent() {
 
           {/* Watchlist dropdown */}
           <div className="flex-1 min-w-48">
-            {brokerMode === 'demo' ? (
-              <p className="text-amber-400 text-xs mb-1">
-                🟡 Demo Watchlist ({watchlistStocks.length} stocks)
-              </p>
-            ) : (
-              <p className="text-green-400 text-xs mb-1">
-                🟢 Live Watchlist ({watchlistStocks.length} stocks)
-              </p>
-            )}
             <label className="text-white/40 text-xs uppercase tracking-wider mb-1 block">
-              From Watchlist
+              {brokerMode === 'demo'
+                ? '🟡 Demo Watchlist'
+                : '🟢 Live Watchlist'
+              } ({watchlistStocks.length} stocks)
             </label>
             <select
               value={ticker}
               onChange={e => {
-                setTicker(e.target.value)
-                setTickerInput(e.target.value)
-                if (e.target.value) runAnalysis(e.target.value, capital)
+                const val = e.target.value
+                setTicker(val)
+                setTickerInput(val)
+                if (val) runAnalysis(val, capital)
               }}
               className="w-full bg-white/5 border border-white/10 rounded-xl
               px-4 py-2.5 text-white text-sm focus:outline-none
               focus:border-cyan-400/50"
             >
-              <option value="">Select from watchlist...</option>
-              {watchlistStocks.map(s => (
+              <option value="">
+                {watchlistStocks.length === 0
+                  ? 'Loading watchlist...'
+                  : 'Select from watchlist...'
+                }
+              </option>
+              {watchlistStocks.map((s: any) => (
                 <option key={s.symbol} value={s.symbol}>
                   {s.symbol} — {s.company_name}
                 </option>
