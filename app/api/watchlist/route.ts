@@ -1,60 +1,53 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getWatchlistTable } from "@/lib/watchlist/getTable";
 
 function cleanSymbol(v: unknown) {
   return String(v || "").trim().toUpperCase();
 }
 
-async function getActiveMode(userId: string): Promise<string> {
-  const { data } = await supabaseAdmin
-    .from("profiles")
-    .select("active_broker_mode")
-    .eq("id", userId)
-    .maybeSingle();
-  return data?.active_broker_mode || "live";
-}
-
-async function getAuthUser() {
+async function getAuthAndMode() {
   const supabase = await createClient();
   const { data: auth, error } = await supabase.auth.getUser();
   if (error || !auth?.user) return null;
-  return auth.user;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("active_broker_mode")
+    .eq("id", auth.user.id)
+    .maybeSingle();
+
+  const mode = profile?.active_broker_mode || "live";
+  return { supabase, user: auth.user, mode };
 }
 
 export async function GET() {
   try {
-    const supabase = await createClient();
+    const ctx = await getAuthAndMode();
+    if (!ctx) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-    const { data: auth, error: authErr } = await supabase.auth.getUser();
-    if (authErr || !auth?.user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
+    const table = getWatchlistTable(ctx.mode);
 
-    const mode = await getActiveMode(auth.user.id);
-    const table = getWatchlistTable(mode);
+    console.log("Watchlist GET from table:", table, "user:", ctx.user.id);
 
-    console.log("Watchlist GET from table:", table, "user:", auth.user.id);
-
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await ctx.supabase
       .from(table)
       .select("*")
-      .eq("user_id", auth.user.id)
+      .eq("user_id", ctx.user.id)
       .order("created_at", { ascending: false });
 
     if (error) {
       console.error("Watchlist GET error:", error.message, "table:", table);
       // Table may not exist — fall back to watchlist_live
       if (error.message?.includes("relation") || error.code === "42P01") {
-        const { data: fallback } = await supabaseAdmin
+        const { data: fallback } = await ctx.supabase
           .from("watchlist_live")
           .select("*")
-          .eq("user_id", auth.user.id)
+          .eq("user_id", ctx.user.id)
           .order("created_at", { ascending: false });
         return NextResponse.json({
           ok: true,
-          mode,
+          mode: ctx.mode,
           items: (fallback || []).map((row: any) => ({
             ...row,
             symbol: cleanSymbol(row.symbol),
@@ -66,7 +59,7 @@ export async function GET() {
 
     return NextResponse.json({
       ok: true,
-      mode,
+      mode: ctx.mode,
       items: (data || []).map((row: any) => ({
         ...row,
         symbol: cleanSymbol(row.symbol),
@@ -83,10 +76,8 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getAuthUser();
-    if (!user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
+    const ctx = await getAuthAndMode();
+    if (!ctx) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
     const symbol = cleanSymbol(body?.symbol || body?.ticker);
@@ -94,16 +85,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Symbol required" }, { status: 400 });
     }
 
-    const mode = await getActiveMode(user.id);
-    const table = getWatchlistTable(mode);
+    const table = getWatchlistTable(ctx.mode);
 
-    console.log(`Adding ${symbol} to ${table} for user ${user.id}`);
+    console.log(`Adding ${symbol} to ${table} for user ${ctx.user.id}`);
 
-    const { error } = await supabaseAdmin
+    const { error } = await ctx.supabase
       .from(table)
       .upsert(
         {
-          user_id: user.id,
+          user_id: ctx.user.id,
           symbol,
           company_name: body.company_name || symbol,
           source: body.source || "My List",
@@ -122,8 +112,8 @@ export async function POST(req: NextRequest) {
       success: true,
       symbol,
       table,
-      mode,
-      message: `Added to ${mode} watchlist`,
+      mode: ctx.mode,
+      message: `Added to ${ctx.mode} watchlist`,
     });
   } catch (e: any) {
     console.error("Watchlist POST error:", e.message);
@@ -133,10 +123,8 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const user = await getAuthUser();
-    if (!user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
-    }
+    const ctx = await getAuthAndMode();
+    if (!ctx) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
     const { symbol: rawSymbol } = await req.json().catch(() => ({ symbol: "" }));
     const symbol = cleanSymbol(rawSymbol);
@@ -144,13 +132,12 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Symbol required" }, { status: 400 });
     }
 
-    const mode = await getActiveMode(user.id);
-    const table = getWatchlistTable(mode);
+    const table = getWatchlistTable(ctx.mode);
 
-    const { error } = await supabaseAdmin
+    const { error } = await ctx.supabase
       .from(table)
       .delete()
-      .eq("user_id", user.id)
+      .eq("user_id", ctx.user.id)
       .eq("symbol", symbol);
 
     if (error) throw error;

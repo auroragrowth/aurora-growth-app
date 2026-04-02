@@ -1,19 +1,9 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getWatchlistTable } from "@/lib/watchlist/getTable";
 
 function cleanSymbol(v: unknown) {
   return String(v || "").trim().toUpperCase();
-}
-
-async function getActiveMode(userId: string): Promise<string> {
-  const { data } = await supabaseAdmin
-    .from("profiles")
-    .select("active_broker_mode")
-    .eq("id", userId)
-    .maybeSingle();
-  return data?.active_broker_mode || "live";
 }
 
 export async function POST(req: Request) {
@@ -36,13 +26,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
-    const mode = await getActiveMode(auth.user.id);
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("active_broker_mode")
+      .eq("id", auth.user.id)
+      .maybeSingle();
+
+    const mode = profile?.active_broker_mode || "live";
     const table = getWatchlistTable(mode);
 
     console.log("Watchlist toggle:", { symbol, mode, table, userId: auth.user.id });
 
-    // Use supabaseAdmin for lookups/writes to bypass RLS issues on demo table
-    const { data: existing } = await supabaseAdmin
+    const { data: existing } = await supabase
       .from(table)
       .select("id")
       .eq("user_id", auth.user.id)
@@ -50,27 +45,25 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (existing?.id) {
-      await supabaseAdmin.from(table).delete().eq("id", existing.id);
+      await supabase.from(table).delete().eq("id", existing.id);
       return NextResponse.json({ ok: true, added: false, symbol, mode });
     }
 
     const isAurora = source === "Aurora Core" || source === "Aurora Alternative";
 
-    const insertRow: Record<string, unknown> = {
+    const { error: insErr } = await supabase.from(table).insert([{
       user_id: auth.user.id,
       symbol,
       company_name,
       source,
       is_aurora_recommended: isAurora,
       added_by: isAurora ? "scanner" : "manual",
-    };
-
-    const { error: insErr } = await supabaseAdmin.from(table).insert([insertRow]);
+    }]);
 
     if (insErr) {
       console.error("Watchlist insert error:", insErr.message, "table:", table);
       // Fallback with only core columns
-      const { error: retryErr } = await supabaseAdmin.from(table).insert([{
+      const { error: retryErr } = await supabase.from(table).insert([{
         user_id: auth.user.id,
         symbol,
         company_name,
