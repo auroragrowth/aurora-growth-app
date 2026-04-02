@@ -46,13 +46,13 @@ function TVChart({ symbol, height }: { symbol: string; height: number }) {
   }, [symbol, height])
 
   return (
-    <div style={{ position: 'relative', height: `${height}px`, width: '100%' }}>
+    <div style={{ position: 'relative', height: `${height}px`, width: '100%', overflow: 'hidden' }}>
       {!ready && (
         <div className="absolute inset-0 flex items-center justify-center bg-white/2">
           <div className="w-8 h-8 border-2 border-cyan-400/40 border-t-cyan-400 rounded-full animate-spin" />
         </div>
       )}
-      <div ref={ref} style={{ height: `${height}px`, width: '100%' }} />
+      <div ref={ref} style={{ height: `${height}px`, width: '100%', overflow: 'hidden' }} />
     </div>
   )
 }
@@ -198,7 +198,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
       </div>
 
       {/* MAIN CHART - FULL WIDTH, TALL */}
-      <div className="w-full bg-[#070d1b]">
+      <div className="w-full bg-[#070d1b] relative overflow-hidden" style={{ height: '600px' }}>
         <TVChart symbol={tvSymbol} height={600} />
       </div>
 
