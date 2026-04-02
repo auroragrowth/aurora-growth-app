@@ -7,7 +7,6 @@ import { usePortfolio } from "@/components/providers/PortfolioProvider";
 import { ExpiredBlur } from "@/components/dashboard/ExpiredOverlay";
 import PriceAlertModal from "@/components/watchlist/PriceAlertModal";
 import MiniChart from "@/components/tradingview/MiniChart";
-import AdvancedChart from "@/components/tradingview/AdvancedChart";
 import TechnicalAnalysis from "@/components/tradingview/TechnicalAnalysis";
 import FundamentalData from "@/components/tradingview/FundamentalData";
 
@@ -743,15 +742,15 @@ export default function WatchlistPage() {
       </ExpiredBlur>
 
       {/* ══════ STOCK ANALYSIS SECTION ══════ */}
-      <section className="space-y-5">
+      <section>
         {/* Header */}
-        <div>
+        <div className="mb-5">
           <div className="text-[11px] uppercase tracking-[0.35em] text-cyan-300/80">Stock Analysis</div>
           <h2 className="mt-2 text-2xl font-semibold text-white">Detailed Chart & Metrics</h2>
         </div>
 
         {/* Dropdown + Search row */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="flex flex-col gap-3 mb-3 sm:flex-row sm:items-end">
           <div className="flex-1">
             <label className="mb-1.5 block text-xs font-medium text-slate-400">From Watchlist</label>
             <select
@@ -791,20 +790,17 @@ export default function WatchlistPage() {
 
         {analysisTicker && (
           <div className="space-y-5">
-            {/* ── Advanced Chart ── */}
-            <div className="overflow-hidden rounded-3xl border border-cyan-500/10 bg-[#07101d] p-3 shadow-2xl">
-              <div className="mb-2 flex items-center justify-between px-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
-                  {analysisTicker}{stockMetrics?.company && stockMetrics.company !== analysisTicker ? ` — ${stockMetrics.company}` : ""} — Advanced Chart
-                </span>
-                <Link
-                  href={`/dashboard/stocks/${encodeURIComponent(analysisTicker)}`}
-                  className="text-xs font-medium text-cyan-400 transition hover:text-cyan-300"
-                >
-                  Full Analysis &rarr;
-                </Link>
-              </div>
-              <AdvancedChart ticker={analysisTicker} height={700} />
+            {/* ── Chart Header ── */}
+            <div className="flex items-center justify-between px-2 mb-3">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
+                {analysisTicker}{stockMetrics?.company && stockMetrics.company !== analysisTicker ? ` — ${stockMetrics.company}` : ""}
+              </span>
+              <Link
+                href={`/dashboard/stocks/${encodeURIComponent(analysisTicker)}`}
+                className="text-xs font-medium text-cyan-400 transition hover:text-cyan-300"
+              >
+                Full Analysis &rarr;
+              </Link>
             </div>
 
             {/* ── Stock Metrics Cards ── */}

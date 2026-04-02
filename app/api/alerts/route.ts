@@ -98,9 +98,74 @@ export async function POST(req: NextRequest) {
         if (retry.error) {
           return NextResponse.json({ error: retry.error.message }, { status: 500 });
         }
+        // Send Telegram confirmation for fallback path too
+        if (profile?.telegram_chat_id && process.env.TELEGRAM_BOT_TOKEN) {
+          const telegramMsg = [
+            '🔔 *Aurora Price Alert Set*',
+            '',
+            `*${symbol}*${company_name ? ` — ${company_name}` : ''}`,
+            '',
+            alert_type.includes('above')
+              ? `📈 Alert when price rises *above $${target_price.toFixed(2)}*`
+              : alert_type.includes('entry')
+                ? `⚡ Entry level alert at *$${target_price.toFixed(2)}*`
+                : `📉 Alert when price falls *below $${target_price.toFixed(2)}*`,
+            '',
+            '_You will be notified here when this level is hit._',
+            '',
+            '— Aurora Growth'
+          ].filter(Boolean).join('\n')
+
+          fetch(
+            `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                chat_id: profile.telegram_chat_id,
+                text: telegramMsg,
+                parse_mode: 'Markdown'
+              })
+            }
+          ).catch(() => {})
+        }
         return NextResponse.json({ ok: true, alert: retry.data });
       }
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Send Telegram confirmation if chat_id exists
+    if (profile?.telegram_chat_id && process.env.TELEGRAM_BOT_TOKEN) {
+      const telegramMsg = [
+        '🔔 *Aurora Price Alert Set*',
+        '',
+        `*${symbol}*${company_name ? ` — ${company_name}` : ''}`,
+        '',
+        alert_type.includes('above')
+          ? `📈 Alert when price rises *above $${target_price.toFixed(2)}*`
+          : alert_type.includes('entry')
+            ? `⚡ Entry level alert at *$${target_price.toFixed(2)}*`
+            : `📉 Alert when price falls *below $${target_price.toFixed(2)}*`,
+        '',
+        reference_price ? `Reference price: $${reference_price.toFixed(2)}` : '',
+        '',
+        '_You will be notified here when this level is hit._',
+        '',
+        '— Aurora Growth'
+      ].filter(Boolean).join('\n')
+
+      fetch(
+        `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: profile.telegram_chat_id,
+            text: telegramMsg,
+            parse_mode: 'Markdown'
+          })
+        }
+      ).catch(() => {})
     }
 
     return NextResponse.json({ ok: true, alert: data });
