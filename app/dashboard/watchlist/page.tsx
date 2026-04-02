@@ -152,8 +152,9 @@ export default function WatchlistPage() {
     recentHigh: number | null;
     recentHighDate: string | null;
     score: number | null;
-    marketCap: string | null;
+    marketCapFormatted: string | null;
     volume: number | null;
+    pctBelowHigh52w: number | null;
   } | null>(null);
   const [loadingMetrics, setLoadingMetrics] = useState(false);
 
@@ -866,10 +867,10 @@ export default function WatchlistPage() {
                   {/* Market Cap */}
                   <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
                     <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">Market Cap</div>
-                    <div className="mt-1 text-2xl font-bold text-white">{stockMetrics.marketCap || "—"}</div>
-                    {stockMetrics.marketCap && (
+                    <div className="mt-1 text-2xl font-bold text-white">{stockMetrics.marketCapFormatted || "—"}</div>
+                    {stockMetrics.marketCapFormatted && (
                       <div className="mt-1 text-sm text-white/50">
-                        {stockMetrics.marketCap.includes("T") ? "Mega cap" : stockMetrics.marketCap.includes("B") ? "Large cap" : "Mid cap"}
+                        {stockMetrics.marketCapFormatted.includes("T") ? "Mega cap" : stockMetrics.marketCapFormatted.includes("B") ? "Large cap" : "Mid cap"}
                       </div>
                     )}
                   </div>
@@ -890,19 +891,16 @@ export default function WatchlistPage() {
                   {/* % Below 52W High */}
                   <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
                     <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">From 52W High</div>
-                    {stockMetrics.high52w && stockMetrics.price ? (() => {
-                      const pct = ((stockMetrics.price - stockMetrics.high52w) / stockMetrics.high52w) * 100;
-                      return (
-                        <>
-                          <div className={`mt-1 text-2xl font-bold ${pct >= 0 ? "text-green-400" : "text-red-400"}`}>
-                            {pct.toFixed(1)}%
-                          </div>
-                          <div className="mt-1 text-sm text-white/50">
-                            {pct >= -5 ? "Near highs" : pct >= -20 ? "Pullback" : pct >= -35 ? "Correction" : "Deep discount"}
-                          </div>
-                        </>
-                      );
-                    })() : <div className="mt-1 text-2xl font-bold text-white">—</div>}
+                    {stockMetrics.pctBelowHigh52w != null ? (
+                      <>
+                        <div className="mt-1 text-2xl font-bold text-red-400">
+                          -{stockMetrics.pctBelowHigh52w}%
+                        </div>
+                        <div className="mt-1 text-sm text-white/50">
+                          {stockMetrics.pctBelowHigh52w <= 5 ? "Near highs" : stockMetrics.pctBelowHigh52w <= 20 ? "Pullback" : stockMetrics.pctBelowHigh52w <= 35 ? "Correction" : "Deep discount"}
+                        </div>
+                      </>
+                    ) : <div className="mt-1 text-2xl font-bold text-white">—</div>}
                   </div>
                 </div>
 
