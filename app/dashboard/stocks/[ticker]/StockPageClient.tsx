@@ -92,6 +92,11 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
   const [alertModal, setAlertModal] = useState(false)
   const [alertPrice, setAlertPrice] = useState('')
   const [alertType, setAlertType] = useState<'above'|'below'>('below')
+  const [investModal, setInvestModal] = useState(false)
+  const [ladderData, setLadderData] = useState<any>(null)
+  const [capital, setCapital] = useState(1000)
+  const [placingOrders, setPlacingOrders] = useState(false)
+  const [orderResults, setOrderResults] = useState<any[]>([])
 
   useEffect(() => {
     fetch(`/api/market/quote?ticker=${ticker}`)
@@ -264,12 +269,20 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
             </button>
 
             <button
-              onClick={() => router.push(`/dashboard/investments/calculator?ticker=${ticker}`)}
+              onClick={() => {
+                setInvestModal(true)
+                setOrderResults([])
+                setLadderData(null)
+                fetch(`/api/aurora/analyse?ticker=${ticker}&capital=${capital}`)
+                  .then(r => r.json())
+                  .then(setLadderData)
+                  .catch(() => {})
+              }}
               className="px-4 py-2 rounded-xl text-sm font-bold
               bg-gradient-to-r from-cyan-400 to-purple-500 text-white
               hover:opacity-90 transition-opacity"
             >
-              📊 Invest
+              📊 Make Investment
             </button>
           </div>
         </div>
@@ -552,6 +565,193 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                 bg-gradient-to-r from-cyan-400 to-blue-500 text-white"
               >
                 Set Alert
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* INVESTMENT MODAL */}
+      {investModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
+          style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
+          <div className="w-full max-w-lg bg-[#080f1e] border border-white/10 rounded-2xl my-4">
+
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/10">
+              <div>
+                <h3 className="text-white font-bold text-lg">📊 Make Investment — {ticker}</h3>
+                <p className="text-white/40 text-sm">Aurora Investment Ladder</p>
+              </div>
+              <button onClick={() => { setInvestModal(false); setOrderResults([]) }}
+                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20
+                text-white text-xl flex items-center justify-center transition-all">×</button>
+            </div>
+
+            <div className="px-6 py-4 space-y-4">
+              {/* Capital input */}
+              <div>
+                <label className="text-white/40 text-xs uppercase tracking-wider mb-1 block">
+                  Total Capital to Deploy
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40">$</span>
+                  <input type="number" value={capital}
+                    onChange={e => setCapital(Number(e.target.value))}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl
+                    pl-7 pr-4 py-2.5 text-white text-sm focus:outline-none focus:border-cyan-400/50" />
+                </div>
+                <button onClick={() => {
+                  setLadderData(null)
+                  fetch(`/api/aurora/analyse?ticker=${ticker}&capital=${capital}`)
+                    .then(r => r.json()).then(setLadderData).catch(() => {})
+                }} className="mt-2 text-cyan-400 text-xs hover:underline">
+                  Recalculate →
+                </button>
+              </div>
+
+              {/* Loading */}
+              {!ladderData && (
+                <div className="flex items-center justify-center py-6">
+                  <div className="w-6 h-6 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+                  <span className="text-white/40 text-sm ml-3">Loading Aurora analysis...</span>
+                </div>
+              )}
+
+              {/* Ladder steps */}
+              {ladderData && !ladderData.error && (
+                <>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-white/40 text-xs uppercase tracking-wider">
+                        Aurora {ladderData.calculatorType || ''} Ladder
+                      </p>
+                      <p className="text-white/40 text-xs">
+                        Peak: ${ladderData.recentPeakPrice?.toFixed(2) || '—'}
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {ladderData.entryLines?.map((line: any) => {
+                        const alreadyPassed = ladderData.currentPrice <= line.entryPrice
+                        const isCombined = ladderData.combinedBuyLines?.includes(line.step)
+                        return (
+                          <div key={line.step}
+                            className={`flex items-center justify-between p-3 rounded-xl border text-sm ${
+                              isCombined
+                                ? 'bg-amber-500/10 border-amber-500/30'
+                                : alreadyPassed
+                                ? 'bg-cyan-500/10 border-cyan-500/30'
+                                : 'bg-white/5 border-white/10'
+                            }`}>
+                            <span className="text-white/60">Step {line.step}</span>
+                            <span className="text-cyan-400 font-bold font-mono">${line.entryPrice?.toFixed(2)}</span>
+                            <span className="text-white/50">${line.allocation?.toFixed(0)}</span>
+                            <span className="text-white/50">{line.plannedShares?.toFixed(2)} shares</span>
+                            {isCombined && <span className="text-amber-400 text-xs font-bold">COMBINED</span>}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  {ladderData.combinedBuyNeeded && (
+                    <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                      <p className="text-amber-400 text-xs font-bold mb-1">
+                        ⚡ Combined Buy — Steps {ladderData.combinedBuyLines?.join(' + ')}
+                      </p>
+                      <p className="text-amber-400/70 text-xs">
+                        Combining ${ladderData.combinedBuyAllocation?.toFixed(2)} →
+                        buying {ladderData.combinedBuyShares?.toFixed(2)} shares
+                        at ${ladderData.currentPrice?.toFixed(2)}
+                      </p>
+                    </div>
+                  )}
+
+                  {ladderData.bep && (
+                    <div className="flex items-center justify-between p-3 rounded-xl bg-green-500/10 border border-green-500/30">
+                      <span className="text-green-400 text-sm font-bold">BEP</span>
+                      <span className="text-green-400 font-bold font-mono">${ladderData.bep?.toFixed(2)}</span>
+                      <span className="text-green-400/60 text-xs">Blended entry price</span>
+                    </div>
+                  )}
+
+                  {orderResults.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-white/40 text-xs uppercase tracking-wider">
+                        Order Results — {orderResults.filter((r: any) => r.success).length} of {orderResults.length} placed
+                      </p>
+                      {orderResults.map((r: any, i: number) => (
+                        <div key={i} className={`flex items-center justify-between p-2 rounded-lg text-xs ${
+                          r.success ? 'bg-green-500/10 border border-green-500/20' : 'bg-red-500/10 border border-red-500/20'
+                        }`}>
+                          <span className="text-white/60">Step {r.step}</span>
+                          <span className={r.success ? 'text-green-400' : 'text-red-400'}>
+                            {r.success ? '✓ Placed' : `✗ ${r.error || 'Failed'}`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+
+              {ladderData?.error && (
+                <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                  <p className="text-red-400 text-sm">{ladderData.error}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 pb-6 flex gap-3">
+              <button onClick={() => { setInvestModal(false); setOrderResults([]) }}
+                className="flex-1 py-2.5 rounded-xl border border-white/10 text-white/50 text-sm hover:bg-white/5 transition-colors">
+                Cancel
+              </button>
+              <button
+                disabled={!ladderData || !!ladderData?.error || placingOrders || orderResults.length > 0}
+                onClick={async () => {
+                  if (!ladderData) return
+                  setPlacingOrders(true)
+                  const results: any[] = []
+                  const lines = ladderData.combinedBuyNeeded
+                    ? [{ step: 'Combined', quantity: ladderData.combinedBuyShares, limitPrice: ladderData.currentPrice }]
+                    : (ladderData.entryLines || []).map((l: any) => ({
+                        step: l.step, quantity: l.plannedShares, limitPrice: l.entryPrice
+                      }))
+                  for (const line of lines) {
+                    if (results.length > 0) await new Promise(r => setTimeout(r, 2000))
+                    try {
+                      const res = await fetch('/api/broker/place-order', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          ticker, quantity: Math.max(0.01, Number(line.quantity?.toFixed(2))),
+                          limitPrice: Number(line.limitPrice?.toFixed(2)),
+                          accountMode: 'live', ladderStep: line.step
+                        })
+                      })
+                      const data = await res.json()
+                      results.push({ step: line.step, success: res.ok && data.success, error: data.error })
+                    } catch (e: any) {
+                      results.push({ step: line.step, success: false, error: e.message })
+                    }
+                    setOrderResults([...results])
+                  }
+                  setPlacingOrders(false)
+                }}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                  orderResults.length > 0
+                    ? 'bg-green-500/20 border border-green-500/30 text-green-400'
+                    : 'bg-gradient-to-r from-cyan-400 to-purple-500 text-white hover:opacity-90'
+                } disabled:opacity-40 disabled:cursor-not-allowed`}
+              >
+                {placingOrders ? 'Placing orders...'
+                  : orderResults.length > 0
+                  ? `${orderResults.filter((r: any) => r.success).length}/${orderResults.length} placed ✓`
+                  : ladderData?.combinedBuyNeeded
+                  ? `Buy ${ladderData.combinedBuyShares?.toFixed(2)} shares now`
+                  : `Place ${ladderData?.entryLines?.length || 0} limit orders`}
               </button>
             </div>
           </div>
