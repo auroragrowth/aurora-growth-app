@@ -190,18 +190,24 @@ function LoginPageInner() {
               </button>
             </form>
 
-            <div className="mt-6 space-y-2 text-sm text-slate-400">
-              <div>
-                <Link href="/forgot-password" className="transition hover:text-white">
-                  Forgot password?
-                </Link>
-              </div>
-              <div>
-                Need an account?{" "}
-                <Link href="/signup" className="transition hover:text-white">
+            <div className="mt-6 text-center space-y-2">
+              <Link
+                href="/forgot-password"
+                className="text-white/40 text-sm hover:text-white/60 transition-colors"
+              >
+                Forgot password?
+              </Link>
+
+              <p className="text-white/40 text-sm">
+                Need an account?{' '}
+                <Link href="/signup" className="text-cyan-400 hover:underline">
                   Sign up
                 </Link>
-              </div>
+              </p>
+
+              <p className="text-white/20 text-xs">
+                Aurora Growth v1.3.0
+              </p>
             </div>
           </div>
         </div>

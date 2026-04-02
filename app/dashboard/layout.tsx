@@ -8,6 +8,7 @@ import { PortfolioProvider } from "@/components/providers/PortfolioProvider";
 import { SubscriptionProvider } from "@/components/providers/SubscriptionProvider";
 import OnboardingTour from "@/components/onboarding/OnboardingTour";
 import QuickStartGuide from "@/components/onboarding/QuickStartGuide";
+import BrokerConnectPopup from "@/components/onboarding/BrokerConnectPopup";
 import AuroraChatWidget from "@/components/chat/AuroraChatWidget";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -154,6 +155,7 @@ export default async function DashboardLayout({
           <WelcomeModal firstName={fullName.split(" ")[0]} />
           <OnboardingTour />
           <QuickStartGuide />
+          <BrokerConnectPopup />
           <AuroraChatWidget />
         </DashboardShell>
       </BrokerPopupProvider>
