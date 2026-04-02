@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type Props = {
   initialMode: "live" | "demo";
@@ -11,6 +11,11 @@ type Props = {
 export default function BrokerModeToggle({ initialMode, compact, onModeChange }: Props) {
   const [mode, setMode] = useState(initialMode);
   const [switching, setSwitching] = useState(false);
+
+  // Sync with parent when initialMode changes (e.g. after PortfolioProvider loads)
+  useEffect(() => {
+    setMode(initialMode);
+  }, [initialMode]);
 
   const toggle = useCallback(async (next: "live" | "demo") => {
     if (next === mode || switching) return;
@@ -24,8 +29,6 @@ export default function BrokerModeToggle({ initialMode, compact, onModeChange }:
       if (res.ok) {
         setMode(next);
         onModeChange?.(next);
-        // Full page reload to force server components to re-fetch
-        // with the new mode (watchlist, portfolio, calculator etc)
         window.location.reload();
         return;
       }
