@@ -347,15 +347,8 @@ export default function WatchlistPage() {
         body: JSON.stringify({ mode: next }),
       });
       if (res.ok) {
-        window.dispatchEvent(new CustomEvent("aurora:broker-mode-changed", { detail: next }));
-        window.dispatchEvent(new CustomEvent("aurora:broker-connected"));
-        window.dispatchEvent(new CustomEvent("aurora:toast", {
-          detail: {
-            id: `mode-${next}`,
-            title: `Switched to ${next === "demo" ? "Demo" : "Live"} Account`,
-            tone: "info",
-          },
-        }));
+        window.location.reload();
+        return;
       }
     } catch { /* ignore */ } finally {
       setSwitching(false);

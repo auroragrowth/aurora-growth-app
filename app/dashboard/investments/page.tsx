@@ -174,11 +174,8 @@ export default function InvestmentsPage() {
         body: JSON.stringify({ mode: "live" }),
       });
       if (res.ok) {
-        window.dispatchEvent(new CustomEvent("aurora:broker-mode-changed", { detail: "live" }));
-        window.dispatchEvent(new CustomEvent("aurora:broker-connected"));
-        window.dispatchEvent(new CustomEvent("aurora:toast", {
-          detail: { id: "mode-live", title: "Switched to Live Account", tone: "success" },
-        }));
+        window.location.reload();
+        return;
       }
     } catch { /* ignore */ }
   }, []);

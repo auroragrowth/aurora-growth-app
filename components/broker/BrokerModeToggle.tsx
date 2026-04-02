@@ -22,10 +22,10 @@ export default function BrokerModeToggle({ initialMode, compact, onModeChange }:
         body: JSON.stringify({ mode: next }),
       });
       if (res.ok) {
-        setMode(next);
-        onModeChange?.(next);
-        window.dispatchEvent(new CustomEvent("aurora:broker-mode-changed", { detail: next }));
-        window.dispatchEvent(new CustomEvent("aurora:broker-connected"));
+        // Full page reload to force server components to re-fetch
+        // with the new mode (watchlist, portfolio, calculator etc)
+        window.location.reload();
+        return;
       }
     } catch { /* ignore */ } finally {
       setSwitching(false);
