@@ -1,895 +1,577 @@
-"use client";
+'use client'
 
-import Link from "next/link";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { ExpiredLock } from "@/components/dashboard/ExpiredOverlay";
-import dynamic from "next/dynamic";
+import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import Tooltip from '@/components/ui/Tooltip'
+import type { AuroraLadderResult } from '@/lib/aurora/calculator'
 
-const LadderMiniChart = dynamic(
-  () => import("@/components/charts/LadderMiniChart"),
-  { ssr: false }
-);
+function CalculatorContent() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
 
-/* ─── types ─── */
+  const [ticker, setTicker] = useState(searchParams.get('ticker') || '')
+  const [tickerInput, setTickerInput] = useState(searchParams.get('ticker') || '')
+  const [capital, setCapital] = useState(1000)
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState<AuroraLadderResult | null>(null)
+  const [error, setError] = useState('')
+  const [watchlistStocks, setWatchlistStocks] = useState<any[]>([])
+  const [brokerMode, setBrokerMode] = useState('live')
+  const [showPeaks, setShowPeaks] = useState(false)
+  const [peaks, setPeaks] = useState<any[]>([])
+  const [pullbacks, setPullbacks] = useState<any[]>([])
 
-type WatchlistItem = {
-  id: string;
-  symbol: string;
-  company_name?: string | null;
-};
-
-type CurrencyCode = "USD" | "GBP" | "EUR";
-type LadderType = 30 | 40 | 50 | 60 | 70;
-type RefSource = "recent_high" | "covid_high" | "custom";
-
-type LadderRow = {
-  step: number;
-  entryLevel: string;
-  entryPrice: number;
-  investmentAmount: number;
-  investmentPercent: number;
-  shares: number;
-  cumulativeShares: number;
-  remainingCash: number;
-  pctFromHigh: number;
-};
-
-type CandleRow = {
-  date: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-};
-
-type RefData = {
-  current_price: number;
-  recent_20pct_high: number | null;
-  recent_20pct_high_date: string | null;
-  days_since_high: number | null;
-  high_since_covid: number;
-  high_since_covid_date: string | null;
-  low_covid_crash: number;
-  low_covid_crash_date: string | null;
-  high_52w: number;
-  high_52w_date: string | null;
-  pct_below_recent: number;
-  pct_above_covid_low: number;
-};
-
-/* ─── helpers ─── */
-
-function parseNumber(value: string | number | null | undefined): number | null {
-  if (value === null || value === undefined || value === "") return null;
-  const cleaned = String(value).replace(/[^0-9.-]/g, "");
-  const parsed = Number(cleaned);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-function formatMoney(value: number, currency: CurrencyCode): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
-
-function formatPercent(value: number): string {
-  return `${value.toFixed(2)}%`;
-}
-
-function formatNumber(value: number, digits = 4): string {
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: digits }).format(value);
-}
-
-function getCurrencyPrefix(currency: CurrencyCode): string {
-  switch (currency) {
-    case "GBP": return "£";
-    case "EUR": return "€";
-    default: return "$";
-  }
-}
-
-function getLadderDrops(type: LadderType): number[] {
-  switch (type) {
-    case 30: return [10, 20, 30];
-    case 40: return [10, 20, 30, 40];
-    case 50: return [20, 30, 40, 50];
-    case 60: return [30, 40, 50, 60];
-    case 70: return [20, 30, 40, 50, 60, 70];
-    default: return [20, 30, 40, 50];
-  }
-}
-
-function getBaseAllocation(lineCount: number): number {
-  let total = 0;
-  for (let i = 0; i < lineCount; i++) total += Math.pow(1.25, i);
-  return 1 / total;
-}
-
-function getMidpointStep(type: LadderType): number {
-  return type === 70 ? 3 : 2;
-}
-
-function shortDate(dateStr: string | null): string {
-  if (!dateStr) return "—";
-  const d = new Date(dateStr + "T00:00:00Z");
-  return d.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
-}
-
-/* ─── component ─── */
-
-export default function InvestmentsCalculatorPage() {
-  return <Suspense><InvestmentsCalculatorInner /></Suspense>;
-}
-
-function InvestmentsCalculatorInner() {
-  const supabase = createClient();
-  const searchParams = useSearchParams();
-
-  // Watchlist
-  const [loadingWatchlist, setLoadingWatchlist] = useState(true);
-  const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
-  const [watchlistError, setWatchlistError] = useState("");
-
-  // Inputs
-  const [selectedWatchlistId, setSelectedWatchlistId] = useState("");
-  const [ticker, setTicker] = useState("");
-  const [companyName, setCompanyName] = useState("");
-  const [cashAvailable, setCashAvailable] = useState("5000");
-  const [currency, setCurrency] = useState<CurrencyCode>("USD");
-  const [ladderType, setLadderType] = useState<LadderType>(50);
-  const [customRefPrice, setCustomRefPrice] = useState("");
-
-  // Reference price state
-  const [refSource, setRefSource] = useState<RefSource>("recent_high");
-  const [currentPrice, setCurrentPrice] = useState(0);
-  const [refData, setRefData] = useState<RefData | null>(null);
-  const [loadingRef, setLoadingRef] = useState(false);
-
-  // Profit target — fixed at 20%
-  const profitTargetPct = 20;
-
-  // Stock data from scanner (live prices + recent high)
-  const [stockData, setStockData] = useState<{
-    price: number;
-    high90d: number | null;
-    high90dDate: string | null;
-    high52w: number | null;
-    recentHigh: number | null;
-    recentHighDate: string | null;
-  } | null>(null);
-
-  // Chart data
-  const [candles, setCandles] = useState<CandleRow[]>([]);
-  const [loadingCandles, setLoadingCandles] = useState(false);
-
-  // Loading state
-  const [loadingTicker, setLoadingTicker] = useState(false);
-  const [tickerError, setTickerError] = useState("");
-
-  /* ── Watchlist load ── */
+  // Load watchlist
   useEffect(() => {
-    let active = true;
-    async function load() {
-      setLoadingWatchlist(true);
-      try {
-        const res = await fetch("/api/watchlist", { cache: "no-store" });
-        const json = await res.json();
-        if (active) setWatchlist((json?.items || []) as WatchlistItem[]);
-      } catch (err: any) {
-        if (active) setWatchlistError(err?.message || "Failed loading watchlist.");
-      } finally {
-        if (active) setLoadingWatchlist(false);
-      }
-    }
-    load();
+    fetch('/api/watchlist')
+      .then(r => r.json())
+      .then(data => {
+        const stocks = Array.isArray(data) ? data : []
+        setWatchlistStocks(stocks)
 
-    // Re-fetch watchlist when broker mode changes
-    const onModeChange = () => { active = true; load(); };
-    window.addEventListener("aurora:broker-mode-changed", onModeChange);
-
-    return () => { active = false; window.removeEventListener("aurora:broker-mode-changed", onModeChange); };
-  }, [supabase]);
-
-  /* ── Pre-fill from ?ticker= query param ── */
-  const [prefilledFromParam, setPrefilledFromParam] = useState(false);
-  useEffect(() => {
-    const paramTicker = searchParams?.get("ticker");
-    if (paramTicker && !prefilledFromParam) {
-      setPrefilledFromParam(true);
-      setTicker(paramTicker.toUpperCase());
-      loadTickerData(paramTicker.toUpperCase());
-      return;
-    }
-  }, [searchParams, prefilledFromParam]);
-
-  /* ── Auto-select first watchlist item ── */
-  useEffect(() => {
-    if (prefilledFromParam) return;
-    if (!watchlist.length || selectedWatchlistId) return;
-    const first = watchlist[0];
-    setSelectedWatchlistId(first.id);
-    setTicker(first.symbol || "");
-    setCompanyName(first.company_name || "");
-    loadTickerData(first.symbol || "");
-  }, [watchlist, selectedWatchlistId, prefilledFromParam]);
-
-  /* ── Load ticker data: price + history + reference ── */
-  const loadTickerData = useCallback(async (symbol: string) => {
-    const clean = symbol.trim().toUpperCase();
-    if (!clean) return;
-
-    setLoadingTicker(true);
-    setTickerError("");
-    setLoadingCandles(true);
-    setLoadingRef(true);
-
-    // 1. Get current price + recent high from scanner/stock API
-    let price = 0;
-    try {
-      const res = await fetch(`/api/scanner/stock?ticker=${encodeURIComponent(clean)}`, { cache: "no-store" });
-      if (res.ok) {
-        const sd = await res.json();
-        if (sd.price) price = sd.price;
-        if (sd.company && sd.company !== clean) setCompanyName(sd.company);
-        setStockData(sd);
-      }
-      // Fallback to search if no price
-      if (!price) {
-        const searchRes = await fetch(`/api/stocks/search?q=${encodeURIComponent(clean)}`, { cache: "no-store" });
-        if (searchRes.ok) {
-          const data = await searchRes.json();
-          const rows = Array.isArray(data?.rows) ? data.rows : [];
-          const match = rows.find((r: any) => String(r?.symbol || "").toUpperCase() === clean) || rows[0];
+        // Auto-select ticker from URL param if present
+        const urlTicker = new URLSearchParams(window.location.search).get('ticker')
+        if (urlTicker) {
+          const match = stocks.find(
+            (s: any) => s.symbol === urlTicker.toUpperCase()
+          )
           if (match) {
-            const p = parseNumber(match.price) ?? parseNumber(match.current_price) ?? parseNumber(match.close);
-            if (p !== null) price = p;
-            if (match.company_name || match.company) setCompanyName(match.company_name || match.company);
+            setTicker(match.symbol)
+            setTickerInput(match.symbol)
           }
+        } else if (stocks.length > 0 && !ticker) {
+          // Auto-select first stock if no ticker in URL
+          setTicker(stocks[0].symbol)
+          setTickerInput(stocks[0].symbol)
         }
-      }
-      if (!price) throw new Error("No stock data found.");
-    } catch (err: any) {
-      setTickerError(err?.message || "Could not load ticker.");
-    }
-    setCurrentPrice(price);
-    setLoadingTicker(false);
+      })
+      .catch(() => setWatchlistStocks([]))
 
-    // 2. Fetch price history (1y for chart)
+    fetch('/api/broker/mode')
+      .then(r => r.json())
+      .then(d => setBrokerMode(d.mode || 'live'))
+      .catch(() => {})
+  }, [])
+
+  // Auto-run if ticker in URL
+  useEffect(() => {
+    const urlTicker = searchParams.get('ticker')
+    if (urlTicker) {
+      setTicker(urlTicker)
+      setTickerInput(urlTicker)
+      runAnalysis(urlTicker, capital)
+    }
+  }, [])
+
+  const runAnalysis = useCallback(async (t: string, cap: number) => {
+    if (!t) return
+    setLoading(true)
+    setError('')
+    setResult(null)
+
     try {
-      const res = await fetch(`/api/stock/history?ticker=${encodeURIComponent(clean)}&range=1y`, { cache: "no-store" });
-      const data = await res.json();
-      if (data?.ok && Array.isArray(data.candles)) {
-        setCandles(data.candles);
-      }
-    } catch {} finally {
-      setLoadingCandles(false);
+      const res = await fetch(
+        `/api/aurora/analyse?ticker=${t.toUpperCase()}&capital=${cap}`
+      )
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setResult(data)
+      setPeaks(data.peaks || [])
+      setPullbacks(data.pullbacks || [])
+    } catch (e: any) {
+      setError(e.message || 'Analysis failed')
+    } finally {
+      setLoading(false)
     }
+  }, [])
 
-    // 3. Fetch reference price data (needs history to exist first, so slight delay)
-    if (price > 0) {
-      try {
-        // First ensure we have 5y history for reference calculations
-        await fetch(`/api/stock/history?ticker=${encodeURIComponent(clean)}&range=5y`, { cache: "no-store" });
-        const res = await fetch(
-          `/api/stock/reference-price?ticker=${encodeURIComponent(clean)}&current_price=${price}`,
-          { cache: "no-store" }
-        );
-        const data = await res.json();
-        if (data?.ok) setRefData(data as RefData);
-      } catch {} finally {
-        setLoadingRef(false);
-      }
-    } else {
-      setLoadingRef(false);
-    }
-
-    // Log calculator usage for quickstart tracking
-    if (price > 0) {
-      fetch("/api/activity", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ event_type: "calculator_use", event_label: `Calculator used for ${clean}` }),
-      }).catch(() => {});
-    }
-  }, []);
-
-  /* ── Watchlist change ── */
-  function handleWatchlistChange(id: string) {
-    setSelectedWatchlistId(id);
-    const item = watchlist.find((r) => r.id === id);
-    if (!item) return;
-    setTicker(item.symbol || "");
-    setCompanyName(item.company_name || "");
-    setRefSource("recent_high");
-    setCustomRefPrice("");
-    setRefData(null);
-    setCandles([]);
-    loadTickerData(item.symbol || "");
+  const handleSubmit = () => {
+    const t = tickerInput.toUpperCase().trim()
+    if (!t) return
+    setTicker(t)
+    runAnalysis(t, capital)
+    router.replace(`/dashboard/investments/calculator?ticker=${t}`, { scroll: false })
   }
 
-  function clearTicker() {
-    setSelectedWatchlistId("");
-    setTicker("");
-    setCompanyName("");
-    setCurrentPrice(0);
-    setRefData(null);
-    setCandles([]);
-    setRefSource("recent_high");
-    setCustomRefPrice("");
-    setTickerError("");
+  const ladderTypeColor = (type: number) => {
+    if (type <= 40) return 'text-green-400'
+    if (type <= 60) return 'text-amber-400'
+    return 'text-red-400'
   }
 
-  /* ── Derived reference price based on selected source ── */
-  const referencePrice = useMemo(() => {
-    switch (refSource) {
-      case "recent_high": {
-        // Use actual 90d high if available, otherwise fall back to +20%
-        const recentHigh = stockData?.recentHigh || stockData?.high90d;
-        if (recentHigh && recentHigh > 0) return Math.round(recentHigh * 100) / 100;
-        return currentPrice > 0 ? Math.round(currentPrice * 1.20 * 100) / 100 : 0;
-      }
-      case "covid_high": return refData?.high_since_covid || currentPrice;
-      case "custom": return parseNumber(customRefPrice) || 0;
-      default: return 0;
-    }
-  }, [refSource, currentPrice, refData, customRefPrice, stockData]);
+  const formatPrice = (p: number) => `$${p.toFixed(2)}`
 
-  const cash = parseNumber(cashAvailable) || 0;
-  const ladderDrops = getLadderDrops(ladderType);
-  const baseAllocation = getBaseAllocation(ladderDrops.length);
-  const midpointStep = getMidpointStep(ladderType);
-
-  /* ── Ladder calculation ── */
-  const ladderRows = useMemo<LadderRow[]>(() => {
-    if (referencePrice <= 0 || cash <= 0) return [];
-    let cumulativeShares = 0;
-    let runningAllocated = 0;
-
-    return ladderDrops.map((drop, index) => {
-      const investmentPercentDecimal = baseAllocation * Math.pow(1.25, index);
-      const investmentAmount = cash * investmentPercentDecimal;
-      const entryPrice = referencePrice * (1 - drop / 100);
-      const shares = entryPrice > 0 ? investmentAmount / entryPrice : 0;
-      cumulativeShares += shares;
-      runningAllocated += investmentAmount;
-      const pctFromHigh = currentPrice > 0 ? ((currentPrice - entryPrice) / currentPrice) * 100 : 0;
-
-      return {
-        step: index + 1,
-        entryLevel: `-${drop}%`,
-        entryPrice,
-        investmentAmount,
-        investmentPercent: investmentPercentDecimal * 100,
-        shares,
-        cumulativeShares,
-        remainingCash: Math.max(0, cash - runningAllocated),
-        pctFromHigh,
-      };
-    });
-  }, [referencePrice, cash, ladderDrops, baseAllocation, currentPrice]);
-
-  const totalShares = ladderRows.length ? ladderRows[ladderRows.length - 1].cumulativeShares : 0;
-
-  const combinedFirstTwo = useMemo(() => {
-    const firstTwo = ladderRows.slice(0, 2);
-    const amount = firstTwo.reduce((s, r) => s + r.investmentAmount, 0);
-    const shares = firstTwo.reduce((s, r) => s + r.shares, 0);
-    return { amount, shares, averagePrice: shares > 0 ? amount / shares : 0 };
-  }, [ladderRows]);
-
-  const profitLines = useMemo(() => {
-    const bep = combinedFirstTwo.averagePrice;
-    const bepShares = combinedFirstTwo.shares;
-    if (bep <= 0 || bepShares <= 0) return [];
-    return [10, 15, 20, 25].map((pct) => {
-      const price = bep * (1 + pct / 100);
-      return { percent: pct, price, cashProfit: (price - bep) * bepShares };
-    });
-  }, [combinedFirstTwo]);
-
-  const cp = getCurrencyPrefix(currency);
-
-  /* ── Chart lines ── */
-  const chartLines = useMemo(() => {
-    const out: { label: string; price: number; color: string; style: "solid" | "dashed"; lineWidth?: number }[] = [];
-
-    // Reference price line (amber)
-    if (referencePrice > 0) {
-      out.push({
-        label: `Reference · ${cp}${referencePrice.toFixed(2)}`,
-        price: referencePrice,
-        color: "#D97706",
-        style: "solid",
-        lineWidth: 2,
-      });
-    }
-
-    // BEP line (green, solid)
-    if (combinedFirstTwo.averagePrice > 0) {
-      out.push({
-        label: `BEP · ${cp}${combinedFirstTwo.averagePrice.toFixed(2)}`,
-        price: combinedFirstTwo.averagePrice,
-        color: "#22c55e",
-        style: "solid",
-        lineWidth: 2,
-      });
-    }
-
-    // Ladder buy lines (blue, solid)
-    ladderRows.forEach((row) => {
-      out.push({
-        label: `Step ${row.step} · ${cp}${row.entryPrice.toFixed(2)}`,
-        price: row.entryPrice,
-        color: "#3B82F6",
-        style: "solid",
-        lineWidth: 2,
-      });
-    });
-
-    // Profit target lines (gold, dashed) — only when a target % is set
-    if (true) {
-      ladderRows.forEach((row) => {
-        const targetPrice = row.entryPrice * (1 + profitTargetPct / 100);
-        out.push({
-          label: `Target ${row.step} · ${cp}${targetPrice.toFixed(2)}`,
-          price: targetPrice,
-          color: "#F59E0B",
-          style: "dashed",
-          lineWidth: 2,
-        });
-      });
-    }
-
-    return out;
-  }, [referencePrice, ladderRows, currency, cp, profitTargetPct, combinedFirstTwo]);
-
-  /* ── Chart link ── */
-  const chartHref = useMemo(() => {
-    const line1 = ladderRows[0]?.entryPrice || 0;
-    const line2 = ladderRows[1]?.entryPrice || 0;
-    const bep = combinedFirstTwo.averagePrice || 0;
-    const p10 = profitLines.find((l) => l.percent === 10)?.price || 0;
-    const p15 = profitLines.find((l) => l.percent === 15)?.price || 0;
-    const p20 = profitLines.find((l) => l.percent === 20)?.price || 0;
-    const p25 = profitLines.find((l) => l.percent === 25)?.price || 0;
-    const params = new URLSearchParams({
-      ticker: ticker || "MSFT",
-      current: referencePrice > 0 ? String(referencePrice) : "0",
-      line1: String(line1), line2: String(line2), bep: String(bep),
-      p10: String(p10), p15: String(p15), p20: String(p20), p25: String(p25),
-    });
-    return `/dashboard/stocks/${ticker || "USLM"}`;
-  }, [ticker, referencePrice, ladderRows, combinedFirstTwo, profitLines]);
-
-  /* ── Reference card helper ── */
-  const refCards: { key: RefSource; title: string; value: string; sub1: string; sub2: string; borderColor?: string }[] = [
-    {
-      key: "recent_high",
-      title: "RECENT HIGH",
-      value: currentPrice > 0
-        ? `${cp}${(currentPrice * 1.20).toFixed(2)}`
-        : refData?.recent_20pct_high
-        ? `${cp}${refData.recent_20pct_high.toFixed(2)}`
-        : "—",
-      sub1: "20% above current price",
-      sub2: currentPrice > 0 ? `Current: ${cp}${currentPrice.toFixed(2)}` : "",
-      borderColor: "border-teal-400/40",
-    },
-  ];
-
-  /* ─── render ─── */
   return (
-    <ExpiredLock>
-    <div className="space-y-6">
+    <div className="p-6 max-w-7xl mx-auto space-y-6">
 
-      {/* ═══ TOP: Two-column layout ═══ */}
-      <div className="grid gap-6 xl:grid-cols-[2fr_3fr]">
-
-        {/* ─── LEFT COLUMN: Inputs ─── */}
-        <section className="rounded-[30px] border border-cyan-500/15 bg-[linear-gradient(180deg,rgba(4,16,48,0.98),rgba(5,20,56,0.96))] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.3)]" style={{ minHeight: "945px" }}>
-          <div className="mb-5">
-            <h2 className="text-2xl font-semibold text-white">
-              Aurora Ladder Calculator
-            </h2>
-            <p className="mt-2 text-sm text-slate-300">
-              Select a ticker, choose your reference price source, and build a staged ladder plan.
-            </p>
-          </div>
-
-          <div className="space-y-4">
-            {/* Watchlist */}
-            <div>
-              <label className="mb-2 block text-sm text-slate-300">Watchlist</label>
-              <select
-                value={selectedWatchlistId}
-                onChange={(e) => handleWatchlistChange(e.target.value)}
-                className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-              >
-                <option value="">
-                  {loadingWatchlist ? "Loading..." : watchlist.length ? "Select from watchlist" : "No items"}
-                </option>
-                {watchlist.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.symbol}{item.company_name ? ` — ${item.company_name}` : ""}
-                  </option>
-                ))}
-              </select>
-              {watchlistError && <p className="mt-2 text-sm text-rose-300">{watchlistError}</p>}
-            </div>
-
-            {/* Ticker search */}
-            <div>
-              <label className="mb-2 block text-sm text-slate-300">Ticker</label>
-              <div className="flex gap-2">
-                <input
-                  value={ticker}
-                  onChange={(e) => setTicker(e.target.value.toUpperCase())}
-                  onKeyDown={(e) => { if (e.key === "Enter") loadTickerData(ticker); }}
-                  className="flex-1 rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-                  placeholder="Search ticker e.g. AAPL"
-                />
-                <button
-                  type="button"
-                  onClick={() => loadTickerData(ticker)}
-                  disabled={!ticker.trim() || loadingTicker}
-                  className="rounded-2xl border border-cyan-500/15 bg-cyan-500/10 px-4 py-3 text-sm font-medium text-cyan-300 transition hover:bg-cyan-500/20 disabled:opacity-40"
-                >
-                  {loadingTicker ? "..." : "Go"}
-                </button>
-              </div>
-              {currentPrice > 0 && ticker && (
-                <p className="mt-2 text-sm text-cyan-300/80">
-                  Current: {cp}{currentPrice.toFixed(2)} · Ref: {cp}{referencePrice.toFixed(2)} (+20%)
-                </p>
-              )}
-            </div>
-
-            {/* Cash + Ladder in a row */}
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Cash Available</label>
-                <input
-                  value={cashAvailable}
-                  onChange={(e) => setCashAvailable(e.target.value)}
-                  className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-                  placeholder="5000"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-slate-300">Ladder Type</label>
-                <select
-                  value={ladderType}
-                  onChange={(e) => setLadderType(Number(e.target.value) as LadderType)}
-                  className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-                >
-                  <option value={30}>30%</option>
-                  <option value={40}>40%</option>
-                  <option value={50}>50%</option>
-                  <option value={60}>60%</option>
-                  <option value={70}>70%</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Currency */}
-            <div>
-              <label className="mb-2 block text-sm text-slate-300">Currency</label>
-              <select
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value as CurrencyCode)}
-                className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-              >
-                <option value="USD">$ USD</option>
-                <option value="GBP">£ GBP (Legacy)</option>
-                <option value="EUR">€ EUR</option>
-              </select>
-            </div>
-
-            {/* Reference price source selector */}
-            <div>
-              <label className="mb-2 block text-sm text-slate-300">Reference Price</label>
-              <div className="grid grid-cols-2 gap-2">
-                {(["recent_high", "custom"] as RefSource[]).map((src) => (
-                  <button
-                    key={src}
-                    type="button"
-                    onClick={() => setRefSource(src)}
-                    className={`rounded-xl border px-3 py-2.5 text-xs font-semibold transition ${
-                      refSource === src
-                        ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-200"
-                        : "border-white/10 bg-white/5 text-slate-300 hover:bg-white/8"
-                    }`}
-                  >
-                    {src === "recent_high" ? "Recent High" : "Custom"}
-                  </button>
-                ))}
-              </div>
-              {refSource === "custom" && (
-                <input
-                  value={customRefPrice}
-                  onChange={(e) => setCustomRefPrice(e.target.value)}
-                  className="mt-3 w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
-                  placeholder="Enter custom reference price"
-                />
-              )}
-              {referencePrice > 0 && refSource === "recent_high" && currentPrice > 0 && (
-                <p className="mt-2 text-sm text-cyan-300/80">
-                  Recent High: {cp}{referencePrice.toFixed(2)}
-                  {stockData?.recentHighDate ? ` · ${stockData.recentHighDate}` : " · +20% est."}
-                </p>
-              )}
-              {referencePrice > 0 && refSource === "custom" && (
-                <p className="mt-2 text-sm text-cyan-300/80">
-                  Reference: {cp}{referencePrice.toFixed(2)}
-                </p>
-              )}
-            </div>
-
-            {/* Buttons */}
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={() => loadTickerData(ticker)}
-                disabled={loadingTicker}
-                className="flex-1 rounded-[22px] bg-gradient-to-r from-cyan-300 via-sky-300 to-blue-300 px-6 py-3 text-sm font-semibold text-slate-950 shadow-[0_10px_30px_rgba(34,211,238,0.25)] transition hover:brightness-105 disabled:opacity-60"
-              >
-                {loadingTicker ? "Loading..." : "Calculate Ladder"}
-              </button>
-              <button
-                type="button"
-                onClick={clearTicker}
-                className="rounded-[22px] border border-white/10 bg-white/5 px-5 py-3 text-sm font-medium text-white transition hover:bg-white/10"
-              >
-                Clear
-              </button>
-            </div>
-
-            {tickerError && <p className="text-sm text-rose-300">{tickerError}</p>}
-
-            {(selectedWatchlistId || companyName) && (
-              <div className="flex flex-wrap gap-2">
-                {selectedWatchlistId && (
-                  <span className="rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-300">
-                    {ticker}
-                  </span>
-                )}
-                {companyName && (
-                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-slate-300">
-                    {companyName}
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* ─── RIGHT COLUMN: Chart ─── */}
-        <section className="rounded-[30px] border border-cyan-500/15 bg-[linear-gradient(180deg,rgba(4,16,48,0.98),rgba(5,20,56,0.96))] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.3)]">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h3 className="text-base font-semibold text-white">
-                {ticker ? `${ticker} — Price History` : "Price Chart"}
-              </h3>
-              <p className="mt-1 text-sm text-white/45">
-                {candles.length > 0
-                  ? `${candles.length} days · Ladder lines overlaid`
-                  : "Select a ticker to load chart"}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-xs">
-              <span className="rounded-full border border-amber-600/30 bg-amber-600/10 px-2.5 py-1 text-amber-300">Reference</span>
-              <span className="rounded-full border border-blue-400/30 bg-blue-400/10 px-2.5 py-1 text-blue-300">Buy Levels</span>
-              <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-amber-200">Profit Targets</span>
-            </div>
-          </div>
-
-          {loadingCandles ? (
-            <div className="flex h-[400px] items-center justify-center rounded-2xl border border-white/10 bg-[#030916] text-sm text-white/40">
-              Loading chart data...
-            </div>
-          ) : (
-            <LadderMiniChart
-              ticker={ticker}
-              candles={candles}
-              lines={chartLines}
-              height={400}
-            />
-          )}
-        </section>
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-white">
+          ✦ Investment Ladder Calculator
+        </h1>
+        <p className="text-white/50 text-sm mt-1">
+          Aurora methodology — automatic peak detection and ladder selection
+        </p>
       </div>
 
-      {/* ═══ REFERENCE PRICE CARDS ═══ */}
-      <section className="grid gap-4 sm:grid-cols-2">
-        {refCards.map((card) => {
-          const isSelected = refSource === card.key;
-          return (
-            <button
-              key={card.key + card.title}
-              type="button"
-              onClick={() => setRefSource(card.key)}
-              className={`rounded-3xl border p-5 text-left transition ${
-                isSelected
-                  ? `${card.borderColor || "border-cyan-400/40"} bg-cyan-500/10 shadow-[0_0_30px_rgba(34,211,238,0.08)]`
-                  : "border-white/10 bg-slate-950/40 hover:border-white/20"
-              }`}
-            >
-              <div className="text-xs uppercase tracking-[0.22em] text-slate-400">{card.title}</div>
-              <div className="mt-3 text-3xl font-semibold text-white">{loadingRef ? "..." : card.value}</div>
-              <div className="mt-2 text-sm text-slate-300">{card.sub1}</div>
-              {card.sub2 && <div className="mt-1 text-sm text-slate-400">{card.sub2}</div>}
-            </button>
-          );
-        })}
-      </section>
+      {/* Input Card */}
+      <div className="bg-white/5 border border-white/10 rounded-2xl p-6"
+        style={{ minHeight: '945px' }}>
 
-      {/* ═══ TOP SUMMARY BAR ═══ */}
-      {true && ladderRows.length > 0 && (() => {
-        const totalInvested = ladderRows.reduce((s, r) => s + r.investmentAmount, 0);
-        const totalAtTargets = ladderRows.reduce((s, r) => {
-          const targetPrice = r.entryPrice * (1 + profitTargetPct / 100);
-          return s + targetPrice * r.shares;
-        }, 0);
-        const totalGain = totalAtTargets - totalInvested;
-        const totalGainPct = totalInvested > 0 ? (totalGain / totalInvested) * 100 : 0;
-        return (
-          <section className="rounded-2xl border border-white/10 bg-slate-950/80 p-5">
-            <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-              Total Potential Return
-            </div>
-            <div className="grid gap-6 sm:grid-cols-3">
-              <div>
-                <div className="text-[11px] uppercase tracking-wider text-slate-500">Total Invested</div>
-                <div className="mt-1 text-xl font-semibold text-white">{formatMoney(totalInvested, currency)}</div>
-              </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-wider text-slate-500">Total at Targets</div>
-                <div className="mt-1 text-xl font-semibold text-white">{formatMoney(totalAtTargets, currency)}</div>
-              </div>
-              <div>
-                <div className="text-[11px] uppercase tracking-wider text-slate-500">Total Gain</div>
-                <div className="mt-1 text-xl font-semibold text-emerald-400">
-                  +{formatMoney(totalGain, currency)}{" "}
-                  <span className="text-sm text-emerald-400/80">(+{totalGainPct.toFixed(1)}%)</span>
-                </div>
-              </div>
-            </div>
-          </section>
-        );
-      })()}
+        {/* Controls row */}
+        <div className="flex flex-wrap gap-3 mb-6">
 
-      {/* ═══ THREE STAT CARDS ═══ */}
-      <section className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-          <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">First 2 Lines</div>
-          <div className="mt-0.5 text-xs uppercase tracking-[0.18em] text-slate-400">Avg Price</div>
-          <div className="mt-2 text-2xl font-semibold text-white">
-            {combinedFirstTwo.averagePrice > 0 ? `${cp}${combinedFirstTwo.averagePrice.toFixed(2)}` : "—"}
-          </div>
-          <div className="mt-1 text-[11px] text-slate-500">Blended avg entry</div>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-          <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">First 2 Lines</div>
-          <div className="mt-0.5 text-xs uppercase tracking-[0.18em] text-slate-400">Shares</div>
-          <div className="mt-2 text-2xl font-semibold text-white">
-            {combinedFirstTwo.shares > 0 ? formatNumber(combinedFirstTwo.shares, 3) : "—"}
-          </div>
-          <div className="mt-1 text-[11px] text-slate-500">Combined 1 &amp; 2</div>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-4">
-          <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">First 2 Lines</div>
-          <div className="mt-0.5 text-xs uppercase tracking-[0.18em] text-slate-400">Amount</div>
-          <div className="mt-2 text-2xl font-semibold text-white">
-            {formatMoney(combinedFirstTwo.amount, currency)}
-          </div>
-          <div className="mt-1 text-[11px] text-slate-500">Total invested</div>
-        </div>
-      </section>
-
-      {/* ═══ ENTRY LINES TABLE ═══ */}
-      <section className="rounded-2xl border border-white/10 bg-slate-950/60 p-5">
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold text-white">Entry Lines</h3>
-          <p className="mt-1 text-xs text-slate-400">Your staged buy points from the reference price</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-white/10 text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                <th className="px-4 py-2.5 text-left font-medium">Line</th>
-                <th className="px-4 py-2.5 text-left font-medium">Level</th>
-                <th className="px-4 py-2.5 text-left font-medium">Entry Price</th>
-                <th className="px-4 py-2.5 text-left font-medium">Investment</th>
-                <th className="px-4 py-2.5 text-left font-medium">Shares</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ladderRows.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-4 text-slate-500">No entry lines yet.</td>
-                </tr>
-              ) : (
-                ladderRows.map((row) => (
-                  <tr
-                    key={`entry-${row.step}`}
-                    className={`border-t border-white/5 ${
-                      row.step === 1
-                        ? "bg-blue-500/[0.08]"
-                        : row.step === midpointStep
-                        ? "bg-teal-500/[0.08]"
-                        : ""
-                    }`}
-                  >
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center gap-2">
-                        <span className="inline-block h-2 w-2 rounded-full bg-[#3B82F6]" />
-                        <span className="font-medium text-white">{row.step}</span>
-                        {row.step === midpointStep && (
-                          <span className="rounded-full border border-teal-400/20 bg-teal-500/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-teal-300">
-                            BEP
-                          </span>
-                        )}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-300">{row.entryLevel}</td>
-                    <td className="px-4 py-3 font-medium text-blue-300">{cp}{row.entryPrice.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-white">{formatMoney(row.investmentAmount, currency)}</td>
-                    <td className="px-4 py-3 text-white">{formatNumber(row.shares, 2)}</td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {/* ═══ PROFIT TARGETS ═══ */}
-      <section className="rounded-2xl border border-white/10 bg-slate-950/60 p-5">
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold text-white">Profit Targets</h3>
-          <p className="mt-1 text-xs text-slate-400">
-            {true && combinedFirstTwo.averagePrice > 0
-              ? <>Calculated from your blended entry price of {cp}{combinedFirstTwo.averagePrice.toFixed(2)}</>
-              : "Select a profit target percentage below"}
-          </p>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {profitLines.length === 0 ? (
-              <div className="text-sm text-slate-500">No profit targets yet.</div>
+          {/* Watchlist dropdown */}
+          <div className="flex-1 min-w-48">
+            {brokerMode === 'demo' ? (
+              <p className="text-amber-400 text-xs mb-1">
+                🟡 Demo Watchlist ({watchlistStocks.length} stocks)
+              </p>
             ) : (
-              profitLines.map((line) => (
-                <div
-                  key={`pt-${line.percent}`}
-                  className={`rounded-xl border p-4 transition ${
-                    profitTargetPct === line.percent
-                      ? "border-amber-400/40 bg-amber-500/15"
-                      : "border-white/10 bg-white/[0.03]"
-                  }`}
-                >
-                  <div className="text-sm font-semibold text-[#F59E0B]">+{line.percent}%</div>
-                  <div className="mt-1 text-xl font-semibold text-white">{cp}{line.price.toFixed(2)}</div>
-                  <div className="mt-2 text-[11px] text-slate-400">Cash:</div>
-                  <div className="text-sm font-medium text-emerald-400">+{formatMoney(line.cashProfit, currency)}</div>
-                </div>
-              ))
+              <p className="text-green-400 text-xs mb-1">
+                🟢 Live Watchlist ({watchlistStocks.length} stocks)
+              </p>
             )}
+            <label className="text-white/40 text-xs uppercase tracking-wider mb-1 block">
+              From Watchlist
+            </label>
+            <select
+              value={ticker}
+              onChange={e => {
+                setTicker(e.target.value)
+                setTickerInput(e.target.value)
+                if (e.target.value) runAnalysis(e.target.value, capital)
+              }}
+              className="w-full bg-white/5 border border-white/10 rounded-xl
+              px-4 py-2.5 text-white text-sm focus:outline-none
+              focus:border-cyan-400/50"
+            >
+              <option value="">Select from watchlist...</option>
+              {watchlistStocks.map(s => (
+                <option key={s.symbol} value={s.symbol}>
+                  {s.symbol} — {s.company_name}
+                </option>
+              ))}
+            </select>
           </div>
 
-        <div className="mt-4">
-          <Link
-            href={chartHref}
-            className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-cyan-300 via-sky-300 to-blue-300 px-5 py-2.5 text-xs font-semibold text-slate-950 shadow-[0_10px_30px_rgba(34,211,238,0.15)] transition hover:brightness-105"
-          >
-            Analyze on Chart
-          </Link>
-        </div>
-      </section>
+          {/* Manual ticker search */}
+          <div className="flex-1 min-w-48">
+            <label className="text-white/40 text-xs uppercase tracking-wider mb-1 block">
+              Search Any Stock
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={tickerInput}
+                onChange={e => setTickerInput(e.target.value.toUpperCase())}
+                onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                placeholder="e.g. NVDA, AAPL..."
+                className="flex-1 bg-white/5 border border-white/10 rounded-xl
+                px-4 py-2.5 text-white text-sm placeholder-white/30
+                focus:outline-none focus:border-cyan-400/50"
+              />
+              <button
+                onClick={handleSubmit}
+                className="px-4 py-2.5 bg-cyan-500/20 border border-cyan-500/30
+                rounded-xl text-cyan-400 text-sm hover:bg-cyan-500/30 transition-colors"
+              >
+                →
+              </button>
+            </div>
+          </div>
 
+          {/* Capital */}
+          <div className="min-w-40">
+            <label className="text-white/40 text-xs uppercase tracking-wider mb-1 block">
+              Total Capital
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-white/40 text-sm">$</span>
+              <input
+                type="number"
+                value={capital}
+                onChange={e => setCapital(Number(e.target.value))}
+                onBlur={() => result && runAnalysis(ticker, capital)}
+                className="w-full bg-white/5 border border-white/10 rounded-xl
+                pl-7 pr-4 py-2.5 text-white text-sm
+                focus:outline-none focus:border-cyan-400/50"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Loading */}
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-16 space-y-3">
+            <div className="w-10 h-10 border-2 border-cyan-400 border-t-transparent
+              rounded-full animate-spin" />
+            <p className="text-white/50 text-sm">
+              Analysing {ticker} — detecting Aurora peaks...
+            </p>
+          </div>
+        )}
+
+        {/* Error */}
+        {error && (
+          <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+            {error}
+          </div>
+        )}
+
+        {/* Results */}
+        {result && !loading && (
+          <div className="space-y-6">
+
+            {/* Analysis summary row */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <div className="flex items-center gap-1 mb-1">
+                  <p className="text-white/40 text-xs uppercase tracking-wider">
+                    Current Price
+                  </p>
+                  <Tooltip text="Live market price fetched from Yahoo Finance">
+                    <span/>
+                  </Tooltip>
+                </div>
+                <p className="text-2xl font-bold text-white">
+                  {formatPrice(result.currentPrice)}
+                </p>
+              </div>
+
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <div className="flex items-center gap-1 mb-1">
+                  <p className="text-white/40 text-xs uppercase tracking-wider">
+                    Recent Aurora Peak
+                  </p>
+                  <Tooltip text="The most recent significant price high from which Aurora calculates entry levels">
+                    <span/>
+                  </Tooltip>
+                </div>
+                <p className="text-2xl font-bold text-white">
+                  {formatPrice(result.recentPeakPrice)}
+                </p>
+                <p className="text-white/40 text-xs mt-0.5">
+                  {new Date(result.recentPeakDate).toLocaleDateString('en-GB', {
+                    day: '2-digit', month: 'short', year: 'numeric'
+                  })}
+                </p>
+              </div>
+
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <div className="flex items-center gap-1 mb-1">
+                  <p className="text-white/40 text-xs uppercase tracking-wider">
+                    Largest Pullback
+                  </p>
+                  <Tooltip text="The biggest historical drop from a peak. Aurora uses this to select the correct ladder spacing.">
+                    <span/>
+                  </Tooltip>
+                </div>
+                <p className="text-2xl font-bold text-red-400">
+                  -{result.largestPullback.toFixed(1)}%
+                </p>
+              </div>
+
+              <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                <div className="flex items-center gap-1 mb-1">
+                  <p className="text-white/40 text-xs uppercase tracking-wider">
+                    Auto-Selected Ladder
+                  </p>
+                  <Tooltip text={`Based on ${result.largestPullback.toFixed(1)}% largest pullback. Aurora rounds up to the next available ladder: 30/40/50/60/70/90.`}>
+                    <span/>
+                  </Tooltip>
+                </div>
+                <p className={`text-2xl font-bold ${ladderTypeColor(result.calculatorType)}`}>
+                  {result.calculatorType} Ladder
+                </p>
+                <p className="text-white/40 text-xs mt-0.5">
+                  Auto-selected ✦
+                </p>
+              </div>
+            </div>
+
+            {/* Combined buy alert */}
+            {result.combinedBuyNeeded && (
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                <div className="flex items-start gap-3">
+                  <span className="text-amber-400 text-xl flex-shrink-0">⚡</span>
+                  <div>
+                    <p className="text-amber-400 font-bold text-sm mb-1">
+                      Combined Buy Opportunity
+                    </p>
+                    <p className="text-amber-400/70 text-sm">
+                      The current price of {formatPrice(result.currentPrice)} has already
+                      passed Entry {result.combinedBuyLines.join(', ')}.
+                      Aurora combines the allocations for those lines and buys at the live price.
+                    </p>
+                    <div className="mt-3 grid grid-cols-3 gap-3">
+                      <div className="bg-white/5 rounded-lg p-3 text-center">
+                        <p className="text-white/40 text-xs mb-1">Combined Allocation</p>
+                        <p className="text-white font-bold">${result.combinedBuyAllocation.toFixed(2)}</p>
+                      </div>
+                      <div className="bg-white/5 rounded-lg p-3 text-center">
+                        <p className="text-white/40 text-xs mb-1">Live Price</p>
+                        <p className="text-amber-400 font-bold">{formatPrice(result.currentPrice)}</p>
+                      </div>
+                      <div className="bg-white/5 rounded-lg p-3 text-center">
+                        <p className="text-white/40 text-xs mb-1">Shares to Buy</p>
+                        <p className="text-white font-bold">{result.combinedBuyShares.toFixed(2)}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => router.push(`/dashboard/stocks/${ticker}`)}
+                      className="mt-3 px-4 py-2 rounded-xl text-xs font-bold
+                      bg-amber-500/20 border border-amber-500/30 text-amber-400
+                      hover:bg-amber-500/30 transition-colors"
+                    >
+                      Make Investment → Place Combined Buy
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Entry Lines Table */}
+            <div>
+              <div className="flex items-center gap-2 mb-3">
+                <h2 className="text-white font-bold">Aurora Entry Lines</h2>
+                <Tooltip text="Staged buy levels calculated from the Aurora Peak. Blue lines on the chart. Buy in stages as price falls through each level.">
+                  <span/>
+                </Tooltip>
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-white/10">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-white/5 border-b border-white/10">
+                      <th className="text-left px-4 py-3 text-white/40 text-xs uppercase tracking-wider">Step</th>
+                      <th className="text-left px-4 py-3 text-white/40 text-xs uppercase tracking-wider">Drop</th>
+                      <th className="text-left px-4 py-3 text-white/40 text-xs uppercase tracking-wider">
+                        <div className="flex items-center gap-1">
+                          Entry Price
+                          <Tooltip text="Calculated from the Aurora Peak price. This is where you place your buy order.">
+                            <span/>
+                          </Tooltip>
+                        </div>
+                      </th>
+                      <th className="text-left px-4 py-3 text-white/40 text-xs uppercase tracking-wider">Allocation</th>
+                      <th className="text-left px-4 py-3 text-white/40 text-xs uppercase tracking-wider">Shares</th>
+                      <th className="text-left px-4 py-3 text-white/40 text-xs uppercase tracking-wider">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5">
+                    {result.entryLines.map(line => {
+                      const alreadyPassed = result.currentPrice <= line.entryPrice
+                      const isCombined = result.combinedBuyLines.includes(line.step)
+                      return (
+                        <tr key={line.step}
+                          className={`${isCombined ? 'bg-amber-500/5' : alreadyPassed ? 'bg-cyan-500/5' : ''}`}>
+                          <td className="px-4 py-3 text-white font-bold">
+                            Step {line.step}
+                          </td>
+                          <td className="px-4 py-3 text-red-400">
+                            -{line.dropPercent}%
+                          </td>
+                          <td className="px-4 py-3 text-cyan-400 font-bold font-mono">
+                            {formatPrice(line.entryPrice)}
+                          </td>
+                          <td className="px-4 py-3 text-white/70">
+                            ${line.allocation.toFixed(2)}
+                          </td>
+                          <td className="px-4 py-3 text-white/70">
+                            {isCombined
+                              ? result.combinedBuyShares.toFixed(2)
+                              : line.plannedShares.toFixed(2)
+                            }
+                          </td>
+                          <td className="px-4 py-3">
+                            {isCombined ? (
+                              <span className="px-2 py-1 rounded-full text-xs font-bold
+                                bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                                COMBINED BUY
+                              </span>
+                            ) : alreadyPassed ? (
+                              <span className="px-2 py-1 rounded-full text-xs font-bold
+                                bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                                PRICE PASSED
+                              </span>
+                            ) : (
+                              <span className="px-2 py-1 rounded-full text-xs font-bold
+                                bg-white/5 text-white/40 border border-white/10">
+                                PENDING
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* BEP and Profit Levels */}
+            {result.bep && result.profitLevels && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                {/* BEP Card */}
+                <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-3 h-0.5 bg-green-400" />
+                    <p className="text-green-400 font-bold text-sm">Aurora BEP</p>
+                    <Tooltip text="Blended Entry Price — your weighted average cost across all filled entries. Shown as the green line on the chart.">
+                      <span/>
+                    </Tooltip>
+                  </div>
+                  <p className="text-3xl font-bold text-green-400">
+                    {formatPrice(result.bep)}
+                  </p>
+                  <p className="text-green-400/60 text-xs mt-1">
+                    Weighted average of all entry fills
+                  </p>
+                  {result.stopLoss && (
+                    <div className="mt-3 pt-3 border-t border-green-500/20">
+                      <p className="text-white/40 text-xs">Current stop-loss</p>
+                      <p className="text-white font-bold">{formatPrice(result.stopLoss)}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Profit Targets */}
+                <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="w-3 h-0.5 bg-amber-400 border-t-2 border-dashed border-amber-400" />
+                    <p className="text-amber-400 font-bold text-sm">Profit Targets</p>
+                    <Tooltip text="Calculated from BEP. Aurora stop rules: move stop to previous level when each target is hit.">
+                      <span/>
+                    </Tooltip>
+                  </div>
+                  <div className="space-y-2">
+                    {[
+                      { label: '+10%', value: result.profitLevels.p10, stop: 'Move stop above BEP' },
+                      { label: '+15%', value: result.profitLevels.p15, stop: 'Move stop to +10%' },
+                      { label: '+20%', value: result.profitLevels.p20, stop: 'Move stop to +15%' },
+                      { label: '+25%', value: result.profitLevels.p25, stop: 'Move stop to +20%' },
+                    ].map(t => (
+                      <div key={t.label} className="flex items-center justify-between">
+                        <span className="text-amber-400/70 text-sm">{t.label}</span>
+                        <span className="text-white font-mono font-bold text-sm">
+                          {formatPrice(t.value)}
+                        </span>
+                        <span className="text-white/30 text-xs hidden md:block">{t.stop}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Peak/Pullback analysis toggle */}
+            <div>
+              <button
+                onClick={() => setShowPeaks(!showPeaks)}
+                className="flex items-center gap-2 text-white/40 text-sm hover:text-white/60 transition-colors"
+              >
+                <span>{showPeaks ? '▼' : '▶'}</span>
+                Aurora Peak & Pullback Analysis
+                <span className="px-2 py-0.5 rounded-full text-xs bg-white/5 border border-white/10">
+                  {peaks.length} peaks · {pullbacks.length} pullbacks detected
+                </span>
+              </button>
+
+              {showPeaks && (
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                  <div>
+                    <p className="text-white/40 text-xs uppercase tracking-wider mb-2">
+                      Aurora Peaks (20%+ rises)
+                    </p>
+                    <div className="space-y-2">
+                      {peaks.slice(-5).map((p: any, i: number) => (
+                        <div key={i} className="flex items-center justify-between
+                          bg-white/5 rounded-lg px-3 py-2 text-sm">
+                          <span className="text-white/50 text-xs">{p.peakDate}</span>
+                          <span className="text-white font-bold">{formatPrice(p.peakPrice)}</span>
+                          <span className="text-green-400 text-xs">+{p.risePercent?.toFixed(1)}%</span>
+                          {p.isAllTimeHigh && (
+                            <span className="text-xs text-amber-400">ATH</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-white/40 text-xs uppercase tracking-wider mb-2">
+                      Pullbacks Measured
+                    </p>
+                    <div className="space-y-2">
+                      {pullbacks.map((p: any, i: number) => (
+                        <div key={i} className="flex items-center justify-between
+                          bg-white/5 rounded-lg px-3 py-2 text-sm">
+                          <span className="text-white/50 text-xs">{p.fromPeakDate}</span>
+                          <span className="text-white">{formatPrice(p.fromPeakPrice)}</span>
+                          <span className="text-red-400 font-bold">-{p.pullbackPercent?.toFixed(1)}%</span>
+                          {p.isCovidPullback && (
+                            <span className="text-xs text-purple-400">COVID</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-center">
+                      <p className="text-white/40 text-xs">Largest pullback</p>
+                      <p className="text-red-400 font-bold">
+                        -{result.largestPullback.toFixed(1)}% → {result.calculatorType} Ladder
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Open in full calculator */}
+            <div className="flex gap-3 pt-2 border-t border-white/10">
+              <button
+                onClick={() => router.push(`/dashboard/stocks/${ticker}`)}
+                className="px-5 py-2.5 rounded-xl text-sm font-bold
+                bg-gradient-to-r from-cyan-400 to-blue-500 text-white
+                hover:opacity-90 transition-opacity"
+              >
+                View Chart & Make Investment →
+              </button>
+              <button
+                onClick={() => runAnalysis(ticker, capital)}
+                className="px-5 py-2.5 rounded-xl text-sm font-bold
+                border border-white/10 text-white/60 hover:bg-white/5 transition-colors"
+              >
+                Refresh Analysis
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!result && !loading && !error && (
+          <div className="flex flex-col items-center justify-center py-20 space-y-4">
+            <div className="text-6xl opacity-20">✦</div>
+            <p className="text-white/40 text-center">
+              Select a stock from your watchlist or enter a ticker to begin Aurora analysis
+            </p>
+          </div>
+        )}
+      </div>
     </div>
-    </ExpiredLock>
-  );
+  )
+}
+
+export default function CalculatorPage() {
+  return (
+    <Suspense fallback={
+      <div className="p-6 flex items-center justify-center min-h-96">
+        <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <CalculatorContent />
+    </Suspense>
+  )
 }
