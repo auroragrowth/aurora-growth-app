@@ -99,23 +99,25 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
   const [orderResults, setOrderResults] = useState<any[]>([])
 
   useEffect(() => {
-    fetch(`/api/market/quote?ticker=${ticker}`)
-      .then(r => r.json())
-      .then(setStockData)
-      .catch(() => {})
+    if (!ticker) return
 
-    fetch(`/api/scanner/stock?ticker=${ticker}`)
-      .then(r => r.json())
-      .then(setScannerData)
-      .catch(() => {})
-
-    fetch(`/api/watchlist/check?symbol=${ticker}`)
-      .then(r => r.json())
-      .then(d => {
-        setInWatchlist(d.inWatchlist)
-        setWatchlistMode(d.mode || 'live')
-      })
-      .catch(() => {})
+    Promise.all([
+      fetch(`/api/scanner/stock?ticker=${ticker}`)
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null),
+      fetch(`/api/watchlist/check?symbol=${ticker}`)
+        .then(r => r.ok ? r.json() : null)
+        .catch(() => null)
+    ]).then(([stockResult, watchlistResult]) => {
+      if (stockResult) {
+        setScannerData(stockResult)
+        setStockData(stockResult)
+      }
+      if (watchlistResult) {
+        setInWatchlist(watchlistResult.inWatchlist || false)
+        setWatchlistMode(watchlistResult.mode || 'live')
+      }
+    })
   }, [ticker])
 
   const toggleWatchlist = async () => {
@@ -161,8 +163,8 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
     ? { label: 'WATCH', color: 'text-red-400 bg-red-500/10 border-red-500/30' }
     : null
 
-  const price = stockData?.price || parseFloat(scannerData?.price || '0')
-  const change = stockData?.changePercent || 0
+  const price = scannerData?.price || stockData?.price || 0
+  const change = scannerData?.changePct || stockData?.changePercent || 0
 
   return (
     <div className="min-h-screen">
@@ -296,12 +298,12 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
           {[
             {
               label: 'Market Cap',
-              value: stockData?.marketCap
-                ? stockData.marketCap > 1e12
-                  ? `$${(stockData.marketCap/1e12).toFixed(2)}T`
-                  : stockData.marketCap > 1e9
-                  ? `$${(stockData.marketCap/1e9).toFixed(2)}B`
-                  : `$${(stockData.marketCap/1e6).toFixed(0)}M`
+              value: scannerData?.marketCap
+                ? scannerData.marketCap > 1e12
+                  ? `$${(scannerData.marketCap/1e12).toFixed(2)}T`
+                  : scannerData.marketCap > 1e9
+                  ? `$${(scannerData.marketCap/1e9).toFixed(2)}B`
+                  : `$${(scannerData.marketCap/1e6).toFixed(0)}M`
                 : scannerData?.market_cap || '—',
               tip: 'Total market value of the company'
             },
