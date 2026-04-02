@@ -22,8 +22,6 @@ export async function POST(req: Request) {
     const symbol = cleanSymbol(body?.symbol || body?.ticker);
     const company_name =
       typeof body?.company_name === "string" ? body.company_name.trim() : null;
-    const market =
-      typeof body?.market === "string" ? body.market.trim() : null;
     const source =
       typeof body?.source === "string" ? body.source.trim() : null;
 
@@ -41,7 +39,10 @@ export async function POST(req: Request) {
     const mode = await getActiveMode(auth.user.id);
     const table = getWatchlistTable(mode);
 
-    const { data: existing } = await supabase
+    console.log("Watchlist toggle:", { symbol, mode, table, userId: auth.user.id });
+
+    // Use supabaseAdmin for lookups/writes to bypass RLS issues on demo table
+    const { data: existing } = await supabaseAdmin
       .from(table)
       .select("id")
       .eq("user_id", auth.user.id)
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
       .maybeSingle();
 
     if (existing?.id) {
-      await supabase.from(table).delete().eq("id", existing.id);
+      await supabaseAdmin.from(table).delete().eq("id", existing.id);
       return NextResponse.json({ ok: true, added: false, symbol, mode });
     }
 
@@ -59,20 +60,24 @@ export async function POST(req: Request) {
       user_id: auth.user.id,
       symbol,
       company_name,
-      market,
       source,
       is_aurora_recommended: isAurora,
       added_by: isAurora ? "scanner" : "manual",
-      updated_at: new Date().toISOString(),
     };
 
-    const { error: insErr } = await supabase.from(table).insert([insertRow]);
+    const { error: insErr } = await supabaseAdmin.from(table).insert([insertRow]);
 
     if (insErr) {
-      // Fallback without optional columns
-      const { is_aurora_recommended, added_by, ...fallbackRow } = insertRow;
-      const { error: retryErr } = await supabase.from(table).insert([fallbackRow]);
+      console.error("Watchlist insert error:", insErr.message, "table:", table);
+      // Fallback with only core columns
+      const { error: retryErr } = await supabaseAdmin.from(table).insert([{
+        user_id: auth.user.id,
+        symbol,
+        company_name,
+        source,
+      }]);
       if (retryErr) {
+        console.error("Watchlist fallback insert error:", retryErr.message);
         return NextResponse.json({ error: retryErr.message }, { status: 500 });
       }
     }

@@ -1,8 +1,21 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { getWatchlistTable } from "@/lib/watchlist/getTable";
 
-const TABLE = "watchlist_items";
+async function getTable() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return "watchlist_live";
+  const { data } = await supabase
+    .from("profiles")
+    .select("active_broker_mode")
+    .eq("id", user.id)
+    .maybeSingle();
+  return getWatchlistTable(data?.active_broker_mode);
+}
 
 export type WatchlistItem = {
   id?: string;
@@ -24,8 +37,9 @@ export async function getWatchlistItems(): Promise<WatchlistItem[]> {
 
   if (!user) return [];
 
+  const table = await getTable();
   const { data, error } = await supabase
-    .from(TABLE)
+    .from(table)
     .select("id, symbol, company_name, created_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
@@ -63,7 +77,8 @@ export async function addWatchlistItem(
     return { ok: false, message: "Not signed in" };
   }
 
-  const { error } = await supabase.from(TABLE).upsert(
+  const table = await getTable();
+  const { error } = await supabase.from(table).upsert(
     {
       user_id: user.id,
       symbol: cleanSymbol,
@@ -101,8 +116,9 @@ export async function removeWatchlistItem(
     return { ok: false, message: "Not signed in" };
   }
 
+  const table = await getTable();
   const { error } = await supabase
-    .from(TABLE)
+    .from(table)
     .delete()
     .eq("user_id", user.id)
     .eq("symbol", cleanSymbol);
@@ -135,8 +151,9 @@ export async function toggleWatchlist(
     return { ok: false, message: "Not signed in" };
   }
 
+  const table = await getTable();
   const { data: existing, error: existingError } = await supabase
-    .from(TABLE)
+    .from(table)
     .select("id")
     .eq("user_id", user.id)
     .eq("symbol", cleanSymbol)

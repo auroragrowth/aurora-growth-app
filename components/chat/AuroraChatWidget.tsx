@@ -100,7 +100,7 @@ export default function AuroraChatWidget() {
         const assistantMsg: Message = {
           id: generateId(),
           role: "model",
-          content: data.message,
+          content: data.response || data.message || "Sorry, I could not generate a response.",
           timestamp: Date.now(),
         };
 
@@ -314,6 +314,7 @@ export default function AuroraChatWidget() {
 /* ─── Simple markdown-ish renderer ────────────────────────────── */
 
 function MessageContent({ content }: { content: string }) {
+  if (!content) return null;
   // Split into paragraphs, render bold (**text**) and line breaks
   const paragraphs = content.split("\n\n");
 

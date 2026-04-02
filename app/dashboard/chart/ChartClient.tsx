@@ -228,7 +228,7 @@ function ChartInner() {
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-6">
-            <div className="h-[620px] overflow-hidden rounded-3xl border border-white/10 bg-slate-950 shadow-2xl">
+            <div className="h-[500px] overflow-hidden rounded-3xl border border-white/10 bg-slate-950 shadow-2xl">
               <TradingViewWidget symbol={tvSymbol} />
             </div>
 

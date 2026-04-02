@@ -17,6 +17,8 @@ import {
   LogOut,
   Menu,
   ChevronDown,
+  CalendarDays,
+  Grid3X3,
 } from "lucide-react";
 import { usePortfolio } from "@/components/providers/PortfolioProvider";
 import BrokerModeToggle from "@/components/broker/BrokerModeToggle";
@@ -50,6 +52,8 @@ const navItems: NavItem[] = [
   { label: "Chart", href: "/dashboard/stocks/USLM", icon: LineChart },
   { label: "Investments", href: "/dashboard/investments", icon: BriefcaseBusiness },
   { label: "Volatility Compass", href: "/dashboard/volatility", icon: Activity },
+  { label: "Calendar", href: "/dashboard/calendar", icon: CalendarDays },
+  { label: "Heatmap", href: "/dashboard/heatmap", icon: Grid3X3 },
   { label: "Connections", href: "/dashboard/connections", icon: Link2, tourId: "connections" },
   { label: "Upgrade Plan", href: "/dashboard/upgrade", icon: CreditCard },
   { label: "Account", href: "/dashboard/account", icon: User },
@@ -99,6 +103,8 @@ function getPageTitle(pathname: string) {
   if (pathname.startsWith("/dashboard/investments/calculator")) return "Investment Calculator";
   if (pathname.startsWith("/dashboard/investments")) return "Investments";
   if (pathname.startsWith("/dashboard/volatility")) return "Volatility Compass";
+  if (pathname.startsWith("/dashboard/calendar")) return "Economic Calendar";
+  if (pathname.startsWith("/dashboard/heatmap")) return "Stock Heatmap";
   if (pathname.startsWith("/dashboard/upgrade")) return "Upgrade Plan";
   if (pathname.startsWith("/dashboard/account")) return "Account";
   if (pathname.startsWith("/dashboard/stocks/")) return "Stock Analysis";

@@ -34,18 +34,18 @@ type OrderRow = {
 function toNumber(value: unknown): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   if (typeof value === "string") {
-    const cleaned = value.replace(/[$£,%\s,]/g, "");
+    const cleaned = value.replace(/[$£€,%\s,]/g, "");
     const parsed = Number(cleaned);
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
 }
 
-function moneyGBP(value: unknown): string {
+function moneyUSD(value: unknown): string {
   const num = toNumber(value);
-  return new Intl.NumberFormat("en-GB", {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "GBP",
+    currency: "USD",
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(num);
@@ -53,7 +53,7 @@ function moneyGBP(value: unknown): string {
 
 function qtyFormat(value: unknown): string {
   const num = toNumber(value);
-  return new Intl.NumberFormat("en-GB", {
+  return new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 3,
     maximumFractionDigits: 3,
   }).format(num);
@@ -419,19 +419,19 @@ export default function InvestmentsPage() {
         <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <StatCard
             label="Portfolio value"
-            value={moneyGBP(totals.totalValue)}
+            value={moneyUSD(totals.totalValue)}
             sublabel={isDemo ? "Demo account" : "Live valuation"}
             isDemo={isDemo}
           />
           <StatCard
             label="Invested"
-            value={moneyGBP(totals.totalCost)}
+            value={moneyUSD(totals.totalCost)}
             sublabel="Cost basis"
             isDemo={isDemo}
           />
           <StatCard
             label="Profit / loss"
-            value={`${totals.totalPnL >= 0 ? "+" : ""}${moneyGBP(totals.totalPnL)}`}
+            value={`${totals.totalPnL >= 0 ? "+" : ""}${moneyUSD(totals.totalPnL)}`}
             sublabel="Real-time P/L"
             positive={totals.totalPnL >= 0}
             isDemo={isDemo}
@@ -495,13 +495,13 @@ export default function InvestmentsPage() {
                       <div key={`${ticker}-${index}`}>
                         <div className="flex items-end justify-between gap-4">
                           <div className="min-w-0">
-                            <div className="text-[1.1rem] font-semibold text-white">{ticker}</div>
+                            <Link href={`/dashboard/stocks/${ticker}`} className="text-[1.1rem] font-semibold text-cyan-400 hover:underline cursor-pointer">{ticker}</Link>
                             <div className="truncate text-slate-300">{company}</div>
                           </div>
 
                           <div className="text-right">
                             <div className="text-[1.1rem] font-semibold text-white">
-                              {moneyGBP(value)}
+                              {moneyUSD(value)}
                             </div>
                             <div className="text-sm text-slate-400">
                               {weight.toFixed(1)}%
@@ -650,7 +650,9 @@ export default function InvestmentsPage() {
                           }`}
                         >
                           <td className={`px-5 py-5 text-[1.05rem] font-semibold ${accentText}`}>
-                            {ticker}
+                            <Link href={`/dashboard/stocks/${ticker}`} className="hover:underline cursor-pointer">
+                              {ticker}
+                            </Link>
                           </td>
 
                           <td className="px-5 py-5 text-[1rem] text-slate-200">
@@ -672,11 +674,11 @@ export default function InvestmentsPage() {
                           </td>
 
                           <td className="px-5 py-5 text-right text-[1rem] text-slate-200">
-                            {moneyGBP(cost)}
+                            {moneyUSD(cost)}
                           </td>
 
                           <td className="px-5 py-5 text-right text-[1rem] text-slate-200">
-                            {moneyGBP(value)}
+                            {moneyUSD(value)}
                           </td>
 
                           <td
@@ -687,7 +689,7 @@ export default function InvestmentsPage() {
                             }`}
                           >
                             {pnl >= 0 ? "+" : ""}
-                            {moneyGBP(pnl)}
+                            {moneyUSD(pnl)}
                           </td>
 
                           <td
@@ -769,10 +771,10 @@ export default function InvestmentsPage() {
                   <tbody>
                     {demoOrders.map((order) => (
                       <tr key={order.id} className="border-b border-white/5 transition hover:bg-amber-400/[0.04]">
-                        <td className="px-5 py-4 font-semibold text-amber-300">{order.ticker}</td>
+                        <td className="px-5 py-4 font-semibold text-amber-300"><Link href={`/dashboard/stocks/${order.ticker}`} className="hover:underline cursor-pointer">{order.ticker}</Link></td>
                         <td className="px-5 py-4 text-sm text-slate-300">{order.order_mode}</td>
                         <td className="px-5 py-4 text-right text-sm text-slate-200">{order.quantity}</td>
-                        <td className="px-5 py-4 text-right text-sm text-slate-200">{moneyGBP(order.limit_price)}</td>
+                        <td className="px-5 py-4 text-right text-sm text-slate-200">{moneyUSD(order.limit_price)}</td>
                         <td className="px-5 py-4">
                           <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
                             order.status === "placed"
@@ -938,7 +940,7 @@ function PerformerCard({
 
       <div className={`mt-6 text-[2.2rem] font-semibold leading-none ${valueTone}`}>
         {pnl >= 0 ? "+" : ""}
-        {moneyGBP(pnl)}
+        {moneyUSD(pnl)}
       </div>
 
       <div className={`mt-3 text-xl ${valueTone}`}>{pct(ret)}</div>

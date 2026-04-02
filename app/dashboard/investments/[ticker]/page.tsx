@@ -31,10 +31,10 @@ function num(value?: number | null) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-function gbp(value: number) {
-  return new Intl.NumberFormat("en-GB", {
+function usd(value: number) {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "GBP",
+    currency: "USD",
     maximumFractionDigits: 2,
   }).format(value || 0);
 }
@@ -306,7 +306,7 @@ export default async function InvestmentTickerPage({
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className="rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-6 shadow-[0_0_40px_rgba(59,130,246,0.08)] backdrop-blur-xl">
             <div className="text-sm text-slate-400">Current value</div>
-            <div className="mt-3 text-4xl font-semibold">{gbp(value)}</div>
+            <div className="mt-3 text-4xl font-semibold">{usd(value)}</div>
             <div className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">
               Live holding value
             </div>
@@ -314,7 +314,7 @@ export default async function InvestmentTickerPage({
 
           <div className="rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.08),rgba(255,255,255,0.03))] p-6 shadow-[0_0_40px_rgba(59,130,246,0.08)] backdrop-blur-xl">
             <div className="text-sm text-slate-400">Invested</div>
-            <div className="mt-3 text-4xl font-semibold">{gbp(cost)}</div>
+            <div className="mt-3 text-4xl font-semibold">{usd(cost)}</div>
             <div className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">
               Cost basis
             </div>
@@ -324,7 +324,7 @@ export default async function InvestmentTickerPage({
             <div className="text-sm text-slate-400">Profit / loss</div>
             <div className={`mt-3 text-4xl font-semibold ${pnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
               {pnl >= 0 ? "+" : ""}
-              {gbp(pnl)}
+              {usd(pnl)}
             </div>
             <div className="mt-2 text-xs uppercase tracking-[0.18em] text-slate-500">
               Open performance
@@ -401,7 +401,7 @@ export default async function InvestmentTickerPage({
               <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
                 <div className="text-xs uppercase tracking-[0.18em] text-slate-500">FX impact</div>
                 <div className={`mt-2 text-2xl font-semibold ${fxImpact >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
-                  {fxImpact === 0 ? "£0.00" : `${fxImpact >= 0 ? "+" : ""}${gbp(fxImpact)}`}
+                  {fxImpact === 0 ? "$0.00" : `${fxImpact >= 0 ? "+" : ""}${usd(fxImpact)}`}
                 </div>
               </div>
             </div>

@@ -11,6 +11,7 @@ import {
 import { useWatchlist } from "@/components/watchlist/WatchlistProvider";
 import { ExpiredBlur } from "@/components/dashboard/ExpiredOverlay";
 import MarketCountdown from "@/components/dashboard/MarketCountdown";
+import TickerTape from "@/components/tradingview/TickerTape";
 
 type ScannerRow = {
   id?: string;
@@ -679,6 +680,7 @@ export default function MarketScannerPage() {
 
   return (
     <div className="space-y-6 p-4 md:p-6">
+      <TickerTape />
       <MarketCountdown />
       {/* Hover popup portal */}
       {hoverRow && hoverRect && (

@@ -173,7 +173,7 @@ function createHorizontalRay(
 
 export default function TradingViewAuroraPanel({
   ticker,
-  height = 620,
+  height = 500,
   avgPrice = null,
   profits = [],
 }: Props) {

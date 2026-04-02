@@ -55,7 +55,7 @@ export default function TradingViewAdvancedChart({ symbol }: Props) {
   }, [symbol]);
 
   return (
-    <div className="w-full h-[600px] bg-black rounded-lg border border-gray-700 overflow-hidden">
+    <div className="w-full h-[700px] bg-black rounded-lg border border-gray-700 overflow-hidden">
       <div
         ref={container}
         id="tradingview_chart_container"

@@ -9,8 +9,20 @@ type Props = {
 export default function WelcomePopup({ onDismiss }: Props) {
   const [loading, setLoading] = useState(false);
 
+  // Check localStorage FIRST — no flicker, no API call needed
+  if (typeof window !== "undefined") {
+    if (
+      localStorage.getItem("aurora_tour_done") === "true" ||
+      localStorage.getItem("aurora_all_popups_done") === "true"
+    ) {
+      return null;
+    }
+  }
+
   async function dismiss() {
     setLoading(true);
+    localStorage.setItem("aurora_tour_done", "true");
+    localStorage.setItem("aurora_all_popups_done", "true");
     try {
       await fetch("/api/onboarding", {
         method: "PATCH",
@@ -19,6 +31,8 @@ export default function WelcomePopup({ onDismiss }: Props) {
           has_seen_welcome_popup: true,
           has_seen_plan_selection: true,
           onboarding_step: "plan_selection",
+          onboarding_tour_completed: true,
+          welcome_popup_shown_count: 10,
         }),
       });
     } catch {

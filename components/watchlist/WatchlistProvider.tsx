@@ -97,24 +97,22 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const { data, error } = await supabase
-        .from("watchlist_items")
-        .select("id,symbol,company_name,source,created_at")
-        .order("created_at", { ascending: false });
+      // Use the API route which reads from the correct broker-mode table
+      const res = await fetch("/api/watchlist", { cache: "no-store" });
+      const json = await res.json();
 
-      if (error) {
-        console.error("Failed to load watchlist:", error);
-        setItems([]);
-      } else {
+      if (json?.items && Array.isArray(json.items)) {
         setItems(
-          (data || []).map((row) => ({
+          json.items.map((row: any) => ({
             id: row.id,
             symbol: normalizeTicker(row.symbol),
             company_name: row.company_name || null,
-            source: (row as any).source || null,
+            source: row.source || null,
             created_at: row.created_at || null,
           }))
         );
+      } else {
+        setItems([]);
       }
 
       setIsGuestMode(false);
@@ -142,6 +140,15 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, [supabase, refresh]);
 
+  // Listen for broker mode changes to re-fetch watchlist
+  useEffect(() => {
+    function handleModeChange() {
+      refresh();
+    }
+    window.addEventListener("aurora:broker-mode-changed", handleModeChange);
+    return () => window.removeEventListener("aurora:broker-mode-changed", handleModeChange);
+  }, [refresh]);
+
   const toggleTicker = useCallback(
     async (ticker?: string | null, companyName?: string | null, source?: string | null) => {
       const symbol = normalizeTicker(ticker);
@@ -166,55 +173,56 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
         return { ok: true, active: !exists };
       }
 
-      const existing = items.find((item) => item.symbol === symbol);
+      // Use the toggle API route which writes to the correct broker-mode table
+      try {
+        const res = await fetch("/api/watchlist/toggle", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            symbol,
+            company_name: companyName || null,
+            source: source || null,
+          }),
+        });
 
-      if (existing?.id) {
-        const { error } = await supabase
-          .from("watchlist_items")
-          .delete()
-          .eq("id", existing.id);
+        const data = await res.json();
 
-        if (error) {
-          console.error("Failed removing watchlist item:", error);
-          return { ok: false, active: true };
+        if (!data?.ok) {
+          console.error("Failed to toggle watchlist:", data?.error);
+          return { ok: false, active: false };
         }
 
-        const next = items.filter((item) => item.symbol !== symbol);
-        setItems(next);
-        return { ok: true, active: false };
-      }
+        // Optimistic update
+        if (data.added) {
+          setItems((prev) => [
+            { symbol, company_name: companyName || null, source: source || null },
+            ...prev,
+          ]);
+        } else {
+          setItems((prev) => prev.filter((item) => item.symbol !== symbol));
+        }
 
-      const { data, error } = await supabase
-        .from("watchlist_items")
-        .insert({
-          symbol,
-          company_name: companyName || null,
-          source: source || null,
-        })
-        .select("id,symbol,company_name,source,created_at")
-        .single();
+        // Toast feedback showing which list was updated
+        const isDemo = data.mode === "demo";
+        window.dispatchEvent(
+          new CustomEvent("aurora:toast", {
+            detail: {
+              id: `wl-${symbol}-${Date.now()}`,
+              title: data.added
+                ? `${symbol} added to ${isDemo ? "Demo" : "Live"} Watchlist`
+                : `${symbol} removed from ${isDemo ? "Demo" : "Live"} Watchlist`,
+              tone: data.added ? (isDemo ? "info" : "success") : "info",
+            },
+          })
+        );
 
-      if (error) {
-        console.error("Failed adding watchlist item:", error);
+        return { ok: true, active: !!data.added };
+      } catch (error) {
+        console.error("Toggle watchlist error:", error);
         return { ok: false, active: false };
       }
-
-      const next = [
-        {
-          id: data.id,
-          symbol: normalizeTicker(data.symbol),
-          company_name: data.company_name || null,
-          source: (data as any).source || null,
-          created_at: data.created_at || null,
-        },
-        ...items,
-      ];
-
-      setItems(next);
-      setIsGuestMode(false);
-      return { ok: true, active: true };
     },
-    [items, supabase]
+    [supabase]
   );
 
   const tickers = useMemo(() => items.map((item) => item.symbol), [items]);

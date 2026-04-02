@@ -1,634 +1,641 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Link from "next/link";
+import EconomicCalendar from "@/components/tradingview/EconomicCalendar";
 
-type VolatilityRow = {
+/* ─── Types ─── */
+
+type VixData = {
+  current: number;
+  change: number;
+  changePct: number;
+  weekAgo: number | null;
+  monthAgo: number | null;
+  yearHigh: number | null;
+  yearHighDate: string | null;
+};
+
+type WatchlistAlert = {
   symbol: string;
-  company_name?: string;
-  sector?: string;
-  price: number;
-  change_pct: number;
-  volatility: number;
-  atr?: number;
-  score?: number;
-  trend?: "Bullish" | "Bearish" | "Neutral";
+  company_name: string;
+  currentPrice: number;
+  step1Price: number;
+  pctAway: number;
 };
 
-type ApiResponse = {
-  ok: boolean;
-  rows: VolatilityRow[];
-  updatedAt?: string;
-  source?: string;
-};
+/* ─── VIX Zone helpers ─── */
 
-function formatPct(value: number) {
-  const sign = value > 0 ? "+" : "";
-  return `${sign}${value.toFixed(2)}%`;
-}
-
-function formatMoney(value: number) {
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: value >= 100 ? 2 : 2,
-  }).format(value);
-}
-
-function getVolBand(vol: number) {
-  if (vol >= 6) return "Extreme";
-  if (vol >= 4) return "High";
-  if (vol >= 2.5) return "Elevated";
-  return "Normal";
-}
-
-function getVolBandClass(vol: number) {
-  if (vol >= 6) {
-    return "border-red-500/40 bg-red-500/10 text-red-300";
-  }
-  if (vol >= 4) {
-    return "border-orange-400/40 bg-orange-400/10 text-orange-300";
-  }
-  if (vol >= 2.5) {
-    return "border-yellow-400/40 bg-yellow-400/10 text-yellow-300";
-  }
-  return "border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
-}
-
-function getTrendClass(trend?: string) {
-  if (trend === "Bullish") return "text-emerald-300";
-  if (trend === "Bearish") return "text-red-300";
-  return "text-slate-300";
-}
-
-function getRiskRegime(avgVol: number) {
-  if (avgVol >= 5) {
+function getVixZone(vix: number) {
+  if (vix >= 30)
     return {
-      label: "High Risk Regime",
-      tone: "text-red-300",
-      box: "border-red-500/30 bg-red-500/10",
-      sub: "Fast markets. Wider ranges. Higher opportunity and higher risk.",
+      label: "EXTREME",
+      emoji: "\ud83d\udea8",
+      color: "text-red-400",
+      bg: "bg-red-500/15 border-red-500/30",
+      barColor: "from-red-500 to-red-600",
+      desc: "Extreme market fear. Maximum opportunity for staged ladder buying.",
     };
-  }
-  if (avgVol >= 3) {
+  if (vix >= 25)
     return {
-      label: "Active Opportunity Regime",
-      tone: "text-orange-300",
-      box: "border-orange-500/30 bg-orange-500/10",
-      sub: "Healthy movement for ladder entries and momentum setups.",
+      label: "FEAR",
+      emoji: "\ud83d\udd34",
+      color: "text-red-300",
+      bg: "bg-red-500/10 border-red-400/25",
+      barColor: "from-red-400 to-red-500",
+      desc: "High fear in markets. Aurora ladder steps becoming active.",
     };
-  }
+  if (vix >= 20)
+    return {
+      label: "ELEVATED",
+      emoji: "\ud83d\udfe0",
+      color: "text-orange-300",
+      bg: "bg-orange-500/10 border-orange-400/25",
+      barColor: "from-orange-400 to-orange-500",
+      desc: "Volatility elevated. Markets becoming uncertain.",
+    };
+  if (vix >= 15)
+    return {
+      label: "CAUTION",
+      emoji: "\ud83d\udfe1",
+      color: "text-amber-300",
+      bg: "bg-amber-500/10 border-amber-400/25",
+      barColor: "from-amber-400 to-amber-500",
+      desc: "Moderate volatility rising. Consider tighter position sizing.",
+    };
   return {
-    label: "Stable Regime",
-    tone: "text-emerald-300",
-    box: "border-emerald-500/30 bg-emerald-500/10",
-    sub: "Lower movement. Fewer explosive setups. Focus on quality.",
+    label: "CALM",
+    emoji: "\ud83d\udfe2",
+    color: "text-emerald-300",
+    bg: "bg-emerald-500/10 border-emerald-400/25",
+    barColor: "from-emerald-400 to-emerald-500",
+    desc: "Low volatility. Markets stable. Good conditions for ladder entries.",
   };
 }
 
-export default function VolatilityPage() {
-  const [rows, setRows] = useState<VolatilityRow[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [updatedAt, setUpdatedAt] = useState<string>("");
-  const [source, setSource] = useState<string>("Aurora Volatility Engine");
-  const [lastRefreshLabel, setLastRefreshLabel] = useState<string>("");
+function getIntelligence(vix: number) {
+  if (vix >= 30)
+    return {
+      title: "EXTREME market fear detected.",
+      body: "Historically, VIX above 30 has preceded some of the best buying opportunities. Your Aurora ladder steps may be activating across multiple watchlist stocks. This is the environment Aurora's staged buying was designed for.",
+      action: "Review active price alerts. Check entry levels on your watchlist stocks.",
+      icon: "\ud83d\udea8",
+    };
+  if (vix >= 20)
+    return {
+      title: "Fear is elevated in markets.",
+      body: "This is when Aurora ladder strategies become most powerful. Staged buying at current levels captures discounts that calm markets rarely offer. Market pullbacks create the entry points your ladder is waiting for.",
+      action: "Review your ladder plans. Check which Step 1 levels are being approached.",
+      icon: "\u26a0\ufe0f",
+    };
+  if (vix >= 15)
+    return {
+      title: "Volatility is rising above baseline.",
+      body: "Markets are showing increased movement. This is a transitional zone where conditions can shift quickly. Your Aurora ladder entry levels may start coming into play if volatility continues to climb.",
+      action: "Monitor your watchlist. Ensure your price alerts are active.",
+      icon: "\ud83d\udfe1",
+    };
+  return {
+    title: "Market conditions are calm.",
+    body: "Volatility is low which typically means stable price action. Your Aurora ladder entries may take longer to activate. Consider wider ladder spacing in this environment. Patience is key when markets are quiet.",
+    action: "Monitor your watchlist. Patience is key in low volatility environments.",
+    icon: "\u2728",
+  };
+}
 
-  async function loadData(silent = false) {
-    try {
-      if (!silent) setLoading(true);
-      const res = await fetch("/api/volatility", { cache: "no-store" });
-      const data: ApiResponse = await res.json();
+/* ─── VIX History (static data) ─── */
 
-      if (data?.ok) {
-        setRows(Array.isArray(data.rows) ? data.rows : []);
-        setUpdatedAt(data.updatedAt || new Date().toISOString());
-        setSource(data.source || "Aurora Volatility Engine");
-        setLastRefreshLabel(new Date().toLocaleTimeString());
-      }
-    } catch (error) {
-      console.error("Failed to load volatility data", error);
-    } finally {
-      if (!silent) setLoading(false);
-    }
-  }
+const VIX_HISTORY = [
+  { date: "Mar 2020", vixHigh: 82.69, event: "COVID-19 crash", recovery: "+100% in 1yr" },
+  { date: "Feb 2018", vixHigh: 50.3, event: "Volatility spike (XIV)", recovery: "+30% in 1yr" },
+  { date: "Aug 2015", vixHigh: 40.74, event: "China market crash", recovery: "+20% in 1yr" },
+  { date: "Aug 2024", vixHigh: 38.57, event: "Yen carry trade unwind", recovery: "+25% in 6mo" },
+  { date: "Oct 2022", vixHigh: 34.53, event: "Rate hike fears", recovery: "+40% in 1yr" },
+];
+
+/* ─── TradingView Chart (unique ID per instance to prevent conflicts) ─── */
+
+function TVChart({
+  symbol,
+  height,
+  id,
+  interval = "D",
+  studies,
+  compareSymbols,
+}: {
+  symbol: string;
+  height: number;
+  id: string;
+  interval?: string;
+  studies?: string[];
+  compareSymbols?: { symbol: string; position: string }[];
+}) {
+  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    loadData();
+    if (!ref.current) return;
+    ref.current.innerHTML = "";
 
-    const interval = setInterval(() => {
-      loadData(true);
-    }, 30000);
+    const wrapper = document.createElement("div");
+    wrapper.id = `tv-${id}`;
+    wrapper.className = "tradingview-widget-container";
+    wrapper.style.height = `${height}px`;
+    wrapper.style.width = "100%";
 
-    return () => clearInterval(interval);
-  }, []);
+    const inner = document.createElement("div");
+    inner.className = "tradingview-widget-container__widget";
+    inner.style.height = `${height}px`;
+    inner.style.width = "100%";
+    wrapper.appendChild(inner);
 
-  const stats = useMemo(() => {
-    const total = rows.length;
-    const avgVol =
-      total > 0
-        ? rows.reduce((sum, row) => sum + Number(row.volatility || 0), 0) / total
-        : 0;
+    const script = document.createElement("script");
+    script.src =
+      "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+      width: "100%",
+      height,
+      symbol,
+      interval,
+      timezone: "America/New_York",
+      theme: "dark",
+      style: "1",
+      locale: "en",
+      backgroundColor: "rgba(2, 11, 34, 0)",
+      gridColor: "rgba(255, 255, 255, 0.05)",
+      isTransparent: true,
+      hide_top_toolbar: false,
+      hide_legend: false,
+      allow_symbol_change: false,
+      save_image: false,
+      calendar: false,
+      hide_volume: true,
+      ...(studies ? { studies } : {}),
+      ...(compareSymbols ? { compareSymbols } : {}),
+      support_host: "https://www.tradingview.com",
+    });
+    wrapper.appendChild(script);
+    ref.current.appendChild(wrapper);
 
-    const avgMove =
-      total > 0
-        ? rows.reduce((sum, row) => sum + Math.abs(Number(row.change_pct || 0)), 0) / total
-        : 0;
-
-    const highOpportunity = rows.filter((r) => Number(r.volatility) >= 4).length;
-    const bullish = rows.filter((r) => r.trend === "Bullish").length;
-    const bearish = rows.filter((r) => r.trend === "Bearish").length;
-
-    const sortedByMove = [...rows].sort(
-      (a, b) => Math.abs(Number(b.change_pct || 0)) - Math.abs(Number(a.change_pct || 0))
-    );
-
-    const sortedByVol = [...rows].sort(
-      (a, b) => Number(b.volatility || 0) - Number(a.volatility || 0)
-    );
-
-    const best = [...rows].sort((a, b) => Number(b.change_pct || 0) - Number(a.change_pct || 0))[0];
-    const worst = [...rows].sort((a, b) => Number(a.change_pct || 0) - Number(b.change_pct || 0))[0];
-
-    return {
-      total,
-      avgVol,
-      avgMove,
-      highOpportunity,
-      bullish,
-      bearish,
-      mostActive: sortedByMove.slice(0, 6),
-      hottest: sortedByVol.slice(0, 6),
-      best,
-      worst,
+    return () => {
+      if (ref.current) ref.current.innerHTML = "";
     };
-  }, [rows]);
-
-  const regime = getRiskRegime(stats.avgVol);
+  }, [symbol, height, id, interval]);
 
   return (
-    <div className="min-h-screen bg-[#050816] text-white">
-      <div className="mx-auto w-full max-w-[1700px] px-4 py-5 sm:px-6 lg:px-8">
-        <div className="mb-6 rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.20),transparent_28%),radial-gradient(circle_at_top_right,rgba(168,85,247,0.16),transparent_24%),linear-gradient(180deg,rgba(15,23,42,0.96),rgba(2,6,23,0.96))] p-5 shadow-[0_25px_80px_rgba(0,0,0,0.45)]">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-            <div>
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-cyan-300">
-                Aurora Terminal
-              </div>
-              <h1 className="text-3xl font-semibold tracking-tight text-white sm:text-4xl">
-                Volatility Intelligence
-              </h1>
-              <p className="mt-2 max-w-3xl text-sm text-slate-300 sm:text-base">
-                Institutional-style market volatility board for scanning movement, risk regime,
-                opportunity clusters, and ladder-ready setups.
-              </p>
+    <div
+      ref={ref}
+      className="w-full overflow-hidden"
+      style={{ height: `${height}px`, width: "100%" }}
+    />
+  );
+}
 
-              <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-400">
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                  Source: {source}
-                </span>
-                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">
-                  Updated: {updatedAt ? new Date(updatedAt).toLocaleString() : "—"}
-                </span>
-                <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-emerald-300">
-                  Live refresh: 30s
-                </span>
-              </div>
-            </div>
+/* ─── Main Page ─── */
 
-            <div className={`min-w-[320px] rounded-2xl border p-4 ${regime.box}`}>
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
-                    Market Regime
-                  </p>
-                  <p className={`mt-1 text-xl font-semibold ${regime.tone}`}>
-                    {regime.label}
-                  </p>
-                  <p className="mt-2 text-sm text-slate-300">
-                    {regime.sub}
-                  </p>
-                </div>
+export default function VolatilityCompassPage() {
+  const [vix, setVix] = useState<VixData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [alerts, setAlerts] = useState<WatchlistAlert[]>([]);
+  const [alertsLoading, setAlertsLoading] = useState(true);
 
-                <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-right">
-                  <p className="text-[11px] uppercase tracking-[0.22em] text-slate-400">
-                    Avg Vol
-                  </p>
-                  <p className="text-2xl font-semibold text-white">
-                    {stats.avgVol.toFixed(2)}%
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+  /* Fetch VIX data from server-side API proxy */
+  useEffect(() => {
+    async function fetchVix() {
+      try {
+        const res = await fetch("/api/vix", { cache: "no-store" });
+        const data = await res.json();
 
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-6">
-          <MetricCard
-            title="Tracked"
-            value={String(stats.total)}
-            sub="Symbols in board"
-            glow="cyan"
-          />
-          <MetricCard
-            title="Avg Move"
-            value={`${stats.avgMove.toFixed(2)}%`}
-            sub="Abs daily move"
-            glow="blue"
-          />
-          <MetricCard
-            title="High Opportunity"
-            value={String(stats.highOpportunity)}
-            sub="Volatility > 4%"
-            glow="violet"
-          />
-          <MetricCard
-            title="Bullish"
-            value={String(stats.bullish)}
-            sub="Trend bias"
-            glow="emerald"
-          />
-          <MetricCard
-            title="Bearish"
-            value={String(stats.bearish)}
-            sub="Trend bias"
-            glow="red"
-          />
-          <MetricCard
-            title="Last Refresh"
-            value={lastRefreshLabel || "—"}
-            sub="Auto-updating"
-            glow="amber"
-          />
-        </div>
+        if (!data?.ok) {
+          console.error("VIX API error:", data?.error);
+          return;
+        }
 
-        <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-[1.35fr_0.9fr_0.9fr]">
-          <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(2,6,23,0.96))] p-5 shadow-[0_18px_60px_rgba(0,0,0,0.38)]">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-white">Volatility Board</h2>
-                <p className="text-sm text-slate-400">
-                  Ranked scan of symbols with movement, trend, and volatility state.
-                </p>
-              </div>
-              <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-400">
-                Bloomberg-style board
-              </div>
-            </div>
+        setVix({
+          current: data.current,
+          change: data.change,
+          changePct: data.changePct,
+          weekAgo: data.weekAgo,
+          monthAgo: data.monthAgo,
+          yearHigh: data.yearHigh,
+          yearHighDate: data.yearHighDate,
+        });
+      } catch (e) {
+        console.error("VIX fetch error:", e);
+      } finally {
+        setLoading(false);
+      }
+    }
 
-            <div className="overflow-hidden rounded-2xl border border-white/10">
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-white/[0.04] text-slate-400">
-                    <tr>
-                      <th className="px-4 py-3 text-left font-medium">Ticker</th>
-                      <th className="px-4 py-3 text-left font-medium">Company</th>
-                      <th className="px-4 py-3 text-left font-medium">Sector</th>
-                      <th className="px-4 py-3 text-left font-medium">Price</th>
-                      <th className="px-4 py-3 text-left font-medium">Change</th>
-                      <th className="px-4 py-3 text-left font-medium">Volatility</th>
-                      <th className="px-4 py-3 text-left font-medium">Band</th>
-                      <th className="px-4 py-3 text-left font-medium">Trend</th>
-                      <th className="px-4 py-3 text-left font-medium">Score</th>
-                    </tr>
-                  </thead>
+    fetchVix();
+    const id = setInterval(fetchVix, 60000);
+    return () => clearInterval(id);
+  }, []);
 
-                  <tbody>
-                    {loading ? (
-                      <tr>
-                        <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
-                          Loading volatility board...
-                        </td>
-                      </tr>
-                    ) : rows.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="px-4 py-8 text-center text-slate-500">
-                          No volatility data available.
-                        </td>
-                      </tr>
-                    ) : (
-                      rows.map((row) => {
-                        const positive = Number(row.change_pct || 0) >= 0;
-                        const score = Number(row.score || 0);
-                        return (
-                          <tr
-                            key={row.symbol}
-                            className="group border-t border-white/5 transition duration-200 hover:bg-cyan-400/[0.05] hover:shadow-[inset_0_0_0_1px_rgba(34,211,238,0.12)]"
-                          >
-                            <td className="px-4 py-3">
-                              <Link
-                                href={`/dashboard/investments/calculator?ticker=${encodeURIComponent(row.symbol)}`}
-                                className="font-semibold tracking-wide text-white transition group-hover:text-cyan-300"
-                              >
-                                {row.symbol}
-                              </Link>
-                            </td>
-                            <td className="px-4 py-3 text-slate-300">
-                              {row.company_name || "—"}
-                            </td>
-                            <td className="px-4 py-3 text-slate-400">
-                              {row.sector || "—"}
-                            </td>
-                            <td className="px-4 py-3 text-white">
-                              {formatMoney(Number(row.price || 0))}
-                            </td>
-                            <td
-                              className={`px-4 py-3 font-medium ${
-                                positive ? "text-emerald-300" : "text-red-300"
-                              }`}
-                            >
-                              {formatPct(Number(row.change_pct || 0))}
-                            </td>
-                            <td className="px-4 py-3 text-cyan-300">
-                              {Number(row.volatility || 0).toFixed(2)}%
-                            </td>
-                            <td className="px-4 py-3">
-                              <span
-                                className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${getVolBandClass(
-                                  Number(row.volatility || 0)
-                                )}`}
-                              >
-                                {getVolBand(Number(row.volatility || 0))}
-                              </span>
-                            </td>
-                            <td className={`px-4 py-3 ${getTrendClass(row.trend)}`}>
-                              {row.trend || "Neutral"}
-                            </td>
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <div className="h-2 w-24 overflow-hidden rounded-full bg-white/10">
-                                  <div
-                                    className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-blue-500 to-violet-500"
-                                    style={{ width: `${Math.max(4, Math.min(score, 100))}%` }}
-                                  />
-                                </div>
-                                <span className="text-xs text-slate-300">{score}</span>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+  /* Fetch watchlist stocks near ladder entry */
+  useEffect(() => {
+    async function fetchAlerts() {
+      try {
+        const [wlRes, scanRes] = await Promise.all([
+          fetch("/api/watchlist", { cache: "no-store" }),
+          fetch("/api/aurora-market-scanner?universe=all", { cache: "no-store" }),
+        ]);
+        const wlData = await wlRes.json();
+        const scanData = await scanRes.json();
 
-          <div className="space-y-6">
-            <PanelCard
-              title="Best Performer"
-              subtitle="Top gainer in current board"
-            >
-              {stats.best ? (
-                <FeaturedMover row={stats.best} positive />
-              ) : (
-                <EmptyState />
-              )}
-            </PanelCard>
+        const items = wlData?.items || [];
+        const rows = scanData?.rows || [];
 
-            <PanelCard
-              title="Worst Performer"
-              subtitle="Biggest drawdown in current board"
-            >
-              {stats.worst ? (
-                <FeaturedMover row={stats.worst} positive={false} />
-              ) : (
-                <EmptyState />
-              )}
-            </PanelCard>
+        const priceMap = new Map<string, { price: number; company: string }>();
+        for (const r of rows) {
+          const t = String(r.ticker || "").toUpperCase();
+          if (t && r.price) priceMap.set(t, { price: Number(r.price), company: r.company_name || "" });
+        }
 
-            <PanelCard
-              title="Most Active Movers"
-              subtitle="Largest percentage moves"
-            >
-              <CompactList rows={stats.mostActive} />
-            </PanelCard>
-          </div>
+        const result: WatchlistAlert[] = [];
+        for (const item of items) {
+          const sym = String(item.symbol || "").toUpperCase();
+          const info = priceMap.get(sym);
+          if (!info || info.price <= 0) continue;
 
-          <div className="space-y-6">
-            <PanelCard
-              title="Hottest Volatility"
-              subtitle="Most explosive opportunity set"
-            >
-              <CompactVolList rows={stats.hottest} />
-            </PanelCard>
+          const refPrice = info.price * 1.2;
+          const step1 = refPrice * 0.9;
+          const pctAway = ((info.price - step1) / step1) * 100;
 
-            <PanelCard
-              title="Aurora Notes"
-              subtitle="How to use this board"
-            >
-              <div className="space-y-3 text-sm text-slate-300">
-                <p>
-                  Focus first on <span className="text-cyan-300">High</span> and{" "}
-                  <span className="text-red-300">Extreme</span> volatility names for
-                  fast-moving ladder opportunities.
-                </p>
-                <p>
-                  Use the trend column to separate momentum continuation from noisy
-                  mean-reversion conditions.
-                </p>
-                <p>
-                  Click any ticker to move into the investment calculator and turn the
-                  setup into an Aurora ladder plan.
-                </p>
-              </div>
-            </PanelCard>
+          if (pctAway <= 15 && pctAway >= -5) {
+            result.push({
+              symbol: sym,
+              company_name: item.company_name || info.company,
+              currentPrice: info.price,
+              step1Price: step1,
+              pctAway,
+            });
+          }
+        }
 
-            <PanelCard
-              title="Terminal Status"
-              subtitle="System snapshot"
-            >
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <StatusPill label="Feed" value="Live" tone="emerald" />
-                <StatusPill label="Engine" value="Online" tone="cyan" />
-                <StatusPill label="Refresh" value="30 sec" tone="violet" />
-                <StatusPill label="Mode" value="Scanner" tone="amber" />
-              </div>
-            </PanelCard>
-          </div>
+        result.sort((a, b) => a.pctAway - b.pctAway);
+        setAlerts(result);
+      } catch (e) {
+        console.error("Alerts fetch error:", e);
+      } finally {
+        setAlertsLoading(false);
+      }
+    }
+
+    fetchAlerts();
+  }, []);
+
+  const zone = useMemo(() => (vix ? getVixZone(vix.current) : null), [vix]);
+  const intel = useMemo(
+    () => (vix ? getIntelligence(vix.current) : null),
+    [vix]
+  );
+
+  const gaugeWidth = useMemo(() => {
+    if (!vix) return 0;
+    return Math.min((vix.current / 50) * 100, 100);
+  }, [vix]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+          <p className="text-sm text-slate-400">Loading Volatility Compass...</p>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* ══════ SECTION 1: VIX HEADER CARD ══════ */}
+      <section className="relative overflow-hidden rounded-[28px] border border-cyan-500/15 bg-[radial-gradient(circle_at_top_left,rgba(14,165,233,0.18),transparent_34%),linear-gradient(135deg,rgba(3,7,18,0.96),rgba(2,6,23,0.92))] p-6 shadow-[0_0_0_1px_rgba(14,165,233,0.04),0_20px_80px_rgba(2,6,23,0.65)] md:p-8">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex-1">
+            <div className="mb-3 flex items-center gap-3">
+              <span className="text-cyan-400">{"\u2726"}</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.3em] text-cyan-300">
+                Volatility Compass
+              </span>
+              <span className="rounded-full border border-violet-400/30 bg-violet-500/15 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-violet-300">
+                Elite
+              </span>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-end gap-4">
+              <div>
+                <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                  VIX Index
+                </div>
+                <div className="mt-1 text-5xl font-bold tracking-tight text-white">
+                  {vix?.current.toFixed(2) ?? "—"}
+                </div>
+              </div>
+
+              {vix && zone && (
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold ${zone.bg} ${zone.color}`}
+                  >
+                    {zone.emoji} {zone.label}
+                  </span>
+                  <span
+                    className={`text-sm font-medium ${vix.change >= 0 ? "text-red-300" : "text-emerald-300"}`}
+                  >
+                    {vix.change >= 0 ? "+" : ""}
+                    {vix.change.toFixed(2)} ({vix.changePct >= 0 ? "+" : ""}
+                    {vix.changePct.toFixed(2)}%)
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {zone && (
+              <p className="mt-3 max-w-2xl text-sm text-slate-300">
+                {zone.desc}
+              </p>
+            )}
+
+            {/* Gauge bar */}
+            <div className="mt-5 max-w-xl">
+              <div className="relative h-4 overflow-hidden rounded-full bg-white/5">
+                <div
+                  className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-emerald-500 via-amber-400 via-orange-500 to-red-600 transition-all duration-1000"
+                  style={{ width: `${gaugeWidth}%` }}
+                />
+                {/* Level markers */}
+                <div className="absolute inset-y-0 left-[30%] w-px bg-white/20" title="15" />
+                <div className="absolute inset-y-0 left-[40%] w-px bg-white/20" title="20" />
+                <div className="absolute inset-y-0 left-[50%] w-px bg-white/20" title="25" />
+                <div className="absolute inset-y-0 left-[60%] w-px bg-white/30" title="30" />
+                <div className="absolute inset-y-0 left-[80%] w-px bg-white/20" title="40" />
+              </div>
+              <div className="mt-1.5 flex justify-between text-[10px] text-slate-500">
+                <span>0</span>
+                <span>15</span>
+                <span>20</span>
+                <span>25</span>
+                <span>30</span>
+                <span>40+</span>
+              </div>
+              <div className="mt-0.5 flex justify-between text-[10px] font-medium">
+                <span className="text-emerald-400">CALM</span>
+                <span className="text-amber-300">CAUTION</span>
+                <span className="text-orange-300">ELEVATED</span>
+                <span className="text-red-300">FEAR</span>
+                <span className="text-red-400">EXTREME</span>
+                <span />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════ SECTION 2: VIX CHART ══════ */}
+      <section className="overflow-hidden rounded-3xl border border-white/10 bg-[#07101d] p-3 shadow-2xl">
+        <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
+          VIX Index — Daily Chart
+        </div>
+        <TVChart symbol="CBOE:VIX" height={650} id="vix-main" interval="D" studies={["RSI@tv-basicstudies"]} />
+      </section>
+
+      {/* ══════ SECTION 3: AURORA INTELLIGENCE ══════ */}
+      {intel && (
+        <section className="rounded-3xl border border-cyan-500/20 bg-[#08111f] p-6">
+          <div className="flex items-center gap-2">
+            <span className="text-cyan-400">{"\u2726"}</span>
+            <span className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">
+              Aurora Intelligence
+            </span>
+            {vix && vix.current >= 30 && (
+              <span className="ml-2 animate-pulse text-red-400">{"\ud83d\udea8"}</span>
+            )}
+          </div>
+
+          <h3 className="mt-4 text-lg font-semibold text-white">
+            {intel.icon} {intel.title}
+          </h3>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-300">
+            {intel.body}
+          </p>
+
+          <div className="mt-5 rounded-2xl border border-cyan-500/15 bg-cyan-500/5 px-5 py-4">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-cyan-300/80">
+              Suggested Action
+            </div>
+            <p className="mt-1 text-sm font-medium text-white">
+              {intel.action}
+            </p>
+          </div>
+        </section>
+      )}
+
+      {/* ══════ SECTION 4: STAT CARDS ══════ */}
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          title="VIX Today"
+          value={vix?.current.toFixed(2) ?? "—"}
+          sub={zone?.label ?? "—"}
+          subColor={zone?.color ?? "text-slate-400"}
+        />
+        <StatCard
+          title="VIX 1 Week Ago"
+          value={vix?.weekAgo?.toFixed(2) ?? "—"}
+          sub={
+            vix?.weekAgo
+              ? `${vix.current > vix.weekAgo ? "+" : ""}${(vix.current - vix.weekAgo).toFixed(2)} change`
+              : "—"
+          }
+          subColor={
+            vix?.weekAgo
+              ? vix.current > vix.weekAgo
+                ? "text-red-300"
+                : "text-emerald-300"
+              : "text-slate-400"
+          }
+        />
+        <StatCard
+          title="VIX 1 Month Ago"
+          value={vix?.monthAgo?.toFixed(2) ?? "—"}
+          sub={
+            vix?.monthAgo
+              ? `${vix.current > vix.monthAgo ? "+" : ""}${(vix.current - vix.monthAgo).toFixed(2)} change`
+              : "—"
+          }
+          subColor={
+            vix?.monthAgo
+              ? vix.current > vix.monthAgo
+                ? "text-red-300"
+                : "text-emerald-300"
+              : "text-slate-400"
+          }
+        />
+        <StatCard
+          title="VIX 1Y High"
+          value={vix?.yearHigh?.toFixed(2) ?? "—"}
+          sub={vix?.yearHighDate ?? "—"}
+          subColor="text-slate-400"
+        />
+      </section>
+
+      {/* ══════ SECTION 5: VIX vs S&P 500 ══════ */}
+      <section className="overflow-hidden rounded-3xl border border-white/10 bg-[#07101d] p-3 shadow-2xl">
+        <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
+          VIX vs S&P 500 — Weekly Comparison
+        </div>
+        <TVChart symbol="CBOE:VIX" height={450} id="spx-compare" interval="W" compareSymbols={[{ symbol: "CAPITALCOM:US500", position: "SameScale" }]} />
+        <p className="mt-3 px-2 text-xs text-slate-500">
+          VIX (blue) typically moves opposite to S&P 500 (orange). When VIX
+          spikes, markets are falling — creating Aurora ladder entry
+          opportunities.
+        </p>
+      </section>
+
+      {/* ══════ SECTION 6: WATCHLIST ALERTS ══════ */}
+      <section className="rounded-3xl border border-cyan-500/20 bg-[#08111f] p-6">
+        <div className="flex items-center gap-2">
+          <span className="text-cyan-400">{"\u2726"}</span>
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">
+            Watchlist Ladder Alerts
+          </span>
+        </div>
+
+        {alertsLoading ? (
+          <p className="mt-4 text-sm text-slate-400">
+            Scanning watchlist stocks...
+          </p>
+        ) : alerts.length === 0 ? (
+          <p className="mt-4 text-sm text-slate-400">
+            No watchlist stocks are currently near their Step 1 entry level.
+          </p>
+        ) : (
+          <>
+            <p className="mt-3 text-sm text-slate-300">
+              Based on current volatility,{" "}
+              <span className="font-semibold text-cyan-300">
+                {alerts.length} stock{alerts.length !== 1 ? "s" : ""}
+              </span>{" "}
+              in your watchlist {alerts.length === 1 ? "is" : "are"} within
+              range of their Step 1 entry level.
+            </p>
+            <div className="mt-4 space-y-2">
+              {alerts.map((a) => (
+                <Link
+                  key={a.symbol}
+                  href={`/dashboard/stocks/${a.symbol}`}
+                  className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 transition hover:border-cyan-400/20 hover:bg-white/[0.05]"
+                >
+                  <div>
+                    <span className="font-semibold text-white">
+                      {a.symbol}
+                    </span>
+                    <span className="ml-2 text-sm text-slate-400">
+                      {a.company_name}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="text-slate-400">
+                      Step 1 at ${a.step1Price.toFixed(2)}
+                    </span>
+                    <span className="text-slate-400">
+                      Current ${a.currentPrice.toFixed(2)}
+                    </span>
+                    <span
+                      className={`font-semibold ${a.pctAway <= 5 ? "text-amber-300" : "text-slate-300"}`}
+                    >
+                      {a.pctAway.toFixed(1)}% away
+                      {a.pctAway <= 5 && " \u26a1"}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </>
+        )}
+      </section>
+
+      {/* ══════ SECTION 7: ECONOMIC CALENDAR ══════ */}
+      <section className="rounded-3xl border border-white/10 bg-[#08111f] p-4">
+        <div className="mb-3 px-1 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
+          Upcoming Events That May Move VIX
+        </div>
+        <EconomicCalendar />
+      </section>
+
+      {/* ══════ SECTION 8: VIX HISTORY TABLE ══════ */}
+      <section className="rounded-3xl border border-white/10 bg-[#08111f] p-6">
+        <div className="mb-1 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
+          Historical VIX Spikes
+        </div>
+        <h3 className="text-lg font-semibold text-white">
+          Every Major Spike Has Led to Recovery
+        </h3>
+
+        <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
+          <table className="w-full text-sm">
+            <thead className="bg-white/[0.04] text-slate-400">
+              <tr>
+                <th className="px-5 py-3 text-left font-medium">Date</th>
+                <th className="px-5 py-3 text-left font-medium">VIX High</th>
+                <th className="px-5 py-3 text-left font-medium">Event</th>
+                <th className="px-5 py-3 text-left font-medium">
+                  S&P Recovery
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {VIX_HISTORY.map((row) => (
+                <tr
+                  key={row.date}
+                  className="border-t border-white/5 hover:bg-white/[0.02]"
+                >
+                  <td className="px-5 py-3 font-medium text-white">
+                    {row.date}
+                  </td>
+                  <td className="px-5 py-3 font-semibold text-red-300">
+                    {row.vixHigh.toFixed(2)}
+                  </td>
+                  <td className="px-5 py-3 text-slate-300">{row.event}</td>
+                  <td className="px-5 py-3 font-semibold text-emerald-300">
+                    {row.recovery}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <p className="mt-4 text-xs text-slate-500">
+          Every major VIX spike has historically been followed by significant
+          market recovery. Aurora's ladder system is designed to capture these
+          opportunities systematically.
+        </p>
+      </section>
     </div>
   );
 }
 
-function MetricCard({
+/* ─── Stat Card ─── */
+
+function StatCard({
   title,
   value,
   sub,
-  glow,
+  subColor,
 }: {
   title: string;
   value: string;
   sub: string;
-  glow: "cyan" | "blue" | "violet" | "emerald" | "red" | "amber";
-}) {
-  const glowMap: Record<string, string> = {
-    cyan: "from-cyan-500/20 to-cyan-400/5",
-    blue: "from-blue-500/20 to-blue-400/5",
-    violet: "from-violet-500/20 to-violet-400/5",
-    emerald: "from-emerald-500/20 to-emerald-400/5",
-    red: "from-red-500/20 to-red-400/5",
-    amber: "from-amber-500/20 to-amber-400/5",
-  };
-
-  return (
-    <div className={`rounded-[22px] border border-white/10 bg-gradient-to-br ${glowMap[glow]} p-4 shadow-[0_14px_40px_rgba(0,0,0,0.30)]`}>
-      <p className="text-[11px] uppercase tracking-[0.22em] text-slate-400">{title}</p>
-      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
-      <p className="mt-1 text-sm text-slate-400">{sub}</p>
-    </div>
-  );
-}
-
-function PanelCard({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  children: React.ReactNode;
+  subColor: string;
 }) {
   return (
-    <div className="rounded-[24px] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(2,6,23,0.96))] p-5 shadow-[0_18px_60px_rgba(0,0,0,0.38)]">
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold text-white">{title}</h3>
-        <p className="text-sm text-slate-400">{subtitle}</p>
+    <div className="rounded-3xl border border-white/10 bg-[#07152f]/90 p-5 shadow-[0_0_30px_rgba(0,180,255,0.05)]">
+      <div className="text-xs uppercase tracking-[0.28em] text-white/45">
+        {title}
       </div>
-      {children}
-    </div>
-  );
-}
-
-function FeaturedMover({
-  row,
-  positive,
-}: {
-  row: VolatilityRow;
-  positive: boolean;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="text-2xl font-semibold text-white">{row.symbol}</p>
-          <p className="mt-1 text-sm text-slate-400">{row.company_name || "—"}</p>
-          <p className="mt-3 text-sm text-slate-400">{row.sector || "—"}</p>
-        </div>
-        <div className="text-right">
-          <p className={`text-2xl font-semibold ${positive ? "text-emerald-300" : "text-red-300"}`}>
-            {formatPct(Number(row.change_pct || 0))}
-          </p>
-          <p className="mt-1 text-sm text-cyan-300">
-            Vol {Number(row.volatility || 0).toFixed(2)}%
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CompactList({ rows }: { rows: VolatilityRow[] }) {
-  if (!rows.length) return <EmptyState />;
-
-  return (
-    <div className="space-y-2">
-      {rows.map((row) => {
-        const positive = Number(row.change_pct || 0) >= 0;
-        return (
-          <div
-            key={row.symbol}
-            className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3"
-          >
-            <div>
-              <p className="font-semibold text-white">{row.symbol}</p>
-              <p className="text-xs text-slate-400">{row.company_name || "—"}</p>
-            </div>
-            <div className="text-right">
-              <p className={positive ? "font-medium text-emerald-300" : "font-medium text-red-300"}>
-                {formatPct(Number(row.change_pct || 0))}
-              </p>
-              <p className="text-xs text-slate-400">
-                {formatMoney(Number(row.price || 0))}
-              </p>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function CompactVolList({ rows }: { rows: VolatilityRow[] }) {
-  if (!rows.length) return <EmptyState />;
-
-  return (
-    <div className="space-y-2">
-      {rows.map((row) => (
-        <div
-          key={row.symbol}
-          className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3"
-        >
-          <div className="mb-2 flex items-center justify-between gap-3">
-            <div>
-              <p className="font-semibold text-white">{row.symbol}</p>
-              <p className="text-xs text-slate-400">{row.company_name || "—"}</p>
-            </div>
-            <span
-              className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${getVolBandClass(
-                Number(row.volatility || 0)
-              )}`}
-            >
-              {getVolBand(Number(row.volatility || 0))}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-blue-500 to-violet-500"
-                style={{ width: `${Math.max(6, Math.min(Number(row.volatility || 0) * 12, 100))}%` }}
-              />
-            </div>
-            <div className="min-w-[58px] text-right text-sm font-medium text-cyan-300">
-              {Number(row.volatility || 0).toFixed(2)}%
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function StatusPill({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone: "emerald" | "cyan" | "violet" | "amber";
-}) {
-  const map: Record<string, string> = {
-    emerald: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
-    cyan: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300",
-    violet: "border-violet-500/30 bg-violet-500/10 text-violet-300",
-    amber: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-  };
-
-  return (
-    <div className={`rounded-2xl border px-3 py-3 ${map[tone]}`}>
-      <p className="text-[11px] uppercase tracking-[0.2em] opacity-80">{label}</p>
-      <p className="mt-1 font-semibold">{value}</p>
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-4 text-sm text-slate-500">
-      No data available.
+      <div className="mt-3 text-2xl font-semibold text-white">{value}</div>
+      <div className={`mt-2 text-sm ${subColor}`}>{sub}</div>
     </div>
   );
 }

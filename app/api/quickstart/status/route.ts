@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getWatchlistTable } from "@/lib/watchlist/getTable";
 
 export async function GET() {
   const supabase = await createClient();
@@ -51,11 +52,17 @@ export async function GET() {
     scannerViewed = (count ?? 0) > 0;
   } catch { /* table may not have rows */ }
 
-  // Step 3: watchlist has items
+  // Step 3: watchlist has items (check correct table for broker mode)
   let watchlistAdded = false;
   try {
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("active_broker_mode")
+      .eq("id", user.id)
+      .maybeSingle();
+    const wlTable = getWatchlistTable(prof?.active_broker_mode);
     const { count } = await supabase
-      .from("watchlist_items")
+      .from(wlTable)
       .select("id", { count: "exact", head: true })
       .eq("user_id", user.id);
     watchlistAdded = (count ?? 0) > 0;

@@ -41,6 +41,14 @@ export default function WelcomeModal({ firstName }: Props) {
   );
 
   useEffect(() => {
+    // localStorage is the PRIMARY gate — checked BEFORE any API calls
+    if (
+      localStorage.getItem("aurora_tour_done") === "true" ||
+      localStorage.getItem("aurora_all_popups_done") === "true"
+    ) {
+      return;
+    }
+
     let cancelled = false;
 
     async function check() {
@@ -69,6 +77,8 @@ export default function WelcomeModal({ firstName }: Props) {
 
   async function dismiss() {
     setDismissing(true);
+    localStorage.setItem("aurora_tour_done", "true");
+    localStorage.setItem("aurora_all_popups_done", "true");
     try {
       await fetch("/api/onboarding/welcome-seen", { method: "POST" });
     } catch {

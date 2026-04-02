@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import TradingViewAdvancedChart from "@/components/stocks/TradingViewAdvancedChart";
+import AdvancedChart from "@/components/tradingview/AdvancedChart";
+import TechnicalAnalysis from "@/components/tradingview/TechnicalAnalysis";
+import FundamentalData from "@/components/tradingview/FundamentalData";
+import CompanyProfile from "@/components/tradingview/CompanyProfile";
+import TopStories from "@/components/tradingview/TopStories";
 import { useWatchlist } from "@/components/watchlist/WatchlistProvider";
 
 type ScannerRow = {
@@ -400,6 +404,7 @@ export default function StockIntelligenceClient({ ticker }: Props) {
   const loadAiAnalysis = useCallback(async () => {
     setAiLoading(true);
     try {
+      // Try Anthropic-powered route first
       const res = await fetch(
         `/api/aurora/intelligence?ticker=${encodeURIComponent(symbol)}`,
         { cache: "no-store" }
@@ -407,13 +412,29 @@ export default function StockIntelligenceClient({ ticker }: Props) {
       const data = await res.json();
       if (data?.analysis) {
         setAiText(data.analysis);
-        setAiTimestamp(new Date().toISOString());
+        setAiTimestamp(data.updated_at || new Date().toISOString());
+        return;
       }
     } catch {
-      setAiText("Unable to load analysis at this time.");
-    } finally {
-      setAiLoading(false);
+      // Anthropic route failed — try Gemini fallback
     }
+
+    try {
+      const res2 = await fetch(
+        `/api/intelligence?ticker=${encodeURIComponent(symbol)}`,
+        { cache: "no-store" }
+      );
+      const data2 = await res2.json();
+      if (data2?.analysis) {
+        setAiText(data2.analysis);
+        setAiTimestamp(data2.updated_at || new Date().toISOString());
+        return;
+      }
+    } catch {
+      // both failed
+    }
+
+    setAiText("Unable to load analysis at this time. Please try again.");
   }, [symbol]);
 
   useEffect(() => {
@@ -465,6 +486,11 @@ export default function StockIntelligenceClient({ ticker }: Props) {
 
   return (
     <div className="min-h-screen bg-[#030712] text-white">
+      {/* ── Hero Chart — full width, edge-to-edge, no card wrapper ── */}
+      <div className="w-full bg-[#07101d]">
+        <AdvancedChart ticker={symbol} height={545} />
+      </div>
+
       <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -551,6 +577,13 @@ export default function StockIntelligenceClient({ ticker }: Props) {
               >
                 📊 Make Investment
               </button>
+
+              <Link
+                href={`/dashboard/investments/calculator?ticker=${symbol}`}
+                className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-5 py-2 text-sm font-medium text-white/70 transition hover:border-cyan-400/30 hover:bg-white/10 hover:text-white"
+              >
+                🧮 Calculator
+              </Link>
             </div>
           </div>
 
@@ -587,54 +620,103 @@ export default function StockIntelligenceClient({ ticker }: Props) {
           />
         </div>
 
+        {/* TradingView widgets: 2-column layout */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Left column */}
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-white/10 bg-[#08111f] p-4">
+              <div className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">Technical Analysis</div>
+              <TechnicalAnalysis ticker={symbol} />
+            </div>
+            <div className="rounded-3xl border border-white/10 bg-[#08111f] p-4">
+              <div className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">Fundamental Data</div>
+              <FundamentalData ticker={symbol} />
+            </div>
+          </div>
+
+          {/* Right column */}
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-white/10 bg-[#08111f] p-4">
+              <div className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">Company Profile</div>
+              <CompanyProfile ticker={symbol} />
+            </div>
+            <div className="rounded-3xl border border-white/10 bg-[#08111f] p-4">
+              <div className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">Top Stories</div>
+              <TopStories ticker={symbol} />
+            </div>
+          </div>
+        </div>
+
+        {/* AI Analysis */}
+        <div className="rounded-3xl border border-cyan-500/20 bg-[#08111f] p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-cyan-400">✦</span>
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">
+                Aurora Intelligence
+              </span>
+            </div>
+            <span className="text-xs text-zinc-500">{agoText()}</span>
+          </div>
+
+          {aiLoading ? (
+            <div className="mt-4 text-sm text-zinc-400">
+              Generating analysis...
+            </div>
+          ) : showAi && aiText ? (
+            <div className="mt-4">
+              {aiText.includes("##") ? (
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {aiText
+                    .split("##")
+                    .filter(Boolean)
+                    .map((section, i) => {
+                      const lines = section.split("\n").filter(Boolean);
+                      const title = lines[0]?.trim() || "";
+                      const body = lines.slice(1).join(" ").trim();
+                      return (
+                        <div
+                          key={i}
+                          className="rounded-2xl border border-white/8 bg-white/[0.02] px-4 py-3"
+                        >
+                          <div className="text-xs font-semibold uppercase tracking-[0.15em] text-cyan-300/80">
+                            {title}
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-zinc-300">
+                            {body}
+                          </p>
+                        </div>
+                      );
+                    })}
+                </div>
+              ) : (
+                <p className="text-sm leading-7 text-zinc-300">{aiText}</p>
+              )}
+            </div>
+          ) : null}
+
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              onClick={handleListen}
+              className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-white/70 transition hover:bg-white/10"
+            >
+              {speaking ? "⏹ Stop" : "🎧 Listen"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAi((v) => !v)}
+              className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-white/70 transition hover:bg-white/10"
+            >
+              {showAi ? "Hide" : "Read"}
+            </button>
+          </div>
+        </div>
+
+        {/* Aurora Intelligence + Ladders + Fundamentals */}
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.6fr_0.9fr]">
           {/* Left column */}
           <div className="space-y-6">
-            {/* Chart */}
-            <div className="overflow-hidden rounded-3xl border border-white/10 bg-[#07101d] p-3 shadow-2xl">
-              <TradingViewAdvancedChart symbol={symbol} />
-            </div>
-
-            {/* AI Analysis */}
-            <div className="rounded-3xl border border-cyan-500/20 bg-[#08111f] p-5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-cyan-400">✦</span>
-                  <span className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-300">
-                    Aurora Intelligence
-                  </span>
-                </div>
-                <span className="text-xs text-zinc-500">{agoText()}</span>
-              </div>
-
-              {aiLoading ? (
-                <div className="mt-4 text-sm text-zinc-400">
-                  Generating analysis...
-                </div>
-              ) : showAi && aiText ? (
-                <p className="mt-4 text-sm leading-7 text-zinc-300">
-                  {aiText}
-                </p>
-              ) : null}
-
-              <div className="mt-4 flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleListen}
-                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-white/70 transition hover:bg-white/10"
-                >
-                  {speaking ? "⏹ Stop" : "🎧 Listen"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowAi((v) => !v)}
-                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-white/70 transition hover:bg-white/10"
-                >
-                  {showAi ? "Hide" : "Read"}
-                </button>
-              </div>
-            </div>
-
             {/* Fundamentals */}
             <div className="rounded-3xl border border-white/10 bg-[#08111f] p-5">
               <div className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
@@ -762,6 +844,17 @@ export default function StockIntelligenceClient({ ticker }: Props) {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Make Investment button */}
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => setShowInvestModal(true)}
+            className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(90deg,#22d3ee_0%,#60a5fa_45%,#a855f7_100%)] px-8 py-4 text-lg font-semibold text-slate-950 transition hover:brightness-110"
+          >
+            📊 Make Investment
+          </button>
         </div>
       </div>
 

@@ -87,8 +87,14 @@ export default function OnboardingTour() {
     // Only auto-start on dashboard pages
     if (!pathname.startsWith("/dashboard")) return;
 
-    // localStorage is the primary gate — survives even if DB save fails
-    if (localStorage.getItem("aurora_tour_done") === "true") return;
+    // localStorage is the PRIMARY gate — checked BEFORE any API calls
+    if (
+      localStorage.getItem("aurora_tour_done") === "true" ||
+      localStorage.getItem("aurora_all_popups_done") === "true" ||
+      localStorage.getItem("aurora_tour_completed") === "true"
+    ) {
+      return;
+    }
 
     // "Skip for now" expires after 24 hours
     const skipTime = localStorage.getItem("aurora_tour_skip_session");
@@ -104,9 +110,6 @@ export default function OnboardingTour() {
       localStorage.removeItem("aurora_tour_skip_date");
     }
 
-    const stored = localStorage.getItem("aurora_tour_completed");
-    if (stored === "true") return;
-
     const savedStep = localStorage.getItem("aurora_tour_step");
 
     (async () => {
@@ -118,6 +121,7 @@ export default function OnboardingTour() {
         if (data.onboarding_tour_completed) {
           localStorage.setItem("aurora_tour_completed", "true");
           localStorage.setItem("aurora_tour_done", "true");
+          localStorage.setItem("aurora_all_popups_done", "true");
           return;
         }
 
@@ -188,6 +192,7 @@ export default function OnboardingTour() {
     setVisible(false);
     localStorage.setItem("aurora_tour_completed", "true");
     localStorage.setItem("aurora_tour_done", "true");
+    localStorage.setItem("aurora_all_popups_done", "true");
     localStorage.removeItem("aurora_tour_step");
     try {
       await fetch("/api/onboarding/complete", { method: "POST" });

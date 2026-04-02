@@ -71,6 +71,24 @@ export default async function DashboardLayout({
     console.error("Failed to fetch profile in layout:", err);
   }
 
+  // ── Ensure active_broker_mode defaults to 'live' ─────────
+  try {
+    const { data: modeCheck } = await supabase
+      .from("profiles")
+      .select("active_broker_mode")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (!modeCheck?.active_broker_mode) {
+      await supabaseAdmin
+        .from("profiles")
+        .update({ active_broker_mode: "live" })
+        .eq("id", user.id);
+    }
+  } catch {
+    // non-fatal
+  }
+
   // ── Broker connection status ──────────────────────────────
   let brokerStatus = "Disconnected";
   let brokerConnected = false;

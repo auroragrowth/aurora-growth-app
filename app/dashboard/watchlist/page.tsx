@@ -6,6 +6,10 @@ import { useWatchlist } from "@/components/watchlist/WatchlistProvider";
 import { usePortfolio } from "@/components/providers/PortfolioProvider";
 import { ExpiredBlur } from "@/components/dashboard/ExpiredOverlay";
 import PriceAlertModal from "@/components/watchlist/PriceAlertModal";
+import MiniChart from "@/components/tradingview/MiniChart";
+import AdvancedChart from "@/components/tradingview/AdvancedChart";
+import TechnicalAnalysis from "@/components/tradingview/TechnicalAnalysis";
+import FundamentalData from "@/components/tradingview/FundamentalData";
 
 type PriceAlertRow = {
   id: string;
@@ -134,9 +138,47 @@ export default function WatchlistPage() {
   const [alerts, setAlerts] = useState<PriceAlertRow[]>([]);
   const [alertModalSymbol, setAlertModalSymbol] = useState<string | null>(null);
 
+  // Stock Analysis section
+  const [analysisTicker, setAnalysisTicker] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [stockMetrics, setStockMetrics] = useState<{
+    ticker: string;
+    company: string;
+    price: number;
+    previousClose: number | null;
+    changePct: number | null;
+    high52w: number | null;
+    high90d: number | null;
+    high90dDate: string | null;
+    recentHigh: number | null;
+    recentHighDate: string | null;
+    score: number | null;
+    marketCap: string | null;
+    volume: number | null;
+  } | null>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(false);
+
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Auto-select first watchlist item for analysis
+  useEffect(() => {
+    if (!analysisTicker && items.length > 0) {
+      setAnalysisTicker(items[0].symbol);
+    }
+  }, [items, analysisTicker]);
+
+  // Fetch stock metrics when analysis ticker changes
+  useEffect(() => {
+    if (!analysisTicker) { setStockMetrics(null); return; }
+    setLoadingMetrics(true);
+    fetch(`/api/scanner/stock?ticker=${encodeURIComponent(analysisTicker)}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => setStockMetrics(d))
+      .catch(() => setStockMetrics(null))
+      .finally(() => setLoadingMetrics(false));
+  }, [analysisTicker]);
 
   const loadAlerts = useCallback(async () => {
     try {
@@ -555,6 +597,7 @@ export default function WatchlistPage() {
                     </button>
                   </th>
 
+                  <th className="px-6 py-4">Chart</th>
                   <th className="px-6 py-4">Action</th>
                 </tr>
               </thead>
@@ -563,7 +606,7 @@ export default function WatchlistPage() {
                 {filteredRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={10}
                       className="px-6 py-16 text-center text-white/55"
                     >
                       No watchlist stocks found for this filter.
@@ -666,6 +709,12 @@ export default function WatchlistPage() {
                           {formatDate(row.created_at)}
                         </td>
 
+                        <td className="px-3 py-2">
+                          <div className="w-[200px] h-[100px] overflow-hidden rounded-xl">
+                            <MiniChart ticker={row.symbol} />
+                          </div>
+                        </td>
+
                         <td className="px-6 py-5">
                           <div className="flex items-center gap-3">
                             <Link
@@ -692,6 +741,244 @@ export default function WatchlistPage() {
           </div>
         </div>
       </ExpiredBlur>
+
+      {/* ══════ STOCK ANALYSIS SECTION ══════ */}
+      <section className="space-y-5">
+        {/* Header */}
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.35em] text-cyan-300/80">Stock Analysis</div>
+          <h2 className="mt-2 text-2xl font-semibold text-white">Detailed Chart & Metrics</h2>
+        </div>
+
+        {/* Dropdown + Search row */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="flex-1">
+            <label className="mb-1.5 block text-xs font-medium text-slate-400">From Watchlist</label>
+            <select
+              value={analysisTicker}
+              onChange={(e) => { setAnalysisTicker(e.target.value); setSearchInput(""); }}
+              className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition focus:border-cyan-400/40 focus:ring-1 focus:ring-cyan-400/20"
+            >
+              <option value="" className="bg-[#0b1628]">
+                {rows.length ? "Select from watchlist" : "No items in watchlist"}
+              </option>
+              {rows.map((row) => (
+                <option key={row.symbol} value={row.symbol} className="bg-[#0b1628]">
+                  {row.symbol}{row.company_name ? ` — ${row.company_name}` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="mb-1.5 block text-xs font-medium text-slate-400">Search Any Ticker</label>
+            <form
+              onSubmit={(e) => { e.preventDefault(); const c = searchInput.trim().toUpperCase(); if (c) setAnalysisTicker(c); }}
+              className="flex gap-2"
+            >
+              <input
+                type="text"
+                placeholder="e.g. AAPL, MSFT, TSLA"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white placeholder-white/30 outline-none transition focus:border-cyan-400/40 focus:ring-1 focus:ring-cyan-400/20"
+              />
+              <button type="submit" className="rounded-xl border border-cyan-400/30 bg-cyan-500/10 px-5 py-3 text-sm font-medium text-cyan-300 transition hover:bg-cyan-500/20">
+                Load
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {analysisTicker && (
+          <div className="space-y-5">
+            {/* ── Advanced Chart ── */}
+            <div className="overflow-hidden rounded-3xl border border-cyan-500/10 bg-[#07101d] p-3 shadow-2xl">
+              <div className="mb-2 flex items-center justify-between px-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
+                  {analysisTicker}{stockMetrics?.company && stockMetrics.company !== analysisTicker ? ` — ${stockMetrics.company}` : ""} — Advanced Chart
+                </span>
+                <Link
+                  href={`/dashboard/stocks/${encodeURIComponent(analysisTicker)}`}
+                  className="text-xs font-medium text-cyan-400 transition hover:text-cyan-300"
+                >
+                  Full Analysis &rarr;
+                </Link>
+              </div>
+              <AdvancedChart ticker={analysisTicker} height={700} />
+            </div>
+
+            {/* ── Stock Metrics Cards ── */}
+            {loadingMetrics ? (
+              <div className="flex h-28 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.03] text-sm text-white/40">
+                Loading metrics...
+              </div>
+            ) : stockMetrics?.price ? (
+              <>
+                {/* Row 1 — 4 cards */}
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  {/* Current Price */}
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">Current Price</div>
+                    <div className="mt-1 text-2xl font-bold text-white">${stockMetrics.price.toFixed(2)}</div>
+                    {stockMetrics.changePct != null && (
+                      <div className={`mt-1 text-sm font-medium ${stockMetrics.changePct >= 0 ? "text-green-400" : "text-red-400"}`}>
+                        {stockMetrics.changePct >= 0 ? "+" : ""}{stockMetrics.changePct.toFixed(2)}% today
+                      </div>
+                    )}
+                  </div>
+                  {/* 52W High */}
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">52W High</div>
+                    <div className="mt-1 text-2xl font-bold text-white">
+                      {stockMetrics.high52w ? `$${stockMetrics.high52w.toFixed(2)}` : "—"}
+                    </div>
+                    {stockMetrics.high52w && stockMetrics.price ? (
+                      <div className={`mt-1 text-sm font-medium ${stockMetrics.price >= stockMetrics.high52w ? "text-green-400" : "text-red-400"}`}>
+                        {(((stockMetrics.price - stockMetrics.high52w) / stockMetrics.high52w) * 100).toFixed(1)}% from high
+                      </div>
+                    ) : null}
+                  </div>
+                  {/* 90D High */}
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">90D High</div>
+                    <div className="mt-1 text-2xl font-bold text-white">
+                      {stockMetrics.high90d ? `$${stockMetrics.high90d.toFixed(2)}` : "—"}
+                    </div>
+                    {stockMetrics.high90d && stockMetrics.price ? (
+                      <div className="mt-1 text-sm text-white/50">
+                        {stockMetrics.high90dDate || ""}
+                      </div>
+                    ) : null}
+                  </div>
+                  {/* Aurora Score */}
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">Aurora Score</div>
+                    <div className="mt-1 text-2xl font-bold text-white">
+                      {stockMetrics.score != null ? `${stockMetrics.score}/30` : "—"}
+                    </div>
+                    {stockMetrics.score != null && (
+                      <div className="mt-1">
+                        <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${
+                          stockMetrics.score >= 25
+                            ? "bg-green-500/20 text-green-400"
+                            : stockMetrics.score >= 18
+                            ? "bg-amber-500/20 text-amber-400"
+                            : "bg-red-500/20 text-red-400"
+                        }`}>
+                          {stockMetrics.score >= 25 ? "STRONG" : stockMetrics.score >= 18 ? "BUILDING" : "WATCH"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Row 2 — 3 cards */}
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                  {/* Market Cap */}
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">Market Cap</div>
+                    <div className="mt-1 text-2xl font-bold text-white">{stockMetrics.marketCap || "—"}</div>
+                    {stockMetrics.marketCap && (
+                      <div className="mt-1 text-sm text-white/50">
+                        {stockMetrics.marketCap.includes("T") ? "Mega cap" : stockMetrics.marketCap.includes("B") ? "Large cap" : "Mid cap"}
+                      </div>
+                    )}
+                  </div>
+                  {/* Volume */}
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">Volume</div>
+                    <div className="mt-1 text-2xl font-bold text-white">
+                      {stockMetrics.volume
+                        ? stockMetrics.volume >= 1e6
+                          ? `${(stockMetrics.volume / 1e6).toFixed(1)}M`
+                          : stockMetrics.volume >= 1e3
+                          ? `${(stockMetrics.volume / 1e3).toFixed(0)}K`
+                          : stockMetrics.volume.toLocaleString()
+                        : "—"}
+                    </div>
+                    <div className="mt-1 text-sm text-white/50">Today&apos;s volume</div>
+                  </div>
+                  {/* % Below 52W High */}
+                  <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-white/40">From 52W High</div>
+                    {stockMetrics.high52w && stockMetrics.price ? (() => {
+                      const pct = ((stockMetrics.price - stockMetrics.high52w) / stockMetrics.high52w) * 100;
+                      return (
+                        <>
+                          <div className={`mt-1 text-2xl font-bold ${pct >= 0 ? "text-green-400" : "text-red-400"}`}>
+                            {pct.toFixed(1)}%
+                          </div>
+                          <div className="mt-1 text-sm text-white/50">
+                            {pct >= -5 ? "Near highs" : pct >= -20 ? "Pullback" : pct >= -35 ? "Correction" : "Deep discount"}
+                          </div>
+                        </>
+                      );
+                    })() : <div className="mt-1 text-2xl font-bold text-white">—</div>}
+                  </div>
+                </div>
+
+                {/* ── Ladder Quick View ── */}
+                {stockMetrics.price > 0 && (
+                  <div className="rounded-2xl border border-cyan-500/15 bg-gradient-to-b from-cyan-500/[0.06] to-transparent p-5">
+                    <div className="mb-3 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-cyan-200">Aurora Ladder — Quick View</h3>
+                        <p className="mt-0.5 text-xs text-white/45">
+                          Reference: ${(stockMetrics.recentHigh || stockMetrics.price * 1.2).toFixed(2)}
+                          {stockMetrics.recentHighDate ? ` (90d high · ${stockMetrics.recentHighDate})` : " (20% above current)"}
+                        </p>
+                      </div>
+                      <Link
+                        href={`/dashboard/investments/calculator?ticker=${encodeURIComponent(analysisTicker)}`}
+                        className="rounded-lg border border-cyan-400/30 bg-cyan-500/10 px-4 py-2 text-xs font-medium text-cyan-300 transition hover:bg-cyan-500/20"
+                      >
+                        Open Full Calculator &rarr;
+                      </Link>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                      {[10, 20, 30, 40].map((drop, i) => {
+                        const ref = stockMetrics.recentHigh || stockMetrics.price * 1.2;
+                        const entry = ref * (1 - drop / 100);
+                        return (
+                          <Link
+                            key={drop}
+                            href={`/dashboard/investments/calculator?ticker=${encodeURIComponent(analysisTicker)}`}
+                            className="group flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 transition hover:border-cyan-400/30 hover:bg-cyan-500/[0.06]"
+                          >
+                            <div>
+                              <span className="text-xs font-medium text-white/40">Step {i + 1}</span>
+                              <div className="text-base font-bold text-white">${entry.toFixed(2)}</div>
+                            </div>
+                            <span className="rounded-full bg-white/10 px-2 py-0.5 text-xs font-semibold text-white/60 group-hover:text-cyan-300">
+                              -{drop}%
+                            </span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : null}
+
+            {/* ── Technical + Fundamental side by side ── */}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="overflow-hidden rounded-3xl border border-white/10 bg-[#07101d] p-3">
+                <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
+                  Technical Analysis
+                </div>
+                <TechnicalAnalysis ticker={analysisTicker} />
+              </div>
+              <div className="overflow-hidden rounded-3xl border border-white/10 bg-[#07101d] p-3">
+                <div className="mb-2 px-2 text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
+                  Fundamental Data
+                </div>
+                <FundamentalData ticker={analysisTicker} />
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
 
       {alertModalSymbol && (
         <PriceAlertModal

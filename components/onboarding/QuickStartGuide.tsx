@@ -123,6 +123,15 @@ export default function QuickStartGuide() {
     // Don't show on non-dashboard pages
     if (!pathname.startsWith("/dashboard")) return;
 
+    // localStorage is the PRIMARY gate — no flicker
+    if (
+      localStorage.getItem("aurora_tour_done") === "true" ||
+      localStorage.getItem("aurora_all_popups_done") === "true" ||
+      localStorage.getItem("aurora_quickstart_done") === "true"
+    ) {
+      return;
+    }
+
     // Check if dismissed this session
     const dismissed = sessionStorage.getItem("aurora_quickstart_dismissed");
     if (dismissed === "true") return;
@@ -151,6 +160,8 @@ export default function QuickStartGuide() {
   const handleDontShowAgain = useCallback(async () => {
     setVisible(false);
     sessionStorage.setItem("aurora_quickstart_dismissed", "true");
+    localStorage.setItem("aurora_quickstart_done", "true");
+    localStorage.setItem("aurora_all_popups_done", "true");
     try {
       await fetch("/api/quickstart/dismiss", {
         method: "POST",
@@ -163,6 +174,8 @@ export default function QuickStartGuide() {
   const handleAllDoneClick = useCallback(async () => {
     setVisible(false);
     sessionStorage.setItem("aurora_quickstart_dismissed", "true");
+    localStorage.setItem("aurora_quickstart_done", "true");
+    localStorage.setItem("aurora_all_popups_done", "true");
     try {
       await fetch("/api/quickstart/dismiss", {
         method: "POST",

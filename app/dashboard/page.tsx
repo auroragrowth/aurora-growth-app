@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import MarketCountdown from "@/components/dashboard/MarketCountdown";
+import MarketOverview from "@/components/tradingview/MarketOverview";
 
 type ScannerRow = {
   ticker?: string;
@@ -111,6 +112,15 @@ export default async function DashboardPage() {
             <div className="text-xs uppercase tracking-[0.28em] text-white/45">Market</div>
             <div className="mt-3 text-2xl font-semibold text-white">Open</div>
             <div className="mt-2 text-sm text-white/55">US equities</div>
+          </div>
+        </section>
+
+        {/* Market Overview */}
+        <section className="rounded-[28px] border border-cyan-500/10 bg-[linear-gradient(180deg,rgba(8,15,35,0.95),rgba(2,6,23,0.98))] p-6 shadow-[0_10px_40px_rgba(2,6,23,0.45)]">
+          <div className="text-[11px] uppercase tracking-[0.35em] text-cyan-300/80">Market Overview</div>
+          <h2 className="mt-2 text-2xl font-semibold text-white">Key Indices & Stocks</h2>
+          <div className="mt-4">
+            <MarketOverview />
           </div>
         </section>
 

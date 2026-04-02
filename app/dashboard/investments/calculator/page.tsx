@@ -69,7 +69,7 @@ function parseNumber(value: string | number | null | undefined): number | null {
 }
 
 function formatMoney(value: number, currency: CurrencyCode): string {
-  return new Intl.NumberFormat("en-GB", {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
     maximumFractionDigits: 2,
@@ -81,7 +81,7 @@ function formatPercent(value: number): string {
 }
 
 function formatNumber(value: number, digits = 4): string {
-  return new Intl.NumberFormat("en-GB", { maximumFractionDigits: digits }).format(value);
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: digits }).format(value);
 }
 
 function getCurrencyPrefix(currency: CurrencyCode): string {
@@ -152,6 +152,16 @@ function InvestmentsCalculatorInner() {
   // Profit target — fixed at 20%
   const profitTargetPct = 20;
 
+  // Stock data from scanner (live prices + recent high)
+  const [stockData, setStockData] = useState<{
+    price: number;
+    high90d: number | null;
+    high90dDate: string | null;
+    high52w: number | null;
+    recentHigh: number | null;
+    recentHighDate: string | null;
+  } | null>(null);
+
   // Chart data
   const [candles, setCandles] = useState<CandleRow[]>([]);
   const [loadingCandles, setLoadingCandles] = useState(false);
@@ -176,7 +186,12 @@ function InvestmentsCalculatorInner() {
       }
     }
     load();
-    return () => { active = false; };
+
+    // Re-fetch watchlist when broker mode changes
+    const onModeChange = () => { active = true; load(); };
+    window.addEventListener("aurora:broker-mode-changed", onModeChange);
+
+    return () => { active = false; window.removeEventListener("aurora:broker-mode-changed", onModeChange); };
   }, [supabase]);
 
   /* ── Pre-fill from ?ticker= query param ── */
@@ -212,18 +227,31 @@ function InvestmentsCalculatorInner() {
     setLoadingCandles(true);
     setLoadingRef(true);
 
-    // 1. Get current price from scanner
+    // 1. Get current price + recent high from scanner/stock API
     let price = 0;
     try {
-      const res = await fetch(`/api/stocks/search?q=${encodeURIComponent(clean)}`, { cache: "no-store" });
-      if (!res.ok) throw new Error(`Lookup failed (${res.status})`);
-      const data = await res.json();
-      const rows = Array.isArray(data?.rows) ? data.rows : [];
-      const match = rows.find((r: any) => String(r?.symbol || "").toUpperCase() === clean) || rows[0];
-      if (!match) throw new Error("No stock data found.");
-      const p = parseNumber(match.price) ?? parseNumber(match.current_price) ?? parseNumber(match.close);
-      if (p !== null) price = p;
-      if (match.company_name || match.company) setCompanyName(match.company_name || match.company);
+      const res = await fetch(`/api/scanner/stock?ticker=${encodeURIComponent(clean)}`, { cache: "no-store" });
+      if (res.ok) {
+        const sd = await res.json();
+        if (sd.price) price = sd.price;
+        if (sd.company && sd.company !== clean) setCompanyName(sd.company);
+        setStockData(sd);
+      }
+      // Fallback to search if no price
+      if (!price) {
+        const searchRes = await fetch(`/api/stocks/search?q=${encodeURIComponent(clean)}`, { cache: "no-store" });
+        if (searchRes.ok) {
+          const data = await searchRes.json();
+          const rows = Array.isArray(data?.rows) ? data.rows : [];
+          const match = rows.find((r: any) => String(r?.symbol || "").toUpperCase() === clean) || rows[0];
+          if (match) {
+            const p = parseNumber(match.price) ?? parseNumber(match.current_price) ?? parseNumber(match.close);
+            if (p !== null) price = p;
+            if (match.company_name || match.company) setCompanyName(match.company_name || match.company);
+          }
+        }
+      }
+      if (!price) throw new Error("No stock data found.");
     } catch (err: any) {
       setTickerError(err?.message || "Could not load ticker.");
     }
@@ -298,12 +326,17 @@ function InvestmentsCalculatorInner() {
   /* ── Derived reference price based on selected source ── */
   const referencePrice = useMemo(() => {
     switch (refSource) {
-      case "recent_high": return currentPrice > 0 ? Math.round(currentPrice * 1.20 * 100) / 100 : 0;
+      case "recent_high": {
+        // Use actual 90d high if available, otherwise fall back to +20%
+        const recentHigh = stockData?.recentHigh || stockData?.high90d;
+        if (recentHigh && recentHigh > 0) return Math.round(recentHigh * 100) / 100;
+        return currentPrice > 0 ? Math.round(currentPrice * 1.20 * 100) / 100 : 0;
+      }
       case "covid_high": return refData?.high_since_covid || currentPrice;
       case "custom": return parseNumber(customRefPrice) || 0;
       default: return 0;
     }
-  }, [refSource, currentPrice, refData, customRefPrice]);
+  }, [refSource, currentPrice, refData, customRefPrice, stockData]);
 
   const cash = parseNumber(cashAvailable) || 0;
   const ladderDrops = getLadderDrops(ladderType);
@@ -457,7 +490,7 @@ function InvestmentsCalculatorInner() {
       <div className="grid gap-6 xl:grid-cols-[2fr_3fr]">
 
         {/* ─── LEFT COLUMN: Inputs ─── */}
-        <section className="rounded-[30px] border border-cyan-500/15 bg-[linear-gradient(180deg,rgba(4,16,48,0.98),rgba(5,20,56,0.96))] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.3)]">
+        <section className="rounded-[30px] border border-cyan-500/15 bg-[linear-gradient(180deg,rgba(4,16,48,0.98),rgba(5,20,56,0.96))] p-6 shadow-[0_16px_50px_rgba(0,0,0,0.3)]" style={{ minHeight: "945px" }}>
           <div className="mb-5">
             <h2 className="text-2xl font-semibold text-white">
               Aurora Ladder Calculator
@@ -551,7 +584,7 @@ function InvestmentsCalculatorInner() {
                 className="w-full rounded-2xl border border-cyan-500/15 bg-slate-950/60 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
               >
                 <option value="USD">$ USD</option>
-                <option value="GBP">£ GBP</option>
+                <option value="GBP">£ GBP (Legacy)</option>
                 <option value="EUR">€ EUR</option>
               </select>
             </div>
@@ -585,7 +618,8 @@ function InvestmentsCalculatorInner() {
               )}
               {referencePrice > 0 && refSource === "recent_high" && currentPrice > 0 && (
                 <p className="mt-2 text-sm text-cyan-300/80">
-                  {cp}{referencePrice.toFixed(2)} · 20% above current price
+                  Recent High: {cp}{referencePrice.toFixed(2)}
+                  {stockData?.recentHighDate ? ` · ${stockData.recentHighDate}` : " · +20% est."}
                 </p>
               )}
               {referencePrice > 0 && refSource === "custom" && (
