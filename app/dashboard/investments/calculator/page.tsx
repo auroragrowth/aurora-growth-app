@@ -23,29 +23,18 @@ function CalculatorContent() {
 
   // Load watchlist
   useEffect(() => {
-    fetch('/api/watchlist')
-      .then(r => r.json())
-      .then(data => {
-        const stocks = Array.isArray(data) ? data : []
-        setWatchlistStocks(stocks)
-
-        // Auto-select ticker from URL param if present
-        const urlTicker = new URLSearchParams(window.location.search).get('ticker')
-        if (urlTicker) {
-          const match = stocks.find(
-            (s: any) => s.symbol === urlTicker.toUpperCase()
-          )
-          if (match) {
-            setTicker(match.symbol)
-            setTickerInput(match.symbol)
-          }
-        } else if (stocks.length > 0 && !ticker) {
-          // Auto-select first stock if no ticker in URL
-          setTicker(stocks[0].symbol)
-          setTickerInput(stocks[0].symbol)
-        }
-      })
-      .catch(() => setWatchlistStocks([]))
+    const loadWatchlist = async () => {
+      try {
+        const res = await fetch('/api/watchlist')
+        if (!res.ok) throw new Error('Failed')
+        const data = await res.json()
+        setWatchlistStocks(Array.isArray(data) ? data : [])
+      } catch (e) {
+        console.error('Watchlist load error:', e)
+        setWatchlistStocks([])
+      }
+    }
+    loadWatchlist()
 
     fetch('/api/broker/mode')
       .then(r => r.json())
@@ -116,7 +105,7 @@ function CalculatorContent() {
 
       {/* Input Card */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-6"
-        style={{ minHeight: '945px' }}>
+        style={{ height: '545px', width: '100%', minHeight: '545px' }}>
 
         {/* Controls row */}
         <div className="flex flex-wrap gap-3 mb-6">
