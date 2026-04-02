@@ -1,6 +1,5 @@
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdmin } from '@supabase/supabase-js'
 import CalculatorClient from './CalculatorClient'
 
 async function getWatchlistData() {
@@ -18,13 +17,7 @@ async function getWatchlistData() {
     const mode = profile?.active_broker_mode || 'live'
     const table = mode === 'demo' ? 'watchlist_demo' : 'watchlist_live'
 
-    const admin = createAdmin(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
-
-    const { data: stocks } = await admin
+    const { data: stocks } = await supabase
       .from(table)
       .select('symbol, company_name, source')
       .eq('user_id', user.id)
