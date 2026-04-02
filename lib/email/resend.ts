@@ -1,12 +1,33 @@
 import { Resend } from "resend";
 
-export const resend = new Resend(process.env.RESEND_API_KEY!);
+const resendApiKey = process.env.RESEND_API_KEY;
 
-export async function sendAuroraEmail({ to, subject, html }: { to: string; subject: string; html: string }) {
+if (!resendApiKey) {
+  throw new Error("RESEND_API_KEY is not set");
+}
+
+export const resend = new Resend(resendApiKey);
+
+type SendAuroraTemplateEmailArgs = {
+  to: string | string[];
+  subject: string;
+  firstName: string;
+};
+
+export async function sendAuroraTemplateEmail({
+  to,
+  subject,
+  firstName,
+}: SendAuroraTemplateEmailArgs) {
   return await resend.emails.send({
-    from: "Aurora Growth <onboarding@auroragrowth.co.uk>",
+    from: "Aurora Growth <info@auroragrowth.co.uk>",
     to,
     subject,
-    html,
+    template: {
+      id: "YOUR_RESEND_TEMPLATE_ID",
+      variables: {
+        firstName,
+      },
+    },
   });
 }

@@ -101,23 +101,25 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
   useEffect(() => {
     if (!ticker) return
 
-    Promise.all([
-      fetch(`/api/scanner/stock?ticker=${ticker}`)
-        .then(r => r.ok ? r.json() : null)
-        .catch(() => null),
-      fetch(`/api/watchlist/check?symbol=${ticker}`)
-        .then(r => r.ok ? r.json() : null)
-        .catch(() => null)
-    ]).then(([stockResult, watchlistResult]) => {
-      if (stockResult) {
-        setScannerData(stockResult)
-        setStockData(stockResult)
-      }
-      if (watchlistResult) {
-        setInWatchlist(watchlistResult.inWatchlist || false)
-        setWatchlistMode(watchlistResult.mode || 'live')
-      }
-    })
+    fetch(`/api/scanner/stock?ticker=${ticker}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data && !data.error) {
+          setScannerData(data)
+          setStockData(data)
+        }
+      })
+      .catch(() => {})
+
+    fetch(`/api/watchlist/check?symbol=${ticker}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data) {
+          setInWatchlist(data.inWatchlist || false)
+          setWatchlistMode(data.mode || 'live')
+        }
+      })
+      .catch(() => {})
   }, [ticker])
 
   const toggleWatchlist = async () => {
@@ -227,20 +229,20 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
               </div>
             )}
 
-            {scannerData?.high_52w && (
+            {stockData?.high52w && (
               <div className="hidden md:block">
                 <p className="text-white/30 text-xs">52W High</p>
                 <p className="text-white/70 text-sm font-bold">
-                  ${parseFloat(scannerData.high_52w).toFixed(2)}
+                  ${stockData.high52w.toFixed(2)}
                 </p>
               </div>
             )}
 
-            {scannerData?.pct_below_high_52w && (
+            {stockData?.pctBelowHigh52w && (
               <div className="hidden md:block">
                 <p className="text-white/30 text-xs">Below 52W High</p>
                 <p className="text-red-400 text-sm font-bold">
-                  -{parseFloat(scannerData.pct_below_high_52w).toFixed(1)}%
+                  -{stockData.pctBelowHigh52w}%
                 </p>
               </div>
             )}
@@ -298,27 +300,17 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
           {[
             {
               label: 'Market Cap',
-              value: scannerData?.marketCap
-                ? scannerData.marketCap > 1e12
-                  ? `$${(scannerData.marketCap/1e12).toFixed(2)}T`
-                  : scannerData.marketCap > 1e9
-                  ? `$${(scannerData.marketCap/1e9).toFixed(2)}B`
-                  : `$${(scannerData.marketCap/1e6).toFixed(0)}M`
-                : scannerData?.market_cap || '—',
+              value: stockData?.marketCapFormatted || '—',
               tip: 'Total market value of the company'
             },
             {
               label: '52W High',
-              value: scannerData?.high_52w
-                ? `$${parseFloat(scannerData.high_52w).toFixed(2)}`
-                : '—',
+              value: stockData?.high52w ? `$${stockData.high52w.toFixed(2)}` : '—',
               tip: 'Highest price in the last 52 weeks'
             },
             {
               label: '% Below High',
-              value: scannerData?.pct_below_high_52w
-                ? `-${parseFloat(scannerData.pct_below_high_52w).toFixed(1)}%`
-                : '—',
+              value: stockData?.pctBelowHigh52w ? `-${stockData.pctBelowHigh52w}%` : '—',
               tip: 'How far the stock is from its 52-week high. Aurora ladders activate as this increases.',
               red: true
             },

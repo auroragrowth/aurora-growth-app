@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import type { BrokerMode } from "@/lib/trading212/types";
 
@@ -26,7 +27,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Mode must be 'live' or 'demo'" }, { status: 400 });
   }
 
-  const { error } = await supabase
+  // Use admin client to bypass RLS on profiles table
+  const { error } = await supabaseAdmin
     .from("profiles")
     .update({ active_broker_mode: mode })
     .eq("id", user.id);

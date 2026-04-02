@@ -1,89 +1,123 @@
-import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { NextRequest, NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase/admin'
+import { fetchFinvizTicker } from '@/lib/finviz/fetchers'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const ticker = req.nextUrl.searchParams.get("ticker")?.trim().toUpperCase();
+  const ticker = req.nextUrl.searchParams.get('ticker')?.trim().toUpperCase()
   if (!ticker) {
-    return NextResponse.json({ error: "ticker is required" }, { status: 400 });
+    return NextResponse.json({ error: 'ticker is required' }, { status: 400 })
   }
 
-  // Try scanner_results first
-  const { data: scannerData } = await supabaseAdmin
-    .from("scanner_results")
-    .select("ticker, price, high_recent_20pct, high_recent_20pct_date, high_52w, high_90d, company, score, market_cap, change_percent")
-    .eq("ticker", ticker)
+  // Get scanner data
+  const { data: scanner } = await supabaseAdmin
+    .from('scanner_results')
+    .select('*')
+    .eq('ticker', ticker)
     .limit(1)
-    .maybeSingle();
+    .maybeSingle()
 
-  // Fetch live data from Yahoo Finance
+  // Always fetch live data from Yahoo Finance
+  let yahoo: any = {}
   try {
     const res = await fetch(
       `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1d&range=90d`,
-      { headers: { "User-Agent": "Mozilla/5.0 (compatible; AuroraGrowth/1.0)" } }
-    );
-    const data = await res.json();
-    const result = data?.chart?.result?.[0];
-    const meta = result?.meta;
-    const highs = result?.indicators?.quote?.[0]?.high || [];
-    const volumes = result?.indicators?.quote?.[0]?.volume || [];
-    const timestamps = result?.timestamp || [];
-
-    let high90d = 0;
-    let high90dDate: string | null = null;
-    highs.forEach((h: number, i: number) => {
-      if (h > high90d) {
-        high90d = h;
-        high90dDate = timestamps[i]
-          ? new Date(timestamps[i] * 1000).toLocaleDateString("en-US", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-          : null;
+      {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AuroraGrowth/1.0)' },
+        next: { revalidate: 300 }
       }
-    });
+    )
+    const json = await res.json()
+    const result = json?.chart?.result?.[0]
+    const meta = result?.meta
+    const quotes = result?.indicators?.quote?.[0]
+    const timestamps = result?.timestamp || []
+    const highs = quotes?.high || []
+    const volumes = quotes?.volume || []
 
-    const currentPrice = meta?.regularMarketPrice;
-    const previousClose = meta?.chartPreviousClose ?? meta?.previousClose;
-    const high52w = meta?.fiftyTwoWeekHigh;
-    const volume = meta?.regularMarketVolume ?? (volumes.length ? volumes[volumes.length - 1] : null);
-    const changePct = previousClose && currentPrice
-      ? ((currentPrice - previousClose) / previousClose) * 100
-      : null;
+    // 90d high and date
+    let high90d = 0
+    let high90dDate: string | null = null
+    highs.forEach((h: number, i: number) => {
+      if (h && h > high90d) {
+        high90d = h
+        high90dDate = timestamps[i]
+          ? new Date(timestamps[i] * 1000).toLocaleDateString('en-GB', {
+              day: '2-digit', month: 'short', year: 'numeric'
+            })
+          : null
+      }
+    })
 
-    return NextResponse.json({
-      ticker,
-      company: scannerData?.company || ticker,
-      price: currentPrice,
-      previousClose,
-      changePct: changePct ?? (scannerData?.change_percent ? parseFloat(scannerData.change_percent) : null),
-      high90d: high90d || scannerData?.high_90d || null,
-      high90dDate: high90dDate || scannerData?.high_recent_20pct_date || null,
-      high52w: high52w || scannerData?.high_52w || null,
-      recentHigh: high90d || scannerData?.high_recent_20pct || null,
-      recentHighDate: high90dDate || scannerData?.high_recent_20pct_date || null,
-      score: scannerData?.score ?? null,
-      marketCap: scannerData?.market_cap ?? null,
-      volume: volume ?? null,
-      currency: "USD",
-    });
-  } catch {
-    // Fallback to scanner data only
-    return NextResponse.json({
-      ticker,
-      company: scannerData?.company || ticker,
-      price: parseFloat(scannerData?.price || "0"),
-      previousClose: null,
-      changePct: scannerData?.change_percent ? parseFloat(scannerData.change_percent) : null,
-      high90d: scannerData?.high_90d || null,
-      high90dDate: scannerData?.high_recent_20pct_date || null,
-      high52w: scannerData?.high_52w || null,
-      recentHigh: scannerData?.high_recent_20pct || null,
-      recentHighDate: scannerData?.high_recent_20pct_date || null,
-      score: scannerData?.score ?? null,
-      marketCap: scannerData?.market_cap ?? null,
-      volume: null,
-      currency: "USD",
-    });
+    yahoo = {
+      price: meta?.regularMarketPrice,
+      previousClose: meta?.chartPreviousClose ?? meta?.previousClose,
+      high52w: meta?.fiftyTwoWeekHigh,
+      low52w: meta?.fiftyTwoWeekLow,
+      marketCap: meta?.marketCap,
+      volume: meta?.regularMarketVolume ?? (volumes.length ? volumes[volumes.length - 1] : null),
+      currency: meta?.currency || 'USD',
+      high90d: high90d || null,
+      high90dDate,
+      name: meta?.longName || meta?.shortName,
+    }
+  } catch (e) {
+    console.error(`Yahoo error for ${ticker}:`, e)
   }
+
+  // Fetch market cap + sector from Finviz (Yahoo chart endpoint doesn't include them)
+  let finvizMarketCap: string | null = null
+  let finvizSector: string | null = null
+  try {
+    const fv = await fetchFinvizTicker(ticker)
+    finvizMarketCap = fv.marketCap || null
+    finvizSector = fv.sector || null
+  } catch {}
+
+  // Use Yahoo data as primary, scanner as fallback
+  const price = yahoo.price || parseFloat(scanner?.price || '0')
+  const previousClose = yahoo.previousClose || null
+  const high52w = yahoo.high52w || parseFloat(scanner?.high_52w || '0') || null
+  const low52w = yahoo.low52w || null
+  const high90d = yahoo.high90d || parseFloat(scanner?.high_90d || '0') || null
+
+  // Change percent
+  const changePct = previousClose && price
+    ? ((price - previousClose) / previousClose) * 100
+    : scanner?.change_percent ? parseFloat(scanner.change_percent) : null
+
+  // Pct below 52w high
+  const pctBelowHigh52w = high52w && price
+    ? parseFloat((((high52w - price) / high52w) * 100).toFixed(1))
+    : null
+
+  // Market cap: Yahoo doesn't provide it in chart endpoint, use Finviz string
+  const marketCapFormatted = finvizMarketCap || null
+
+  // Score
+  const score = parseInt(scanner?.score || scanner?.aurora_score || '0') || null
+
+  return NextResponse.json({
+    ticker,
+    company: yahoo.name || scanner?.company || scanner?.company_name || ticker,
+    sector: finvizSector,
+    price,
+    previousClose,
+    changePct,
+    high52w,
+    low52w,
+    high90d,
+    high90dDate: yahoo.high90dDate || scanner?.high_recent_20pct_date || null,
+    recentHigh: high90d,
+    recentHighDate: yahoo.high90dDate || scanner?.high_recent_20pct_date || null,
+    marketCapFormatted,
+    volume: yahoo.volume || null,
+    currency: yahoo.currency || 'USD',
+    pctBelowHigh52w,
+    score,
+    scannerType: scanner?.scanner_type || null,
+    pe: scanner?.pe || null,
+    roe: scanner?.roe || null,
+  })
 }
