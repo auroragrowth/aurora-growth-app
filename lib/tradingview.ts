@@ -1,5 +1,7 @@
+/**
+ * TradingView resolves bare tickers automatically.
+ * No need to prefix with exchange — it finds the primary listing.
+ */
 export function getTVSymbol(ticker: string): string {
-  const nyseStocks = ['B', 'USLM', 'PAY']
-  if (nyseStocks.includes(ticker.toUpperCase())) return `NYSE:${ticker.toUpperCase()}`
-  return `NASDAQ:${ticker.toUpperCase()}`
+  return ticker.toUpperCase()
 }
