@@ -341,10 +341,12 @@ export default function DashboardShell({
               </div>
 
               <div className="ml-auto flex items-center gap-2 sm:gap-3">
-                {/* Broker mode toggle + portfolio data */}
+                {/* Broker mode toggle — always visible */}
+                <BrokerModeToggle initialMode={portfolio.brokerMode || "live"} compact onModeChange={handleModeChange} />
+
+                {/* Portfolio data when broker connected */}
                 {brokerConnected ? (
                   <div className="hidden items-center gap-2 xl:flex">
-                    <BrokerModeToggle initialMode={portfolio.brokerMode || "live"} compact onModeChange={handleModeChange} />
                     {portfolio.connected && !portfolio.loading && portfolio.portfolioValue > 0 && (() => {
                       const openPl = portfolio.portfolioValue - (portfolio.overview?.total_cost ? Number(portfolio.overview.total_cost) : 0);
                       return (
