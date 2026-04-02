@@ -22,4 +22,4 @@ jobs:
 
       - name: Deploy live on server
         run: |
-          ssh -p "${{ secrets.LIVE_PORT }}" "${{ secrets.LIVE_USER }}@${{ secrets.LIVE_HOST }}" '/home/paul/deploy-aurora-live.sh'
+          ssh -p "${{ secrets.LIVE_PORT }}" "${{ secrets.LIVE_USER }}@${{ secrets.LIVE_HOST }}" 'bash /home/paul/deploy.sh'
