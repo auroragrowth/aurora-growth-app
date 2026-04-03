@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { sendAuroraEmail } from '@/lib/email/resend'
-import { welcomeEmail } from '@/lib/email/templates/aurora'
+import { welcomeEmail } from '@/lib/email/templates/welcome'
 
 export async function POST(req: NextRequest) {
   try {

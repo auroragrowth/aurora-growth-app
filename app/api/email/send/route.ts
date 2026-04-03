@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { sendAuroraEmail } from "@/lib/email/resend";
-import { welcomeEmail } from "@/lib/email/templates/aurora";
+import { welcomeEmail } from "@/lib/email/templates/welcome";
 
 export async function POST(req: Request) {
   try {

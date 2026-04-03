@@ -1,6 +1,6 @@
 import { sendAuroraEmail } from "@/lib/email/resend";
+import { welcomeEmail } from "@/lib/email/templates/welcome";
 import {
-  welcomeEmail,
   subscriptionConfirmedEmail,
   paymentFailedEmail,
   opportunityDetectedEmail,
