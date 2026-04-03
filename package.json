@@ -1,6 +1,6 @@
 {
   "name": "aurora-app",
-  "version": "38.4.12",
+  "version": "38.4.13",
   "private": true,
   "scripts": {
     "dev": "next dev",

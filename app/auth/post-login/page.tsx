@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { sendAdminAlert } from "@/lib/telegram/admin";
+
+export const dynamic = "force-dynamic";
 
 export default async function PostLoginPage() {
   const supabase = await createClient();
@@ -13,8 +16,8 @@ export default async function PostLoginPage() {
     redirect("/login");
   }
 
-  // Fetch or create the user's profile
-  const { data: profile } = await supabase
+  // Use admin client to bypass RLS and avoid false nulls
+  const { data: profile } = await supabaseAdmin
     .from("profiles")
     .select("plan_key, has_completed_plan_selection")
     .eq("id", user.id)
@@ -55,9 +58,9 @@ export default async function PostLoginPage() {
       .eq("id", user.id);
   }
 
-  // Go to dashboard if user has a paid plan OR has completed plan selection
+  // Go to dashboard if user has any plan OR has completed plan selection
   const hasPlan =
-    ["core", "pro", "elite"].includes(profile.plan_key ?? "") ||
+    ["free", "core", "pro", "elite"].includes(profile.plan_key ?? "") ||
     profile.has_completed_plan_selection === true;
 
   if (hasPlan) {
