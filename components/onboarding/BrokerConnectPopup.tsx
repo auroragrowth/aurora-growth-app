@@ -205,7 +205,10 @@ export default function BrokerConnectPopup() {
         {/* Footer */}
         <div className="px-6 pb-6 flex items-center justify-between gap-3">
           <button
-            onClick={dismiss}
+            onClick={() => {
+              dismiss()
+              setTimeout(() => { window.location.href = '/dashboard' }, 100)
+            }}
             className="text-white/30 text-sm hover:text-white/60 transition-colors underline underline-offset-2"
           >
             Skip for now

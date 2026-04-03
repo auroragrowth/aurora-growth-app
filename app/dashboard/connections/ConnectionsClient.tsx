@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useBrokerPopup } from "@/components/providers/BrokerPopupProvider";
 
 import BrokerModeToggle from "@/components/broker/BrokerModeToggle";
+import { ConnectionGuideButton } from "@/components/broker/ConnectionGuideModal";
 
 type Connection = {
   id: string;
@@ -451,6 +452,10 @@ export default function ConnectionsClient() {
               onConnect={openTrading212Popup}
             />
           </div>
+
+          <div className="my-5 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+          <ConnectionGuideButton />
 
           <div className="my-5 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
