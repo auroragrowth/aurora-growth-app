@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getWatchlistTable } from "@/lib/watchlist/getTable";
 
+export const dynamic = "force-dynamic";
+
 function cleanSymbol(v: unknown) {
   return String(v || "").trim().toUpperCase();
 }
