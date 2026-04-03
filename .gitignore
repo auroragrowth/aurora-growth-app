@@ -42,3 +42,4 @@ page.backup.txt
 aurora-app/
 aurora-app@*
 data/
+tsconfig.tsbuildinfo
