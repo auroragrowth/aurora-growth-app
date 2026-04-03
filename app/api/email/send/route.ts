@@ -1,35 +1,26 @@
 import { NextResponse } from "next/server";
-import { sendAuroraTemplateEmail } from "@/lib/email/resend";
+import { sendAuroraEmail } from "@/lib/email/resend";
+import { welcomeEmail } from "@/lib/email/templates/aurora";
 
 export async function POST(req: Request) {
   try {
-    const { email, firstName = "there" } = await req.json();
+    const { email, firstName } = await req.json();
 
-    if (!email) {
-      return NextResponse.json(
-        { success: false, error: "Email is required" },
-        { status: 400 }
-      );
+    const result = await sendAuroraEmail({
+      to: email,
+      subject: "Welcome to Aurora Growth Academy",
+      html: welcomeEmail(firstName || "Investor"),
+    });
+
+    if (!result.success) {
+      return NextResponse.json(result, { status: 500 });
     }
 
-    const result = await sendAuroraTemplateEmail({
-      to: email,
-      subject: "Discover Aurora Growth Academy",
-      firstName,
-    });
-
-    return NextResponse.json({
-      success: true,
-      result,
-    });
+    return NextResponse.json(result);
   } catch (error) {
-    console.error("Email send failed:", error);
-
+    console.error("Send email route error:", error);
     return NextResponse.json(
-      {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
+      { success: false, error: "Failed to send email" },
       { status: 500 }
     );
   }

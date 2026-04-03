@@ -6,6 +6,7 @@ export default function BrokerConnectPopup() {
   const [visible, setVisible] = useState(false)
   const [userId, setUserId] = useState<string>('')
   const [step, setStep] = useState(1)
+  const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
     // Check localStorage FIRST - instant
@@ -38,28 +39,38 @@ export default function BrokerConnectPopup() {
   }, [])
 
   const dismiss = async () => {
-    // Close FIRST - immediate
+    // Close IMMEDIATELY - no waiting for API
+    setDismissed(true)
     setVisible(false)
-    // Save to localStorage
+
+    // Save to localStorage immediately
     if (typeof window !== 'undefined') {
       localStorage.setItem('broker_popup_skip', 'true')
     }
-    // Save to database
+
+    // Save to DB in background - don't await
     if (userId) {
-      const supabase = createClient()
-      await supabase.from('profiles').update({
-        has_seen_trading212_prompt: true,
-        welcome_popup_shown_count: 10
-      }).eq('id', userId)
+      Promise.resolve(
+        createClient()
+          .from('profiles')
+          .update({
+            has_seen_trading212_prompt: true,
+            welcome_popup_shown_count: 10
+          })
+          .eq('id', userId)
+      ).catch(() => {})
     }
   }
 
   const goConnect = () => {
     dismiss()
-    window.location.href = '/dashboard/connections'
+    setTimeout(() => {
+      window.location.href = '/dashboard/connections'
+    }, 100)
   }
 
-  if (!visible) return null
+  // Do not render if dismissed or not visible
+  if (dismissed || !visible) return null
 
   const steps = [
     { number: 1, icon: '🌐', title: 'Open broker on desktop', desc: 'Log in to your broker account on a desktop browser — not the mobile app.' },

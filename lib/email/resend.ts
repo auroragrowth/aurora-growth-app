@@ -1,33 +1,35 @@
-import { Resend } from "resend";
+import { Resend } from 'resend'
 
-const resendApiKey = process.env.RESEND_API_KEY;
+const resend = new Resend(process.env.RESEND_API_KEY)
 
-if (!resendApiKey) {
-  throw new Error("RESEND_API_KEY is not set");
+interface SendEmailParams {
+  to: string
+  subject: string
+  html: string
+  from?: string
 }
 
-export const resend = new Resend(resendApiKey);
-
-type SendAuroraTemplateEmailArgs = {
-  to: string | string[];
-  subject: string;
-  firstName: string;
-};
-
-export async function sendAuroraTemplateEmail({
+export async function sendAuroraEmail({
   to,
   subject,
-  firstName,
-}: SendAuroraTemplateEmailArgs) {
-  return await resend.emails.send({
-    from: "Aurora Growth <info@auroragrowth.co.uk>",
-    to,
-    subject,
-    template: {
-      id: "YOUR_RESEND_TEMPLATE_ID",
-      variables: {
-        firstName,
-      },
-    },
-  });
+  html,
+  from = 'Aurora Growth <onboarding@auroragrowth.co.uk>'
+}: SendEmailParams) {
+  try {
+    const { data, error } = await resend.emails.send({
+      from,
+      to,
+      subject,
+      html,
+    })
+    if (error) {
+      console.error('[Email] Resend error:', error)
+      return { success: false, error }
+    }
+    console.log('[Email] Sent:', data?.id, 'to:', to)
+    return { success: true, id: data?.id }
+  } catch (e: any) {
+    console.error('[Email] Exception:', e.message)
+    return { success: false, error: e.message }
+  }
 }

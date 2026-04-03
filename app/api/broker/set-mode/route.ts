@@ -4,6 +4,8 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import type { BrokerMode } from "@/lib/trading212/types";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: Request) {
   const supabase = await createClient();
   const {
@@ -40,5 +42,8 @@ export async function POST(req: Request) {
   // Revalidate dashboard pages so server components re-fetch with new mode
   revalidatePath("/dashboard", "layout");
 
-  return NextResponse.json({ ok: true, mode });
+  return NextResponse.json(
+    { ok: true, mode },
+    { headers: { "Cache-Control": "no-store, no-cache" } }
+  );
 }

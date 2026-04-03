@@ -21,19 +21,17 @@ export default function BrokerModeToggle({ initialMode, compact, onModeChange }:
     if (next === mode || switching) return;
     setSwitching(true);
     try {
-      const res = await fetch("/api/broker/set-mode", {
+      await fetch("/api/broker/set-mode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: next }),
       });
-      if (res.ok) {
-        setMode(next);
-        onModeChange?.(next);
-        window.location.reload();
-        return;
-      }
-    } catch { /* ignore */ }
-    setSwitching(false);
+    } catch (e) {
+      console.error("Toggle error:", e);
+    }
+    // Always hard reload regardless of API result
+    // This forces server components to re-fetch with new mode
+    window.location.href = window.location.href;
   }, [mode, switching, onModeChange]);
 
   const isLive = mode === "live";

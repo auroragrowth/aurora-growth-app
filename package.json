@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "prebuild": "test -f tailwind.config.ts || (echo 'ERROR: tailwind.config.ts missing!' && exit 1)",
-    "build": "next build",
+    "build": "TURBOPACK=0 NEXT_PRIVATE_WORKER_THREADS=false next build",
     "start": "next start",
     "aurora:scan": "node scripts/daily-finviz-scan.mjs"
   },
