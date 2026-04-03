@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || "0.0.0";
 import { FormEvent, Suspense, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -206,7 +207,7 @@ function LoginPageInner() {
               </p>
 
               <p className="text-white/20 text-xs">
-                Aurora Growth v1.3.0
+                Aurora Growth v{APP_VERSION}
               </p>
             </div>
           </div>

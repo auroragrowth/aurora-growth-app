@@ -1,158 +1,225 @@
-export function auroraEmailLayout(content: string, preheader = ''): string {
-  return `<!DOCTYPE html>
+const LOGO = 'https://auroragrowth.co.uk/wp-content/uploads/2026/04/Aurora_Logo_email.png'
+const APP = 'https://app.auroragrowth.co.uk'
+
+function wrap(badge: string, title: string, intro: string, ctaLabel: string, ctaUrl: string, greeting: string, bodyHtml: string, secondaryCta?: { label: string; url: string }): string {
+  const secondary = secondaryCta
+    ? `<td style="padding-bottom:10px;"><a href="${secondaryCta.url}" style="display:inline-block;background:rgba(10,20,39,0.82);color:#eaf4ff;text-decoration:none;font-weight:700;border-radius:999px;padding:14px 24px;font-size:15px;border:1px solid rgba(83,175,255,0.28);">${secondaryCta.label}</a></td>`
+    : ''
+
+  return `<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Aurora Growth</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Aurora Growth Academy</title>
 </head>
-<body style="margin:0;padding:0;background:#020b22;font-family:Inter,Arial,sans-serif;color:#edf3ff;">
-${preheader ? `<div style="display:none;max-height:0;overflow:hidden;">${preheader}</div>` : ''}
-<table width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(180deg,#020b22 0%,#081734 50%,#0a1f49 100%);min-height:100vh;">
-<tr><td align="center" style="padding:40px 20px;">
-<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
-<tr><td style="padding:0 0 32px 0;text-align:center;">
-<div style="display:inline-block;padding:12px 24px;background:rgba(7,16,38,0.8);border:1px solid rgba(255,255,255,0.08);border-radius:16px;">
-<span style="font-size:20px;font-weight:800;color:#57d3f3;letter-spacing:-0.02em;">&#10022; Aurora Growth</span>
-</div>
-</td></tr>
-<tr><td style="background:rgba(15,26,58,0.8);border:1px solid rgba(255,255,255,0.08);border-radius:24px;padding:40px;backdrop-filter:blur(16px);">
-${content}
-</td></tr>
-<tr><td style="padding:32px 0 0 0;text-align:center;">
-<p style="margin:0 0 8px;color:#4a5a7a;font-size:13px;">Aurora Growth &middot; Premium Investment Platform</p>
-<p style="margin:0 0 8px;color:#4a5a7a;font-size:13px;">
-<a href="https://app.auroragrowth.co.uk" style="color:#57d3f3;text-decoration:none;">app.auroragrowth.co.uk</a>
-</p>
-<p style="margin:0;color:#2a3a5a;font-size:12px;">
-This email was sent by Aurora Growth.
-<a href="https://app.auroragrowth.co.uk/unsubscribe" style="color:#2a3a5a;">Unsubscribe</a>
-</p>
-</td></tr>
-</table>
-</td></tr>
-</table>
+<body style="margin:0;padding:0;background:#020617;font-family:Arial,Helvetica,sans-serif;color:#eaf4ff;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:linear-gradient(180deg,#020617 0%,#04101f 35%,#020617 100%);">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:720px;background:rgba(8,20,42,0.92);border:1px solid rgba(83,175,255,0.18);border-radius:24px;overflow:hidden;">
+
+          <tr>
+            <td style="padding:34px 32px 24px 32px;background:
+              radial-gradient(circle at top left, rgba(36,215,238,0.18), transparent 30%),
+              radial-gradient(circle at top right, rgba(139,92,246,0.18), transparent 30%),
+              linear-gradient(180deg,#071123 0%,#04101f 100%);
+              border-bottom:1px solid rgba(83,175,255,0.18);">
+              <img src="${LOGO}" alt="Aurora Growth Academy" style="height:48px;width:auto;display:block;margin-bottom:18px;">
+              <div style="display:inline-block;padding:9px 14px;border-radius:999px;border:1px solid rgba(36,215,238,0.24);background:rgba(8,16,35,0.8);color:#70ebff;font-size:12px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;margin-bottom:18px;">
+                ${badge}
+              </div>
+              <h1 style="margin:0 0 14px 0;font-size:34px;line-height:1.1;color:#ffffff;">${title}</h1>
+              <p style="margin:0 0 24px 0;font-size:17px;line-height:1.8;color:#a9bfd8;">${intro}</p>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td style="padding-right:12px;padding-bottom:10px;">
+                    <a href="${ctaUrl}" style="display:inline-block;background:linear-gradient(90deg,#24d7ee,#8b5cf6);color:#04101f;text-decoration:none;font-weight:700;border-radius:999px;padding:15px 24px;font-size:15px;">${ctaLabel}</a>
+                  </td>
+                  ${secondary}
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:28px 32px 8px 32px;">
+              <p style="margin:0;font-size:17px;line-height:1.85;color:#dbe8f8;">Hi ${greeting},</p>
+            </td>
+          </tr>
+
+          ${bodyHtml}
+
+          <tr>
+            <td style="padding:28px 32px 34px 32px;text-align:center;font-size:14px;line-height:1.8;color:#88a1bb;">
+              Best regards,<br>
+              <strong style="color:#eaf4ff;">The Aurora Growth Academy Onboarding Team</strong><br>
+              Aurora Growth Academy
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
 </html>`
 }
 
-const signOff = `
-<p style="margin:32px 0 0;padding:24px;background:rgba(87,211,243,0.05);border:1px solid rgba(87,211,243,0.1);border-radius:16px;font-size:14px;line-height:1.6;color:#aebbd6;">
-  Best regards,<br>
-  <strong style="color:#edf3ff;">The Aurora Growth Academy Onboarding Team</strong><br>
-  <span style="color:#57d3f3;">Aurora Growth Academy</span>
-</p>`
-
-const divider = `<hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:24px 0;"/>`
-
-function heading(text: string) {
-  return `<h1 style="margin:0 0 16px;font-size:28px;font-weight:800;line-height:1.2;color:#ffffff;">${text}</h1>`
+function section(label: string, contentHtml: string): string {
+  return `
+          <tr>
+            <td style="padding:24px 32px 0 32px;">
+              <div style="background:linear-gradient(180deg,rgba(8,20,42,0.95),rgba(5,12,24,0.94));border:1px solid rgba(83,175,255,0.16);border-radius:22px;padding:24px;">
+                <div style="color:#70ebff;font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;margin-bottom:12px;">${label}</div>
+                <div style="color:#eaf4ff;font-size:16px;line-height:1.9;">${contentHtml}</div>
+              </div>
+            </td>
+          </tr>`
 }
 
-function subheading(text: string) {
-  return `<h2 style="margin:0 0 12px;font-size:18px;font-weight:700;color:#edf3ff;">${text}</h2>`
+function textBlock(html: string): string {
+  return `
+          <tr>
+            <td style="padding:24px 32px 0 32px;">
+              <p style="margin:0;font-size:16px;line-height:1.85;color:#a9bfd8;">${html}</p>
+            </td>
+          </tr>`
 }
 
-function body(text: string) {
-  return `<p style="margin:0 0 16px;font-size:16px;line-height:1.7;color:#aebbd6;">${text}</p>`
+function ctaBlock(label: string, url: string): string {
+  return `
+          <tr>
+            <td style="padding:24px 32px 0 32px;text-align:center;">
+              <a href="${url}" style="display:inline-block;background:linear-gradient(90deg,#24d7ee,#8b5cf6);color:#04101f;text-decoration:none;font-weight:700;border-radius:999px;padding:15px 24px;font-size:15px;">${label}</a>
+            </td>
+          </tr>`
 }
 
-function cta(text: string, url: string) {
-  return `<div style="margin:24px 0;text-align:center;">
-<a href="${url}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#63d3ff,#6f86ff,#b267ff);color:#fff;text-decoration:none;font-weight:700;font-size:16px;border-radius:999px;box-shadow:0 8px 24px rgba(91,123,255,0.3);">${text}</a>
-</div>`
+function nextStepBox(html: string): string {
+  return `
+          <tr>
+            <td style="padding:24px 32px 0 32px;">
+              <div style="background:rgba(8,20,42,0.6);border:1px solid rgba(83,175,255,0.12);border-radius:16px;padding:20px;">
+                <p style="margin:0;font-size:15px;line-height:1.7;color:#a9bfd8;">${html}</p>
+              </div>
+            </td>
+          </tr>`
 }
 
-function featureRow(icon: string, title: string, desc: string) {
-  return `<tr>
-<td width="48" valign="top" style="padding:0 16px 20px 0;">
-<div style="width:40px;height:40px;background:rgba(87,211,243,0.1);border:1px solid rgba(87,211,243,0.2);border-radius:12px;text-align:center;line-height:40px;font-size:20px;">${icon}</div>
-</td>
-<td valign="top" style="padding:0 0 20px;">
-<p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#edf3ff;">${title}</p>
-<p style="margin:0;font-size:14px;color:#8a9ac0;line-height:1.5;">${desc}</p>
-</td>
-</tr>`
-}
-
-export function welcomeEmail(firstName: string): string {
-  const content = `
-${heading(`Welcome to Aurora Growth, ${firstName}`)}
-${body('You\'re now part of the Aurora Growth Academy. Over the next few days, our onboarding team will guide you step by step through the platform so you can start investing with more clarity and structure.')}
-${divider}
-${subheading('What you now have access to')}
-<table width="100%" cellpadding="0" cellspacing="0" style="margin:16px 0;">
-${featureRow('&#128269;', 'Market Scanner', 'Identify high-conviction opportunities across 136+ scored stocks')}
-${featureRow('&#11088;', 'Smart Watchlists', 'Track stocks with Live and Demo modes for full portfolio visibility')}
-${featureRow('&#128202;', 'Investment Calculator', 'Plan staged entries with the Aurora ladder methodology')}
-${featureRow('&#128276;', 'Telegram Alerts', 'Get instant notifications when your price levels are hit')}
-${featureRow('&#10022;', 'Aurora Intelligence', 'AI-powered analysis on every stock in your watchlist')}
-</table>
-${divider}
-${cta('Open Aurora Dashboard &rarr;', 'https://app.auroragrowth.co.uk/dashboard')}
-${body('Look out for your next email tomorrow &mdash; we\'ll show you exactly how to find your first Aurora opportunity.')}
-${signOff}`
-  return auroraEmailLayout(content, `Welcome to Aurora Growth, ${firstName}! Your premium investment platform is ready.`)
-}
+// ═══════════════════════════════════════
+// SYSTEM EMAILS
+// ═══════════════════════════════════════
 
 export function subscriptionConfirmedEmail(firstName: string, planName: string): string {
-  const content = `
-${heading(`You're now on Aurora ${planName}, ${firstName}`)}
-${body(`Your ${planName} subscription is now active. You have full access to the Aurora Growth platform.`)}
-${divider}
-${body('Your plan includes everything you need to invest with structure and confidence. Start by running the market scanner to see what opportunities Aurora has identified today.')}
-${cta('Go to Dashboard &rarr;', 'https://app.auroragrowth.co.uk/dashboard')}
-${signOff}`
-  return auroraEmailLayout(content, `Your Aurora ${planName} subscription is confirmed.`)
+  return wrap(
+    'Subscription Active',
+    `Your Aurora ${planName} plan is now live.`,
+    `Your ${planName} membership is active and ready to use. You now have full access to the Aurora Growth platform.`,
+    'Go to Dashboard',
+    `${APP}/dashboard`,
+    firstName || 'there',
+    section('Plan Summary', `
+      You now have access to all the features included in your <strong>${planName}</strong> plan.<br><br>
+      Your next step is to log in, review your dashboard, and start building your watchlist and investment plan.
+    `) +
+    section('Best next steps', `
+      &bull; Review your dashboard<br>
+      &bull; Set up your watchlist<br>
+      &bull; Explore the scanner<br>
+      &bull; Use the calculator to plan entries
+    `) +
+    nextStepBox('Look out for your onboarding emails over the next few days &mdash; we will walk you through each part of the platform step by step.'),
+    { label: 'Manage Account', url: `${APP}/dashboard/account` }
+  )
 }
 
 export function paymentFailedEmail(firstName: string): string {
-  const content = `
-<h1 style="margin:0 0 16px;font-size:28px;font-weight:800;color:#f87171;">Payment Issue &mdash; Action Required</h1>
-${body(`Hi ${firstName}, we weren't able to process your Aurora subscription payment.`)}
-${body('Your access remains active while we attempt to resolve this. Please update your payment details to avoid any interruption.')}
-${cta('Update Payment Details &rarr;', 'https://app.auroragrowth.co.uk/dashboard/account')}
-${body('If you need help, reply to this email and our team will assist you.')}
-${signOff}`
-  return auroraEmailLayout(content, 'Action required: Aurora payment could not be processed.')
+  return wrap(
+    'Payment Issue',
+    'There was a problem with your payment.',
+    'Your membership is still important to us, but your latest payment did not go through.',
+    'Update Billing',
+    `${APP}/dashboard/account`,
+    firstName || 'there',
+    section('What to do next', `
+      Please update your payment method as soon as possible to avoid interruption to your access.<br><br>
+      Once updated, your subscription will continue without issue.
+    `) +
+    textBlock('If you need help, reply to this email and our team will assist you.'),
+    { label: 'Open Aurora', url: `${APP}/dashboard` }
+  )
 }
 
 export function opportunityDetectedEmail(firstName: string, ticker: string): string {
-  const content = `
-${heading(`Aurora Signal: ${ticker} is showing strength`)}
-${body(`Hi ${firstName}, the Aurora scanner has detected a high-conviction opportunity in <strong style="color:#57d3f3;">${ticker}</strong>.`)}
-${body('The stock meets Aurora\'s criteria for momentum, fundamentals, and score. Now may be a good time to review this in your investment calculator.')}
-${cta(`Analyse ${ticker} Now &rarr;`, `https://app.auroragrowth.co.uk/dashboard/stocks/${ticker}`)}
-${signOff}`
-  return auroraEmailLayout(content, `Aurora has detected a signal for ${ticker}.`)
+  return wrap(
+    'Opportunity Detected',
+    `${ticker} matched your Aurora criteria.`,
+    'A stock on your radar has matched an Aurora opportunity condition.',
+    'View Opportunity',
+    `${APP}/dashboard/stocks/${ticker}`,
+    firstName || 'there',
+    section('Signal Summary', `
+      <strong>Ticker:</strong> ${ticker}<br>
+      <strong>Status:</strong> Opportunity detected by Aurora scanning logic
+    `) +
+    section('Suggested next step', `
+      Review the setup inside Aurora, check your entry plan, and decide whether it belongs on your active watchlist.
+    `),
+    { label: 'Open Dashboard', url: `${APP}/dashboard` }
+  )
 }
 
 export function pullbackAlertEmail(firstName: string, ticker: string, level: string): string {
-  const content = `
-${heading(`${ticker} has hit your entry level`)}
-${body(`Hi ${firstName}, <strong style="color:#57d3f3;">${ticker}</strong> has reached your ladder entry level of <strong style="color:#f59e0b;">${level}</strong>.`)}
-${body('This is the level you identified as a potential entry point in your Aurora investment ladder. Consider reviewing the full analysis before acting.')}
-${cta(`Review ${ticker} &rarr;`, `https://app.auroragrowth.co.uk/dashboard/stocks/${ticker}`)}
-${signOff}`
-  return auroraEmailLayout(content, `${ticker} has reached your entry level of ${level}.`)
+  return wrap(
+    'Pullback Alert',
+    `${ticker} reached your pullback zone.`,
+    `Aurora has detected that ${ticker} has moved into your ${level} pullback level.`,
+    'Check the Setup',
+    `${APP}/dashboard/stocks/${ticker}`,
+    firstName || 'there',
+    section('Pullback Details', `
+      <strong>Ticker:</strong> ${ticker}<br>
+      <strong>Level:</strong> ${level} pullback<br><br>
+      Review your ladder, entry size, and risk plan before taking action.
+    `),
+    { label: 'Open Calculator', url: `${APP}/dashboard/investments/calculator` }
+  )
 }
 
 export function bepReachedEmail(firstName: string, ticker: string): string {
-  const content = `
-${heading(`${ticker} has reached your BEP`)}
-${body(`Hi ${firstName}, <strong style="color:#57d3f3;">${ticker}</strong> has risen to your break-even price. Your position is now at or above cost.`)}
-${body('You can now review your profit targets and decide whether to hold for further gains or take a partial position.')}
-${cta(`Review ${ticker} &rarr;`, `https://app.auroragrowth.co.uk/dashboard/stocks/${ticker}`)}
-${signOff}`
-  return auroraEmailLayout(content, `${ticker} has reached your break-even price.`)
+  return wrap(
+    'BEP Reached',
+    `${ticker} has reached break-even point.`,
+    'One of your tracked positions has moved back to break-even.',
+    'Review Position',
+    `${APP}/dashboard/investments`,
+    firstName || 'there',
+    section('Position Update', `
+      <strong>Ticker:</strong> ${ticker}<br>
+      <strong>Status:</strong> Break-even reached<br><br>
+      This may be a good time to review your next decision, target structure, and ongoing plan.
+    `),
+    { label: 'Open Dashboard', url: `${APP}/dashboard` }
+  )
 }
 
 export function profitTargetEmail(firstName: string, ticker: string, target: string): string {
-  const content = `
-${heading(`${ticker} has hit your profit target`)}
-${body(`Hi ${firstName}, <strong style="color:#57d3f3;">${ticker}</strong> has reached your profit target of <strong style="color:#22c55e;">${target}</strong>.`)}
-${body('Congratulations on a successful Aurora ladder position. Review your current holdings and consider your next steps.')}
-${cta(`Review ${ticker} &rarr;`, `https://app.auroragrowth.co.uk/dashboard/stocks/${ticker}`)}
-${signOff}`
-  return auroraEmailLayout(content, `${ticker} has hit your profit target of ${target}.`)
+  return wrap(
+    'Profit Target Hit',
+    `${ticker} reached your profit target.`,
+    `Aurora has detected that ${ticker} has reached your ${target} target level.`,
+    'View Investment',
+    `${APP}/dashboard/investments`,
+    firstName || 'there',
+    section('Target Update', `
+      <strong>Ticker:</strong> ${ticker}<br>
+      <strong>Target:</strong> ${target}<br><br>
+      Review your position, your remaining targets, and your overall plan.
+    `),
+    { label: 'Open Dashboard', url: `${APP}/dashboard` }
+  )
 }
+
+// Re-export for backward compat (welcome is in its own file)
+export { section, textBlock, ctaBlock, nextStepBox, wrap as auroraEmailLayout }

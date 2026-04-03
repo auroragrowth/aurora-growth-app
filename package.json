@@ -1,11 +1,11 @@
 {
   "name": "aurora-app",
-  "version": "0.1.5",
+  "version": "38.4.3",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "prebuild": "test -f tailwind.config.ts || (echo 'ERROR: tailwind.config.ts missing!' && exit 1) && npm version patch --no-git-tag-version",
-    "build": "TURBOPACK=0 NEXT_PRIVATE_WORKER_THREADS=false next build",
+    "build": "next build",
     "start": "next start",
     "aurora:scan": "node scripts/daily-finviz-scan.mjs"
   },
