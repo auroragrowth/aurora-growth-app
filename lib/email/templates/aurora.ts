@@ -96,6 +96,30 @@ function ctaBlock(label: string, url: string): string {
           </tr>`
 }
 
+function stepSection(title: string, intro: string, steps: { num: number; title: string; desc: string }[]): string {
+  const stepsHtml = steps.map(s => `
+    <tr>
+      <td width="44" valign="top" style="padding:0 12px 16px 0;">
+        <div style="width:36px;height:36px;background:linear-gradient(135deg,rgba(36,215,238,0.2),rgba(139,92,246,0.2));border:1px solid rgba(83,175,255,0.2);border-radius:10px;text-align:center;line-height:36px;font-size:16px;font-weight:800;color:#70ebff;">${s.num}</div>
+      </td>
+      <td valign="top" style="padding:0 0 16px;">
+        <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#eaf4ff;">${s.title}</p>
+        <p style="margin:0;font-size:14px;color:#a9bfd8;line-height:1.6;">${s.desc}</p>
+      </td>
+    </tr>`).join('')
+
+  return `
+          <tr>
+            <td style="padding:24px 32px 0 32px;">
+              <div style="background:linear-gradient(180deg,rgba(8,20,42,0.95),rgba(5,12,24,0.94));border:1px solid rgba(83,175,255,0.16);border-radius:22px;padding:24px;">
+                <div style="color:#70ebff;font-size:12px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;margin-bottom:12px;">${title}</div>
+                <div style="color:#eaf4ff;font-size:16px;line-height:1.9;margin-bottom:20px;">${intro}</div>
+                <table width="100%" cellpadding="0" cellspacing="0" style="margin:0;">${stepsHtml}</table>
+              </div>
+            </td>
+          </tr>`
+}
+
 function nextStepBox(html: string): string {
   return `
           <tr>
@@ -112,13 +136,14 @@ function nextStepBox(html: string): string {
 // ═══════════════════════════════════════
 
 export function subscriptionConfirmedEmail(firstName: string, planName: string): string {
+  const safe = firstName || 'there'
   return wrap(
     'Subscription Active',
     `Your Aurora ${planName} plan is now live.`,
     `Your ${planName} membership is active and ready to use. You now have full access to the Aurora Growth platform.`,
     'Go to Dashboard',
     `${APP}/dashboard`,
-    firstName || 'there',
+    safe,
     section('Plan Summary', `
       You now have access to all the features included in your <strong>${planName}</strong> plan.<br><br>
       Your next step is to log in, review your dashboard, and start building your watchlist and investment plan.
@@ -129,8 +154,26 @@ export function subscriptionConfirmedEmail(firstName: string, planName: string):
       &bull; Explore the scanner<br>
       &bull; Use the calculator to plan entries
     `) +
+    stepSection('How to connect your Trading 212 account', `
+      Connecting your Trading 212 account takes about two minutes. You can connect your Live account, your Practice account, or both &mdash; each one needs its own API key.<br><br>
+      <strong style="color:#f59e0b;">Important:</strong> You need to do this on a desktop or laptop computer. The API settings are not available in the Trading 212 mobile app.
+    `, [
+      { num: 1, title: 'Log in to Trading 212', desc: 'Go to trading212.com and log in to your account as normal.' },
+      { num: 2, title: 'Open your account settings', desc: 'Click your profile icon or initials in the top-right corner of the platform. From the menu that appears, click <strong>Settings</strong>.' },
+      { num: 3, title: 'Find the API section', desc: 'In the settings panel on the left-hand side, scroll down and click <strong>API</strong>.' },
+      { num: 4, title: 'Enable API access', desc: 'You will see a toggle labelled <strong>Enable API access</strong>. Switch it ON. If you want to connect both Live and Practice accounts, repeat this for each one &mdash; Trading 212 keeps them completely separate.' },
+      { num: 5, title: 'Generate your key', desc: 'Once API access is enabled, click <strong>Generate</strong>. Your API key will be shown on screen &mdash; copy it immediately. It will only be shown once and cannot be retrieved again.' },
+      { num: 6, title: 'Paste your key into Aurora', desc: 'Go to your Aurora dashboard, open the <strong>Connections</strong> page, select Live or Practice, paste your key, and click Connect. Aurora will test the connection automatically.' },
+    ]) +
+    section('Connecting both accounts', `
+      If you want to use both Live and Demo modes in Aurora, generate a separate key for each account type in Trading 212 and connect them both on the Connections page.<br><br>
+      Once both are connected, you can switch between Live and Demo mode using the toggle in the top bar of your Aurora dashboard.
+    `) +
+    section('No Trading 212 account yet?', `
+      You can open one at <a href="https://trading212.com" style="color:#70ebff;text-decoration:none;">trading212.com</a> &mdash; use the Aurora referral link from the Connections page and you will receive a free share when you make your first deposit.
+    `) +
     nextStepBox('Look out for your onboarding emails over the next few days &mdash; we will walk you through each part of the platform step by step.'),
-    { label: 'Manage Account', url: `${APP}/dashboard/account` }
+    { label: 'Connect Broker', url: `${APP}/dashboard/connections` }
   )
 }
 

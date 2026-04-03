@@ -9,7 +9,6 @@ export default function BrokerConnectPopup() {
   const [dismissed, setDismissed] = useState(false)
 
   useEffect(() => {
-    // Check localStorage FIRST - instant
     if (typeof window !== 'undefined') {
       if (
         localStorage.getItem('broker_popup_skip') === 'true' ||
@@ -39,16 +38,11 @@ export default function BrokerConnectPopup() {
   }, [])
 
   const dismiss = async () => {
-    // Close IMMEDIATELY - no waiting for API
     setDismissed(true)
     setVisible(false)
-
-    // Save to localStorage immediately
     if (typeof window !== 'undefined') {
       localStorage.setItem('broker_popup_skip', 'true')
     }
-
-    // Save to DB in background - don't await
     if (userId) {
       Promise.resolve(
         createClient()
@@ -69,17 +63,54 @@ export default function BrokerConnectPopup() {
     }, 100)
   }
 
-  // Do not render if dismissed or not visible
   if (dismissed || !visible) return null
 
   const steps = [
-    { number: 1, icon: '🌐', title: 'Open broker on desktop', desc: 'Log in to your broker account on a desktop browser — not the mobile app.' },
-    { number: 2, icon: '⚙️', title: 'Go to Settings → API', desc: 'Click your profile icon top right, then Settings. Find the API section in the left menu.' },
-    { number: 3, icon: '🔓', title: 'Enable API access', desc: 'Switch the "Enable API access" toggle ON. Do this for Live and Practice accounts separately.' },
-    { number: 4, icon: '🔑', title: 'Generate your key', desc: 'Click Generate under the account type you want. Copy the key — it only shows once.' },
-    { number: 5, icon: '✅', title: 'Test your key', desc: 'In terminal: curl -s -H "Authorization: YOUR_KEY" https://live.trading212.com/api/v0/equity/account/info — you should see your account JSON.' },
-    { number: 6, icon: '🚀', title: 'Connect in Aurora', desc: 'Go to Connections in Aurora, enter your key, select Live or Practice mode, and click Connect.' },
+    {
+      number: 1,
+      title: 'Log in to Trading 212 on desktop',
+      desc: 'Go to trading212.com and log in to your account. The API settings are not available in the mobile app — you need to use a desktop or laptop browser.',
+      note: null,
+      noteType: null as 'warning' | 'info' | null,
+    },
+    {
+      number: 2,
+      title: 'Open your account settings',
+      desc: 'Click your profile icon or initials in the top-right corner of the platform. From the menu that appears, click Settings.',
+      note: null,
+      noteType: null as 'warning' | 'info' | null,
+    },
+    {
+      number: 3,
+      title: 'Find the API section',
+      desc: 'In the settings panel on the left-hand side, scroll down and click API.',
+      note: null,
+      noteType: null as 'warning' | 'info' | null,
+    },
+    {
+      number: 4,
+      title: 'Enable API access',
+      desc: 'You will see a toggle labelled "Enable API access". Switch it ON. If you want to connect both your Live and Practice accounts, you need to repeat this step for each one — Trading 212 keeps them completely separate.',
+      note: 'Switch between Live and Practice using the account selector at the top of the Trading 212 platform.',
+      noteType: 'info' as 'warning' | 'info' | null,
+    },
+    {
+      number: 5,
+      title: 'Generate your key',
+      desc: 'Once API access is enabled, a Generate button will appear. Click it. Your API key will be shown on screen — copy it immediately.',
+      note: 'The key only shows once and cannot be retrieved again. If you lose it, you can always generate a new one.',
+      noteType: 'warning' as 'warning' | 'info' | null,
+    },
+    {
+      number: 6,
+      title: 'Paste your key into Aurora',
+      desc: 'Go to your Aurora dashboard and open the Connections page. Select whether you are connecting your Live or Practice account, paste your key, and click Connect. Aurora will test the connection automatically.',
+      note: null,
+      noteType: null as 'warning' | 'info' | null,
+    },
   ]
+
+  const current = steps[step - 1]
 
   return (
     <div
@@ -97,12 +128,11 @@ export default function BrokerConnectPopup() {
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/10">
           <div>
-            <h2 className="text-white font-bold text-lg">🔗 Connect Your Broker</h2>
+            <h2 className="text-white font-bold text-lg">Connect Your Trading 212 Account</h2>
             <p className="text-white/40 text-sm mt-0.5">
-              Step-by-step guide to connect your account
+              Takes about two minutes
             </p>
           </div>
-          {/* X BUTTON - large and obvious */}
           <button
             onClick={dismiss}
             className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20
@@ -110,7 +140,7 @@ export default function BrokerConnectPopup() {
             justify-center transition-all flex-shrink-0"
             aria-label="Close"
           >
-            ×
+            &times;
           </button>
         </div>
 
@@ -133,42 +163,47 @@ export default function BrokerConnectPopup() {
         </div>
 
         {/* Step content */}
-        {steps.filter(s => s.number === step).map(s => (
-          <div key={s.number} className="px-6 py-6">
-            <div className="flex items-start gap-4">
-              <div className="w-12 h-12 rounded-xl bg-cyan-400/10 border border-cyan-400/20
-                flex items-center justify-center text-2xl flex-shrink-0">
-                {s.icon}
-              </div>
-              <div>
-                <p className="text-cyan-400 text-xs font-bold uppercase tracking-widest mb-1">
-                  Step {s.number} of {steps.length}
-                </p>
-                <h3 className="text-white font-bold text-base mb-2">{s.title}</h3>
-                <p className="text-white/60 text-sm leading-relaxed">{s.desc}</p>
-              </div>
+        <div className="px-6 py-6">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-400/20 to-purple-500/20
+              border border-cyan-400/20 flex items-center justify-center text-xl
+              font-bold text-cyan-400 flex-shrink-0">
+              {current.number}
             </div>
-
-            {s.number === 4 && (
-              <div className="mt-4 p-3 rounded-xl bg-red-500/5 border border-red-500/20">
-                <p className="text-red-400/80 text-xs">
-                  ⚠️ The API key only shows once — copy it immediately. Never share it in chat.
-                </p>
-              </div>
-            )}
-            {s.number === 1 && (
-              <div className="mt-4 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
-                <p className="text-amber-400/80 text-xs">
-                  💡 No account yet? Visit Connections to sign up and get a free share on first deposit.
-                </p>
-              </div>
-            )}
+            <div>
+              <p className="text-cyan-400 text-xs font-bold uppercase tracking-widest mb-1">
+                Step {current.number} of {steps.length}
+              </p>
+              <h3 className="text-white font-bold text-base mb-2">{current.title}</h3>
+              <p className="text-white/60 text-sm leading-relaxed">{current.desc}</p>
+            </div>
           </div>
-        ))}
+
+          {current.note && (
+            <div className={`mt-4 p-3 rounded-xl ${
+              current.noteType === 'warning'
+                ? 'bg-amber-500/5 border border-amber-500/20'
+                : 'bg-cyan-500/5 border border-cyan-500/20'
+            }`}>
+              <p className={`text-xs ${
+                current.noteType === 'warning' ? 'text-amber-400/80' : 'text-cyan-400/80'
+              }`}>
+                {current.note}
+              </p>
+            </div>
+          )}
+
+          {step === 1 && (
+            <div className="mt-4 p-3 rounded-xl bg-purple-500/5 border border-purple-500/20">
+              <p className="text-purple-400/80 text-xs">
+                No Trading 212 account yet? Visit the Connections page for a referral link &mdash; get a free share on your first deposit.
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* Footer */}
         <div className="px-6 pb-6 flex items-center justify-between gap-3">
-          {/* Skip - clear and prominent */}
           <button
             onClick={dismiss}
             className="text-white/30 text-sm hover:text-white/60 transition-colors underline underline-offset-2"
@@ -183,7 +218,7 @@ export default function BrokerConnectPopup() {
                 className="px-4 py-2 rounded-xl border border-white/10
                 text-white/50 text-sm hover:bg-white/5 transition-colors"
               >
-                ← Back
+                &larr; Back
               </button>
             )}
             {step < steps.length ? (
@@ -193,7 +228,7 @@ export default function BrokerConnectPopup() {
                 bg-gradient-to-r from-cyan-400 to-blue-500 text-white
                 hover:opacity-90 transition-opacity"
               >
-                Next →
+                Next &rarr;
               </button>
             ) : (
               <button
@@ -202,7 +237,7 @@ export default function BrokerConnectPopup() {
                 bg-gradient-to-r from-cyan-400 to-purple-500 text-white
                 hover:opacity-90 transition-opacity"
               >
-                Go to Connections →
+                Go to Connections &rarr;
               </button>
             )}
           </div>
@@ -210,7 +245,7 @@ export default function BrokerConnectPopup() {
 
         <div className="text-center pb-4">
           <p className="text-white/20 text-xs">
-            Connect anytime from the Connections page
+            You can connect anytime from the Connections page
           </p>
         </div>
       </div>

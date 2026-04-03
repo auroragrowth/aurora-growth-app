@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
 import { sendAdminAlert } from "@/lib/telegram/admin";
+import { sendSubscriptionConfirmedTrigger } from "@/lib/email/triggers";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2026-02-25.clover",
@@ -219,6 +220,25 @@ export async function POST(req: NextRequest) {
           period_end: currentPeriodEnd,
           raw_event_id: event.id,
         });
+
+        // Send plan activation email on new active subscriptions
+        if (subscription.status === "active" && event.type === "customer.subscription.created") {
+          try {
+            const { data: profile } = await supabaseAdmin
+              .from("profiles")
+              .select("full_name, email")
+              .eq("id", userId)
+              .single();
+            const email = profile?.email;
+            const name = profile?.full_name?.split(" ")[0] || "there";
+            const plan = planKey === "elite" ? "Elite" : planKey === "pro" ? "Pro" : planKey === "core" ? "Core" : "Growth";
+            if (email) {
+              await sendSubscriptionConfirmedTrigger(email, name, plan);
+            }
+          } catch (e) {
+            console.error("Failed to send subscription email:", e);
+          }
+        }
         break;
       }
 
