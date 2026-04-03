@@ -13,7 +13,7 @@ ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;">${prehead
 <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
 <tr><td style="padding:0 0 32px 0;text-align:center;">
 <div style="display:inline-block;padding:12px 24px;background:rgba(7,16,38,0.8);border:1px solid rgba(255,255,255,0.08);border-radius:16px;">
-<span style="font-size:20px;font-weight:800;background:linear-gradient(90deg,#57d3f3,#6f86ff,#a268ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.02em;">&#10022; Aurora Growth</span>
+<span style="font-size:20px;font-weight:800;color:#57d3f3;letter-spacing:-0.02em;">&#10022; Aurora Growth</span>
 </div>
 </td></tr>
 <tr><td style="background:rgba(15,26,58,0.8);border:1px solid rgba(255,255,255,0.08);border-radius:24px;padding:40px;backdrop-filter:blur(16px);">
@@ -46,7 +46,7 @@ const signOff = `
 const divider = `<hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:24px 0;"/>`
 
 function heading(text: string) {
-  return `<h1 style="margin:0 0 16px;font-size:28px;font-weight:800;line-height:1.2;background:linear-gradient(90deg,#57d3f3,#a268ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">${text}</h1>`
+  return `<h1 style="margin:0 0 16px;font-size:28px;font-weight:800;line-height:1.2;color:#ffffff;">${text}</h1>`
 }
 
 function subheading(text: string) {

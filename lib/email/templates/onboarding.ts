@@ -7,7 +7,7 @@ const signOff = `
   <span style="color:#57d3f3;">Aurora Growth Academy</span>
 </p>`
 
-function h1(t: string) { return `<h1 style="margin:0 0 16px;font-size:26px;font-weight:800;background:linear-gradient(90deg,#57d3f3,#a268ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">${t}</h1>` }
+function h1(t: string) { return `<h1 style="margin:0 0 16px;font-size:26px;font-weight:800;color:#ffffff;">${t}</h1>` }
 function p(t: string) { return `<p style="margin:0 0 16px;font-size:15px;line-height:1.7;color:#aebbd6;">${t}</p>` }
 function btn(t: string, u: string) { return `<div style="margin:24px 0;text-align:center;"><a href="${u}" style="display:inline-block;padding:14px 32px;background:linear-gradient(135deg,#63d3ff,#6f86ff,#b267ff);color:#fff;text-decoration:none;font-weight:700;font-size:15px;border-radius:999px;">${t}</a></div>` }
 const hr = `<hr style="border:none;border-top:1px solid rgba(255,255,255,0.06);margin:24px 0;"/>`

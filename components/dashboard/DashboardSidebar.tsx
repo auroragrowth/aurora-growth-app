@@ -20,7 +20,8 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import ChangelogModal from "@/components/dashboard/ChangelogModal";
 
-const AURORA_VERSION = "1.1.0";
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const AURORA_VERSION = require("@/../package.json").version as string;
 
 type Trading212Status = "connected" | "attention" | "disconnected";
 
