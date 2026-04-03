@@ -45,9 +45,11 @@ function TelegramSection() {
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
   const [sendingTest, setSendingTest] = useState(false);
   const [testResult, setTestResult] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const qrGenerated = useRef(false);
 
   const checkStatus = useCallback(async () => {
     try {
@@ -76,28 +78,43 @@ function TelegramSection() {
     };
   }, [checkStatus]);
 
-  async function generateQr() {
+  const generateQr = useCallback(async () => {
+    if (generating || qrGenerated.current) return;
+    qrGenerated.current = true;
     setGenerating(true);
+    setQrError(null);
     try {
       const res = await fetch("/api/telegram/generate-token", { method: "POST" });
       const data = await res.json();
-      if (data.qr_url) {
-        setQrUrl(data.qr_url);
-        const qrRes = await fetch(`/api/telegram/qr?url=${encodeURIComponent(data.qr_url)}`);
-        if (qrRes.ok) {
-          const blob = await qrRes.blob();
-          setQrDataUrl(URL.createObjectURL(blob));
-        }
-        if (!pollRef.current) {
-          pollRef.current = setInterval(checkStatus, 3000);
-        }
+      if (!res.ok || !data.qr_url) {
+        setQrError(data.error || "Failed to generate Telegram link");
+        return;
       }
-    } catch {
-      /* ignore */
+      setQrUrl(data.qr_url);
+      const qrRes = await fetch(`/api/telegram/qr?url=${encodeURIComponent(data.qr_url)}`);
+      if (qrRes.ok) {
+        const blob = await qrRes.blob();
+        setQrDataUrl(URL.createObjectURL(blob));
+      } else {
+        setQrError("Failed to generate QR code image");
+      }
+      if (!pollRef.current) {
+        pollRef.current = setInterval(checkStatus, 3000);
+      }
+    } catch (e: any) {
+      setQrError(e.message || "Failed to connect");
+      qrGenerated.current = false;
     } finally {
       setGenerating(false);
     }
-  }
+  }, [generating, checkStatus]);
+
+  // Auto-generate QR when status loads and not connected
+  useEffect(() => {
+    if (tgStatus && !tgStatus.connected && !qrDataUrl && !qrGenerated.current) {
+      generateQr();
+    }
+  }, [tgStatus, qrDataUrl, generateQr]);
 
   async function sendTestAlert() {
     setSendingTest(true);
@@ -194,13 +211,13 @@ function TelegramSection() {
       ) : (
         <div className="flex flex-1 flex-col">
           <p className="text-sm text-slate-400">
-            Scan this QR code with your phone to receive price alerts via Telegram.
+            Scan this QR code with your phone to connect Telegram and receive price alerts.
           </p>
 
           {qrDataUrl ? (
             <div className="mt-5">
-              <div className="inline-block rounded-2xl border border-white/10 bg-white p-2">
-                <img src={qrDataUrl} alt="Telegram QR code" width={128} height={128} className="h-32 w-32" />
+              <div className="inline-block rounded-2xl border border-white/10 bg-white p-3">
+                <img src={qrDataUrl} alt="Telegram QR code" width={180} height={180} className="h-44 w-44" />
               </div>
 
               <div className="mt-4">
@@ -220,13 +237,29 @@ function TelegramSection() {
                 Waiting for connection...
               </div>
             </div>
+          ) : generating ? (
+            <div className="mt-5 flex items-center gap-3">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-cyan-400 border-t-transparent" />
+              <span className="text-sm text-white/40">Generating your unique QR code...</span>
+            </div>
+          ) : qrError ? (
+            <div className="mt-5 space-y-3">
+              <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+                {qrError}
+              </div>
+              <button
+                onClick={() => { qrGenerated.current = false; generateQr(); }}
+                className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-5 py-2.5 text-sm font-medium text-cyan-300 transition hover:bg-cyan-400/15"
+              >
+                Try again
+              </button>
+            </div>
           ) : (
             <button
               onClick={generateQr}
-              disabled={generating}
-              className="mt-auto rounded-full bg-[linear-gradient(90deg,#22d3ee_0%,#60a5fa_45%,#a855f7_100%)] px-7 py-3.5 text-base font-semibold text-slate-950 transition hover:brightness-110 disabled:opacity-50"
+              className="mt-auto rounded-full bg-[linear-gradient(90deg,#22d3ee_0%,#60a5fa_45%,#a855f7_100%)] px-7 py-3.5 text-base font-semibold text-slate-950 transition hover:brightness-110"
             >
-              {generating ? "Generating..." : "Connect Telegram"}
+              Connect Telegram
             </button>
           )}
         </div>
