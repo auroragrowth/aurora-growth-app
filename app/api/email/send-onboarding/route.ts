@@ -11,7 +11,8 @@ export async function POST(req: NextRequest) {
       { error: 'Not authenticated' }, { status: 401 }
     )
 
-    const { email, firstName } = await req.json()
+    const { email, firstName: rawName } = await req.json()
+    const firstName = (rawName || '').trim().replace(/,+$/, '').trim()
     if (!email || !firstName) return NextResponse.json(
       { error: 'Email and firstName required' }, { status: 400 }
     )

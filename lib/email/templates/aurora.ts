@@ -1,3 +1,7 @@
+function cleanName(name: string): string {
+  return (name || 'there').trim().replace(/,+$/, '').trim()
+}
+
 const LOGO = 'https://auroragrowth.co.uk/wp-content/uploads/2026/04/Aurora_Logo_email.png'
 const APP = 'https://app.auroragrowth.co.uk'
 
@@ -136,7 +140,7 @@ function nextStepBox(html: string): string {
 // ═══════════════════════════════════════
 
 export function subscriptionConfirmedEmail(firstName: string, planName: string): string {
-  const safe = firstName || 'there'
+  const safe = cleanName(firstName)
   return wrap(
     'Subscription Active',
     `Your Aurora ${planName} plan is now live.`,
@@ -184,7 +188,7 @@ export function paymentFailedEmail(firstName: string): string {
     'Your membership is still important to us, but your latest payment did not go through.',
     'Update Billing',
     `${APP}/dashboard/account`,
-    firstName || 'there',
+    cleanName(firstName),
     section('What to do next', `
       Please update your payment method as soon as possible to avoid interruption to your access.<br><br>
       Once updated, your subscription will continue without issue.
@@ -201,7 +205,7 @@ export function opportunityDetectedEmail(firstName: string, ticker: string): str
     'A stock on your radar has matched an Aurora opportunity condition.',
     'View Opportunity',
     `${APP}/dashboard/stocks/${ticker}`,
-    firstName || 'there',
+    cleanName(firstName),
     section('Signal Summary', `
       <strong>Ticker:</strong> ${ticker}<br>
       <strong>Status:</strong> Opportunity detected by Aurora scanning logic
@@ -220,7 +224,7 @@ export function pullbackAlertEmail(firstName: string, ticker: string, level: str
     `Aurora has detected that ${ticker} has moved into your ${level} pullback level.`,
     'Check the Setup',
     `${APP}/dashboard/stocks/${ticker}`,
-    firstName || 'there',
+    cleanName(firstName),
     section('Pullback Details', `
       <strong>Ticker:</strong> ${ticker}<br>
       <strong>Level:</strong> ${level} pullback<br><br>
@@ -237,7 +241,7 @@ export function bepReachedEmail(firstName: string, ticker: string): string {
     'One of your tracked positions has moved back to break-even.',
     'Review Position',
     `${APP}/dashboard/investments`,
-    firstName || 'there',
+    cleanName(firstName),
     section('Position Update', `
       <strong>Ticker:</strong> ${ticker}<br>
       <strong>Status:</strong> Break-even reached<br><br>
@@ -254,7 +258,7 @@ export function profitTargetEmail(firstName: string, ticker: string, target: str
     `Aurora has detected that ${ticker} has reached your ${target} target level.`,
     'View Investment',
     `${APP}/dashboard/investments`,
-    firstName || 'there',
+    cleanName(firstName),
     section('Target Update', `
       <strong>Ticker:</strong> ${ticker}<br>
       <strong>Target:</strong> ${target}<br><br>

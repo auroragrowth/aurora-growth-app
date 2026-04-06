@@ -398,7 +398,19 @@ export default function MarketScannerPage() {
   const [searching, setSearching] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<TabFilter>("all");
+  const [activeTab, setActiveTabRaw] = useState<TabFilter>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("scanner_tab") as TabFilter | null;
+      if (saved === "core" || saved === "alternative" || saved === "all") return saved;
+    }
+    return "all";
+  });
+  const setActiveTab = (tab: TabFilter) => {
+    setActiveTabRaw(tab);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("scanner_tab", tab);
+    }
+  };
   const [sortKey, setSortKey] = useState<SortKey>("score");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -568,7 +580,14 @@ export default function MarketScannerPage() {
     if (activeTab === "core") return coreRows;
     if (activeTab === "alternative") return altRows;
     if (activeTab === "search") return searchRows;
-    return [...coreRows, ...altRows];
+    // Deduplicate by ticker, preferring core over alternative
+    const seen = new Set<string>();
+    return [...coreRows, ...altRows].filter((row) => {
+      const key = toTicker(row);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }, [activeTab, coreRows, altRows, searchRows]);
 
   const filteredRows = useMemo(() => {

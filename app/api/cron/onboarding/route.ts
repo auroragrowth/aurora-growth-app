@@ -35,7 +35,8 @@ export async function GET(req: NextRequest) {
     const email = await getEmailForUser(profile.id, profile.email)
     if (!email) continue
 
-    const firstName = profile.full_name?.split(' ')[0] || 'there'
+    const rawFirst = profile.full_name?.split(' ')[0] || 'there'
+    const firstName = rawFirst.trim().replace(/,+$/, '').trim()
     const sent = await sendOnboardingDay(
       profile.id, dayNumber, firstName, email
     )

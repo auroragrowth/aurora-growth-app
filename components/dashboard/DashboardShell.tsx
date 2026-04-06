@@ -212,11 +212,11 @@ export default function DashboardShell({
   }, []);
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#040b18] text-white">
+    <div className="h-screen overflow-hidden bg-[#040b18] text-white">
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_top,_rgba(31,110,255,0.18),_transparent_26%),radial-gradient(circle_at_75%_15%,_rgba(115,76,255,0.10),_transparent_18%),radial-gradient(circle_at_15%_85%,_rgba(0,201,255,0.08),_transparent_22%)]" />
       <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(180deg,#030b17_0%,#041122_36%,#071731_72%,#09142c_100%)] opacity-100" />
 
-      <div className="relative flex min-h-screen">
+      <div className="relative flex h-screen">
         {mobileOpen && (
           <button
             aria-label="Close sidebar overlay"
@@ -238,7 +238,7 @@ export default function DashboardShell({
             mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
           ].join(" ")}
         >
-          <div className="flex h-full flex-col">
+          <div className="flex h-full flex-col overflow-hidden">
             <div className="flex h-[76px] items-center justify-center border-b border-cyan-300/10 px-4">
               <Link href="/dashboard" className="flex items-center justify-center">
                 <img
@@ -249,7 +249,7 @@ export default function DashboardShell({
               </Link>
             </div>
 
-            <nav className="flex-1 px-3 py-4">
+            <nav className="flex-1 overflow-y-auto min-h-0 px-3 py-4 sidebar-scroll">
               <div className="space-y-1.5">
                 {navItems.map((item) => {
                   const active =
@@ -297,7 +297,7 @@ export default function DashboardShell({
               </div>
             </nav>
 
-            <div className="border-t border-cyan-300/10 px-3 py-3">
+            <div className="flex-shrink-0 border-t border-cyan-300/10 px-3 py-3">
               <form action="/auth/signout" method="post">
                 <button
                   type="submit"
@@ -317,7 +317,7 @@ export default function DashboardShell({
           </div>
         </aside>
 
-        <div className={`flex min-h-screen flex-1 flex-col transition-all duration-300 ${collapsed ? "lg:pl-[88px]" : "lg:pl-[220px]"}`}>
+        <div className={`flex h-screen flex-1 flex-col overflow-hidden transition-all duration-300 ${collapsed ? "lg:pl-[88px]" : "lg:pl-[220px]"}`}>
           <header className="sticky top-0 z-20 border-b border-cyan-300/10 bg-[linear-gradient(180deg,rgba(6,18,38,0.94),rgba(7,18,35,0.92))] backdrop-blur-xl">
             <div className="mx-auto flex h-[76px] w-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
               <div className="flex items-center gap-3">
@@ -485,7 +485,7 @@ export default function DashboardShell({
             </div>
           )}
 
-          <main className="flex-1">
+          <main className="flex-1 overflow-y-auto min-h-0">
             <div className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8">
               {children}
             </div>

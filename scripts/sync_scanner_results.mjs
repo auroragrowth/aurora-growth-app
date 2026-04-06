@@ -219,7 +219,12 @@ async function run() {
   const coreRows = mapRows(coreRaw, "core");
   const altRows = mapRows(altRaw, "alternative");
 
-  const combined = [...coreRows, ...altRows];
+  // Deduplicate: remove from alt if already in core
+  const coreTickers = new Set(coreRows.map((r) => r.ticker));
+  const dedupedAlt = altRows.filter((r) => !coreTickers.has(r.ticker));
+  console.log(`Deduped alternative: ${altRows.length} → ${dedupedAlt.length}`);
+
+  const combined = [...coreRows, ...dedupedAlt];
 
   const { error: deleteError } = await supabase
     .from("scanner_results")

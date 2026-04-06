@@ -230,7 +230,8 @@ export async function POST(req: NextRequest) {
               .eq("id", userId)
               .single();
             const email = profile?.email;
-            const name = profile?.full_name?.split(" ")[0] || "there";
+            const rawName = profile?.full_name?.split(" ")[0] || "there";
+            const name = rawName.trim().replace(/,+$/, '').trim();
             const plan = planKey === "elite" ? "Elite" : planKey === "pro" ? "Pro" : planKey === "core" ? "Core" : "Growth";
             if (email) {
               await sendSubscriptionConfirmedTrigger(email, name, plan);

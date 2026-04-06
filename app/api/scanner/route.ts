@@ -57,9 +57,19 @@ export async function GET(req: NextRequest) {
       );
     }
 
+    // Deduplicate by ticker, preferring higher score (core tends to sort first)
+    const raw = data || [];
+    const seen = new Set<string>();
+    const deduped = raw.filter((r: any) => {
+      const t = String(r.ticker || "").toUpperCase();
+      if (!t || seen.has(t)) return false;
+      seen.add(t);
+      return true;
+    });
+
     return NextResponse.json({
       ok: true,
-      rows: data || [],
+      rows: deduped,
     });
   } catch (error: any) {
     return NextResponse.json(

@@ -1,9 +1,13 @@
 import { auroraEmailLayout, section, textBlock, nextStepBox } from './aurora'
 
+function cleanName(name: string): string {
+  return (name || 'there').trim().replace(/,+$/, '').trim()
+}
+
 const APP = 'https://app.auroragrowth.co.uk'
 
 export function onboardingDay0Email(firstName: string) {
-  const safe = firstName || 'there'
+  const safe = cleanName(firstName)
   const subject = `Welcome to Aurora Growth Academy, ${safe}`
   const html = auroraEmailLayout(
     'Day 0 &middot; Welcome',
@@ -30,7 +34,7 @@ export function onboardingDay0Email(firstName: string) {
 }
 
 export function onboardingDay1Email(firstName: string) {
-  const safe = firstName || 'there'
+  const safe = cleanName(firstName)
   const subject = 'How Aurora helps you invest with more structure'
   const html = auroraEmailLayout(
     'Day 1 &middot; How Aurora Works',
@@ -53,7 +57,7 @@ export function onboardingDay1Email(firstName: string) {
 }
 
 export function onboardingDay2Email(firstName: string) {
-  const safe = firstName || 'there'
+  const safe = cleanName(firstName)
   const subject = 'Find stronger opportunities with the Aurora Scanner'
   const html = auroraEmailLayout(
     'Day 2 &middot; Market Scanner',
@@ -77,7 +81,7 @@ export function onboardingDay2Email(firstName: string) {
 }
 
 export function onboardingDay3Email(firstName: string) {
-  const safe = firstName || 'there'
+  const safe = cleanName(firstName)
   const subject = 'Build your first Aurora watchlist'
   const html = auroraEmailLayout(
     'Day 3 &middot; Watchlist',
@@ -97,7 +101,7 @@ export function onboardingDay3Email(firstName: string) {
 }
 
 export function onboardingDay4Email(firstName: string) {
-  const safe = firstName || 'there'
+  const safe = cleanName(firstName)
   const subject = 'Plan entries with the Aurora Investment Calculator'
   const html = auroraEmailLayout(
     'Day 4 &middot; Calculator',
@@ -121,7 +125,7 @@ export function onboardingDay4Email(firstName: string) {
 }
 
 export function onboardingDay5Email(firstName: string) {
-  const safe = firstName || 'there'
+  const safe = cleanName(firstName)
   const subject = 'See the market more clearly with Aurora'
   const html = auroraEmailLayout(
     'Day 5 &middot; Market View',
@@ -142,7 +146,7 @@ export function onboardingDay5Email(firstName: string) {
 }
 
 export function onboardingDay6Email(firstName: string) {
-  const safe = firstName || 'there'
+  const safe = cleanName(firstName)
   const subject = 'Your simple Aurora daily routine'
   const html = auroraEmailLayout(
     'Day 6 &middot; Routine',
@@ -163,7 +167,7 @@ export function onboardingDay6Email(firstName: string) {
 }
 
 export function onboardingDay7Email(firstName: string) {
-  const safe = firstName || 'there'
+  const safe = cleanName(firstName)
   const subject = 'Ready to go further with Aurora?'
   const html = auroraEmailLayout(
     'Day 7 &middot; Next Steps',

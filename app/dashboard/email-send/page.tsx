@@ -23,8 +23,8 @@ export default function EmailSendPage() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          email,
-          firstName,
+          firstName: firstName.trim().replace(/,+$/, '').trim(),
+          email: email.trim().toLowerCase(),
         }),
       });
 
