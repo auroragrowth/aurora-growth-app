@@ -4,7 +4,7 @@ import { promises as fs } from "fs";
 import { exec } from "child_process";
 import { promisify } from "util";
 import { requireAdmin } from "@/lib/admin/requireAdmin";
-import { UserStatsSection, ErrorLogsSection, TelegramTestButton } from "./AdminClientSections";
+import { UserStatsSection, ErrorLogsSection, TelegramTestButton, ScannerSyncButton } from "./AdminClientSections";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -507,6 +507,16 @@ export default async function AdminDashboardPage() {
               ))
             )}
           </div>
+        </section>
+        {/* Scanner Sync */}
+        <section className="rounded-3xl border border-white/10 bg-white/[0.02] p-6">
+          <div className="mb-4">
+            <h2 className="text-lg font-semibold text-white">Scanner Sync</h2>
+            <p className="mt-1 text-sm text-white/40">
+              Manually refresh Core and Alternative scanner data from Finviz. Runs deduplication automatically. Also runs daily at 07:00.
+            </p>
+          </div>
+          <ScannerSyncButton />
         </section>
       </div>
     </div>

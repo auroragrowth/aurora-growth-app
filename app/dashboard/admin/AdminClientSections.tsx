@@ -200,3 +200,70 @@ export function TelegramTestButton() {
     </div>
   );
 }
+
+/* ── Scanner Sync Button ─────────────────────────────── */
+
+export function ScannerSyncButton() {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  const handleSync = async () => {
+    setLoading(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/admin/sync-scanner", { method: "POST" });
+      const data = await res.json();
+      setResult(data);
+    } catch (e: any) {
+      setResult({ error: e.message });
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div className="space-y-3">
+      <button
+        onClick={handleSync}
+        disabled={loading}
+        className="flex items-center gap-3 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-5 py-2.5 text-sm font-medium text-cyan-200 transition hover:bg-cyan-400/15 disabled:opacity-50"
+      >
+        {loading ? (
+          <>
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-cyan-400" />
+            Syncing Finviz data...
+          </>
+        ) : (
+          "Sync Scanner from Finviz"
+        )}
+      </button>
+
+      {result && (
+        <div
+          className={`rounded-xl border p-4 text-sm ${
+            result.success
+              ? "border-emerald-500/20 bg-emerald-500/10"
+              : "border-rose-500/20 bg-rose-500/10"
+          }`}
+        >
+          {result.success ? (
+            <div className="space-y-2">
+              <p className="font-medium text-emerald-300">{result.message}</p>
+              <div className="flex gap-4 text-xs text-white/50">
+                <span>Core: <strong className="text-white">{result.core}</strong></span>
+                <span>Alternative: <strong className="text-white">{result.alternative}</strong></span>
+                <span>Total: <strong className="text-white">{result.total}</strong></span>
+              </div>
+              {result.output && (
+                <pre className="mt-2 max-h-32 overflow-auto rounded-lg bg-black/30 p-2 text-xs text-white/30">
+                  {result.output}
+                </pre>
+              )}
+            </div>
+          ) : (
+            <p className="text-rose-300">{result.error}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

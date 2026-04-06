@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import BrokerConnectModal from "@/components/dashboard/BrokerConnectModal";
-
 type OnboardingState = {
   onboarding_step: string | null;
   trading212_connected: boolean;
@@ -39,7 +37,9 @@ export default function OnboardingChecker() {
       state.subscription_status === "trialing");
 
   if (showT212Popup) {
-    return <BrokerConnectModal onClose={() => setDismissed(true)} />;
+    // Redirect to connections page instead of showing old popup
+    window.location.href = "/dashboard/connections";
+    return null;
   }
 
   if (showReminderCard) {
