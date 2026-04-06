@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import DashboardShell from "@/components/dashboard/DashboardShell";
-import BrokerConnectModal from "@/components/dashboard/BrokerConnectModal";
 import WelcomeModal from "@/components/dashboard/WelcomeModal";
 import ExpiryBanner from "@/components/dashboard/ExpiryBanner";
 import { BrokerPopupProvider } from "@/components/providers/BrokerPopupProvider";
@@ -151,7 +150,6 @@ export default async function DashboardLayout({
         >
           <ExpiryBanner />
           {children}
-          {showBrokerPopup && <BrokerConnectModal />}
           <WelcomeModal firstName={fullName.split(" ")[0]} />
           <OnboardingTour />
           <QuickStartGuide />

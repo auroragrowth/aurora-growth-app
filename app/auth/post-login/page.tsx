@@ -19,13 +19,13 @@ export default async function PostLoginPage() {
   // Use admin client to bypass RLS and avoid false nulls
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("plan_key, has_completed_plan_selection")
+    .select("plan_key, has_completed_plan_selection, subscription_status")
     .eq("id", user.id)
     .maybeSingle();
 
   if (!profile) {
     // First login — create a bare profile and send to plan selection
-    await supabase.from("profiles").upsert(
+    await supabaseAdmin.from("profiles").upsert(
       {
         id: user.id,
         email: user.email,
@@ -34,7 +34,7 @@ export default async function PostLoginPage() {
         referred_by: user.user_metadata?.referred_by || null,
         role: "member",
         login_count: 1,
-        last_login: new Date().toISOString(),
+        last_login_at: new Date().toISOString(),
       },
       { onConflict: "id" }
     );
@@ -47,21 +47,23 @@ export default async function PostLoginPage() {
     redirect("/select-plan");
   }
 
-  // Increment login_count and update last_login on every login
+  // Increment login_count and update last_login_at on every login
   try {
     await supabase.rpc("increment_login_count", { uid: user.id });
   } catch {
     // Fallback: direct update if RPC not available
-    await supabase
+    await supabaseAdmin
       .from("profiles")
-      .update({ last_login: new Date().toISOString() })
+      .update({ last_login_at: new Date().toISOString() })
       .eq("id", user.id);
   }
 
   // Go to dashboard if user has any plan OR has completed plan selection
+  // Also go to dashboard if they have an active subscription
   const hasPlan =
-    ["free", "core", "pro", "elite"].includes(profile.plan_key ?? "") ||
-    profile.has_completed_plan_selection === true;
+    (profile.plan_key && profile.plan_key !== "none") ||
+    profile.has_completed_plan_selection === true ||
+    profile.subscription_status === "active";
 
   if (hasPlan) {
     redirect("/dashboard");

@@ -253,7 +253,6 @@ function BrokerConnectInline({
   onConnected: () => void;
 }) {
   const [apiKey, setApiKey] = useState("");
-  const [apiSecret, setApiSecret] = useState("");
   const [status, setStatus] = useState<"idle" | "saving" | "connected" | "failed">("idle");
   const [error, setError] = useState("");
 
@@ -265,7 +264,7 @@ function BrokerConnectInline({
       const res = await fetch("/api/connections/trading212", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey, apiSecret }),
+        body: JSON.stringify({ apiKey }),
       });
 
       const data = await res.json();
@@ -322,17 +321,6 @@ function BrokerConnectInline({
                   placeholder="Paste your Trading 212 API key"
                 />
               </div>
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-300">API Secret (optional)</label>
-                <input
-                  type="password"
-                  value={apiSecret}
-                  onChange={(e) => setApiSecret(e.target.value)}
-                  className="w-full rounded-full border border-white/10 bg-slate-950/50 px-5 py-3.5 text-white outline-none transition placeholder:text-slate-500 focus:border-cyan-400/40"
-                  placeholder="Paste your Trading 212 API secret"
-                />
-              </div>
-
               {status === "failed" && (
                 <div className="rounded-2xl border border-red-400/20 bg-red-500/10 px-5 py-4 text-sm text-red-200">
                   {error || "Connection failed"}
