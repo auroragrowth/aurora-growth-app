@@ -29,6 +29,11 @@ type ScannerRow = {
   scanner_type?: string | null;
   scanner_run_at?: string | null;
   updated_at?: string | null;
+  rises_count_18m?: number | null;
+  most_recent_hat_price?: number | null;
+  most_recent_hat_date?: string | null;
+  drop_from_hat_pct?: number | null;
+  readiness?: string | null;
 };
 
 type TabFilter = "all" | "core" | "alternative" | "search";
@@ -38,7 +43,8 @@ type SortKey =
   | "market_cap"
   | "price"
   | "change_percent"
-  | "score";
+  | "score"
+  | "readiness";
 
 function toTicker(row: ScannerRow) {
   return String(row.ticker || row.symbol || "").toUpperCase();
@@ -128,6 +134,51 @@ function getMomentum(score: number) {
   return {
     label: "WEAK",
     cls: "border-white/15 bg-white/5 text-white/45",
+  };
+}
+
+function getReadiness(row: ScannerRow) {
+  const rises = row.rises_count_18m || 0;
+  const drop = parseFloat(String(row.drop_from_hat_pct || "0"));
+  const r = row.readiness || "grey";
+
+  if (rises < 3 || r === "grey")
+    return {
+      bg: "bg-white/5 border-white/10",
+      dot: "bg-white/20",
+      text: "text-white/30",
+      label: rises > 0 ? `${rises} rise${rises === 1 ? "" : "s"}` : "—",
+      tooltip:
+        rises > 0
+          ? `Only ${rises} qualifying rise${rises === 1 ? "" : "s"} in 12 months — needs 3+`
+          : "No Aurora peak data yet",
+      priority: 4,
+    };
+  if (r === "green" || drop >= 20)
+    return {
+      bg: "bg-green-500/15 border-green-500/30",
+      dot: "bg-green-400",
+      text: "text-green-400",
+      label: `${drop.toFixed(1)}% ↓`,
+      tooltip: `READY — ${drop.toFixed(1)}% below last peak. ${rises} rises of 20%+ in 12m.`,
+      priority: 1,
+    };
+  if (r === "amber" || (drop >= 10 && drop < 20))
+    return {
+      bg: "bg-amber-500/15 border-amber-500/30",
+      dot: "bg-amber-400",
+      text: "text-amber-400",
+      label: `${drop.toFixed(1)}% ↓`,
+      tooltip: `APPROACHING — ${drop.toFixed(1)}% below last peak. Needs 20%+. ${rises} rises in 12m.`,
+      priority: 2,
+    };
+  return {
+    bg: "bg-red-500/10 border-red-500/20",
+    dot: "bg-red-400",
+    text: "text-red-400",
+    label: drop < 0 ? "Above peak" : `${drop.toFixed(1)}% ↓`,
+    tooltip: `NOT READY — Only ${drop.toFixed(1)}% from peak. ${rises} rises in 12m.`,
+    priority: 3,
   };
 }
 
@@ -241,6 +292,104 @@ function getWatchlistSource(
   if (st === "core") return "Aurora Core";
   if (st === "alternative") return "Aurora Alternative";
   return "My List";
+}
+
+/* ── Readiness Hover Popout ─────────────────────────── */
+
+function ReadinessPopout({ row, r }: { row: ScannerRow; r: ReturnType<typeof getReadiness> }) {
+  const rises = row.rises_count_18m || 0;
+  const drop = parseFloat(String(row.drop_from_hat_pct || "0"));
+  const peakPrice = parseFloat(String(row.most_recent_hat_price || "0"));
+  const price = toNumber(row.price);
+  const ticker = toTicker(row);
+  const readiness = row.readiness || "grey";
+
+  return (
+    <div
+      className="w-72 rounded-2xl border border-white/12 shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden"
+      style={{ background: "#080f1e" }}
+    >
+      <div className={`px-4 py-3 border-b border-white/10 flex items-center gap-3 ${r.bg}`}>
+        <span className={`w-3 h-3 rounded-full flex-shrink-0 ${r.dot}`} />
+        <div>
+          <p className={`text-sm font-bold ${r.text}`}>
+            {readiness === "green" ? "READY TO WATCH" : readiness === "amber" ? "APPROACHING" : readiness === "red" ? "NOT YET READY" : "INSUFFICIENT DATA"}
+          </p>
+          <p className="text-white/40 text-xs">Aurora Readiness — {ticker}</p>
+        </div>
+      </div>
+
+      <div className="px-4 py-4 space-y-4">
+        <div>
+          <p className="text-white/30 text-xs uppercase tracking-wider font-bold mb-1.5">What this means</p>
+          <p className="text-white/70 text-sm leading-relaxed">
+            {readiness === "green"
+              ? `${ticker} has dropped ${drop.toFixed(1)}% from its most recent Aurora peak and has shown ${rises} qualifying rises of 20%+ in the last 12 months. This stock may be approaching an Aurora entry window.`
+              : readiness === "amber"
+                ? `${ticker} is getting closer — it is ${drop.toFixed(1)}% below its last peak. It needs to reach 20% before it enters the Aurora buy zone. Worth monitoring closely.`
+                : readiness === "red"
+                  ? `${ticker} has only dropped ${drop.toFixed(1)}% from its recent peak. The Aurora method begins at 20% below the peak. This stock is not yet in range.`
+                  : `${ticker} does not yet have enough Aurora peak data. A qualifying stock needs at least 3 rises of 20%+ in the last 12 months. Currently shows ${rises} qualifying rise${rises === 1 ? "" : "s"}.`}
+          </p>
+        </div>
+
+        {peakPrice > 0 && (
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { label: "Most recent peak", value: `$${peakPrice.toFixed(2)}`, color: "text-white" },
+              { label: "Current price", value: price > 0 ? `$${price.toFixed(2)}` : "—", color: "text-white" },
+              { label: "Drop from peak", value: drop > 0 ? `${drop.toFixed(1)}%` : `+${Math.abs(drop).toFixed(1)}%`, color: drop >= 20 ? "text-green-400" : drop >= 10 ? "text-amber-400" : "text-red-400" },
+            ].map((item) => (
+              <div key={item.label} className="bg-white/5 rounded-xl p-2.5 text-center">
+                <p className="text-white/30 text-xs mb-1 leading-tight">{item.label}</p>
+                <p className={`text-sm font-bold ${item.color}`}>{item.value}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-white/30 text-xs uppercase tracking-wider font-bold">Rise history (12 months)</p>
+            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${rises >= 3 ? "bg-green-500/20 text-green-400" : "bg-red-500/10 text-red-400"}`}>
+              {rises}/3 needed
+            </span>
+          </div>
+          <div className="flex gap-2">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className={`flex-1 h-2 rounded-full ${n <= rises ? "bg-gradient-to-r from-cyan-400 to-purple-400" : "bg-white/10"}`} />
+            ))}
+          </div>
+          <p className="text-white/30 text-xs mt-1.5">
+            {rises >= 3 ? `✓ Qualifies — ${rises} rise${rises === 1 ? "" : "s"} of 20%+ detected` : `${rises} of 3 required rises of 20%+ detected`}
+          </p>
+        </div>
+
+        {peakPrice > 0 && readiness !== "green" && (
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <p className="text-white/30 text-xs uppercase tracking-wider font-bold">Progress to Aurora entry</p>
+              <p className="text-white/40 text-xs">{drop >= 0 ? `${drop.toFixed(1)}% of 20%` : "Above peak"}</p>
+            </div>
+            <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${drop >= 20 ? "bg-green-400" : drop >= 10 ? "bg-amber-400" : "bg-red-400"}`}
+                style={{ width: `${Math.min(Math.max((drop / 20) * 100, 0), 100)}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-1">
+              <p className="text-white/20 text-xs">0%</p>
+              <p className="text-green-400/60 text-xs">20% = Ready</p>
+            </div>
+          </div>
+        )}
+
+        <p className="text-white/20 text-xs pt-1 border-t border-white/5">
+          Aurora readiness is based on drop from the most recent qualifying peak and rise frequency — not a buy signal.
+        </p>
+      </div>
+    </div>
+  );
 }
 
 /* ── Ticker Hover Popup ─────────────────────────────── */
@@ -633,6 +782,10 @@ export default function MarketScannerPage() {
           aVal = getScore(a);
           bVal = getScore(b);
           break;
+        case "readiness":
+          aVal = getReadiness(a).priority;
+          bVal = getReadiness(b).priority;
+          break;
       }
 
       if (typeof aVal === "number" && typeof bVal === "number") {
@@ -775,7 +928,7 @@ export default function MarketScannerPage() {
           <div className="relative w-full xl:max-w-md">
             <input
               type="text"
-              placeholder="Search ticker or company..."
+              placeholder="Search stocks — to compare use: FNV, MSFT"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
@@ -827,24 +980,8 @@ export default function MarketScannerPage() {
         </div>
       </div>
 
-      {/* AI Overview Banner */}
-      {aiOverview && (
-        <div className="flex items-center gap-3 rounded-2xl border border-cyan-400/15 bg-cyan-400/[0.04] px-5 py-3">
-          <span className="text-cyan-400">✦</span>
-          <span className="flex-1 text-sm text-white/70">{aiOverview}</span>
-          <button
-            type="button"
-            onClick={() => loadAiOverview(true)}
-            disabled={aiOverviewLoading}
-            className="shrink-0 rounded-lg border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-medium text-white/50 transition hover:bg-white/10 disabled:opacity-40"
-          >
-            {aiOverviewLoading ? "..." : "Refresh"}
-          </button>
-        </div>
-      )}
-
       <ExpiredBlur>
-        <div className="overflow-hidden rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(8,12,20,.98),rgba(8,14,26,.95))]">
+        <div className="overflow-visible rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(8,12,20,.98),rgba(8,14,26,.95))]">
           <div className="overflow-x-auto">
             <table className="min-w-full text-left">
               <thead className="border-b border-white/10 bg-white/[0.03]">
@@ -871,31 +1008,13 @@ export default function MarketScannerPage() {
                   <th className="px-4 py-4">
                     <button
                       type="button"
-                      onClick={() => handleSort("market_cap")}
+                      onClick={() => handleSort("readiness")}
                       className="hover:text-white"
                     >
-                      Market Cap
+                      Readiness
                     </button>
                   </th>
-                  <th className="px-4 py-4" title="Aurora score out of 30">
-                    <button
-                      type="button"
-                      onClick={() => handleSort("score")}
-                      className="hover:text-white"
-                    >
-                      Score
-                    </button>
-                  </th>
-                  <th className="px-4 py-4">
-                    <button
-                      type="button"
-                      onClick={() => handleSort("score")}
-                      className="hover:text-white"
-                    >
-                      Momentum
-                    </button>
-                  </th>
-                  <th className="px-4 py-4">Sparkline</th>
+                  <th className="px-4 py-4">Last Rise</th>
                   <th className="px-4 py-4">
                     <button
                       type="button"
@@ -903,15 +1022,6 @@ export default function MarketScannerPage() {
                       className="hover:text-white"
                     >
                       Price
-                    </button>
-                  </th>
-                  <th className="px-4 py-4">
-                    <button
-                      type="button"
-                      onClick={() => handleSort("change_percent")}
-                      className="hover:text-white"
-                    >
-                      Change
                     </button>
                   </th>
                   <th className="px-4 py-4">Chart</th>
@@ -922,7 +1032,7 @@ export default function MarketScannerPage() {
                 {loading || searching ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={7}
                       className="px-4 py-10 text-center text-sm text-white/50"
                     >
                       {searching
@@ -933,7 +1043,7 @@ export default function MarketScannerPage() {
                 ) : filteredRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={7}
                       className="px-4 py-10 text-center text-sm text-white/50"
                     >
                       No scanner results found.
@@ -993,44 +1103,44 @@ export default function MarketScannerPage() {
                           {company || "—"}
                         </td>
 
-                        <td className="px-4 py-4 text-white/80">
-                          {formatMoney(row.market_cap)}
+                        <td className="px-4 py-4">
+                          {(() => {
+                            const rd = getReadiness(row);
+                            return (
+                              <div className="relative inline-block group">
+                                <div
+                                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold cursor-pointer select-none transition-all group-hover:scale-105 ${rd.bg}`}
+                                >
+                                  <span className={`h-2 w-2 rounded-full flex-shrink-0 ${rd.dot}`} />
+                                  <span className={rd.text}>{rd.label}</span>
+                                </div>
+                                <div className="absolute z-50 left-0 top-full mt-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none group-hover:pointer-events-auto">
+                                  <ReadinessPopout row={row} r={rd} />
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </td>
 
                         <td className="px-4 py-4">
-                          <span className="inline-flex min-w-[42px] items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-1 text-xs font-semibold text-cyan-200">
-                            {score ? score.toFixed(0) : "—"}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <span
-                            className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.12em] ${momentum.cls}`}
-                          >
-                            {momentum.label}
-                          </span>
-                        </td>
-
-                        <td className="px-4 py-4">
-                          <Sparkline
-                            price={toNumber(row.price)}
-                            change={change}
-                          />
+                          {row.most_recent_hat_date ? (
+                            <div className="flex flex-col">
+                              <span className="text-white/60 text-xs font-mono">
+                                {new Date(row.most_recent_hat_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" })}
+                              </span>
+                              {row.most_recent_hat_price ? (
+                                <span className="text-white/30 text-xs">
+                                  ${Number(row.most_recent_hat_price).toFixed(2)}
+                                </span>
+                              ) : null}
+                            </div>
+                          ) : (
+                            <span className="text-white/20 text-xs">—</span>
+                          )}
                         </td>
 
                         <td className="px-4 py-4 text-white/90">
                           {formatPrice(row.price)}
-                        </td>
-
-                        <td
-                          className={[
-                            "px-4 py-4 font-medium",
-                            change >= 0
-                              ? "text-emerald-300"
-                              : "text-red-300",
-                          ].join(" ")}
-                        >
-                          {formatPercent(row.change_percent)}
                         </td>
 
                         <td className="px-4 py-4">
@@ -1050,6 +1160,21 @@ export default function MarketScannerPage() {
           </div>
         </div>
       </ExpiredBlur>
+
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-1">
+        <p className="text-white/20 text-xs">Aurora Readiness:</p>
+        {[
+          { dot: "bg-green-400", color: "text-green-400", label: "Ready (20%+ below peak, 3+ rises)" },
+          { dot: "bg-amber-400", color: "text-amber-400", label: "Approaching (10–19%)" },
+          { dot: "bg-red-400", color: "text-red-400", label: "Not ready (<10%)" },
+          { dot: "bg-white/20", color: "text-white/30", label: "No signal (< 3 rises in 12m)" },
+        ].map((item) => (
+          <div key={item.label} className="flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full flex-shrink-0 ${item.dot}`} />
+            <span className={`text-xs ${item.color}`}>{item.label}</span>
+          </div>
+        ))}
+      </div>
 
       <div className="text-center text-[11px] text-white/25">
         Click any ticker for full analysis and investment calculator

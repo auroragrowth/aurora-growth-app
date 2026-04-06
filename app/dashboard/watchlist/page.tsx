@@ -9,6 +9,7 @@ import PriceAlertModal from "@/components/watchlist/PriceAlertModal";
 import MiniChart from "@/components/tradingview/MiniChart";
 import TechnicalAnalysis from "@/components/tradingview/TechnicalAnalysis";
 import FundamentalData from "@/components/tradingview/FundamentalData";
+import BrokerModeToggle from "@/components/broker/BrokerModeToggle";
 
 type PriceAlertRow = {
   id: string;
@@ -33,6 +34,11 @@ type WatchlistRow = {
   score?: number | null;
   change_pct?: number | null;
   change?: number | null;
+  readiness?: string | null;
+  rises_count_18m?: number | null;
+  most_recent_hat_price?: number | null;
+  most_recent_hat_date?: string | null;
+  drop_from_hat_pct?: number | null;
 };
 
 type SourceType = "core" | "alternative" | "mylist";
@@ -89,9 +95,18 @@ function sourceBadgeClass(source: SourceType) {
   return "border-white/20 bg-white/5 text-white/55";
 }
 
-function formatPercent(value?: number | null) {
-  if (typeof value !== "number" || Number.isNaN(value)) return "0.00%";
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+function getReadiness(row: WatchlistRow) {
+  const rises = row.rises_count_18m || 0;
+  const drop = parseFloat(String(row.drop_from_hat_pct || "0"));
+  const r = row.readiness || "grey";
+
+  if (rises < 3 || r === "grey")
+    return { bg: "bg-white/5 border-white/10", dot: "bg-white/20", text: "text-white/30", label: rises > 0 ? `${rises} peak${rises === 1 ? "" : "s"}` : "—", tooltip: rises > 0 ? `Only ${rises} qualifying peak${rises === 1 ? "" : "s"} in 12 months — needs 3+` : "No Aurora peak data yet", priority: 4 };
+  if (r === "green" || drop >= 20)
+    return { bg: "bg-green-500/15 border-green-500/30", dot: "bg-green-400", text: "text-green-400", label: `${drop.toFixed(1)}% ↓`, tooltip: `READY — ${drop.toFixed(1)}% below last peak · ${rises} peaks of 20%+ in 12m`, priority: 1 };
+  if (r === "amber" || (drop >= 10 && drop < 20))
+    return { bg: "bg-amber-500/15 border-amber-500/30", dot: "bg-amber-400", text: "text-amber-400", label: `${drop.toFixed(1)}% ↓`, tooltip: `APPROACHING — ${drop.toFixed(1)}% below peak · needs 20% · ${rises} peaks in 12m`, priority: 2 };
+  return { bg: "bg-red-500/10 border-red-500/20", dot: "bg-red-400", text: "text-red-400", label: drop < 0 ? "Above peak" : `${drop.toFixed(1)}% ↓`, tooltip: `NOT READY — ${drop.toFixed(1)}% from peak · ${rises} peaks in 12m`, priority: 3 };
 }
 
 function formatDate(value?: string | null) {
@@ -108,24 +123,6 @@ function formatDate(value?: string | null) {
   });
 }
 
-function formatMarketCap(value?: number | string | null) {
-  if (value === null || value === undefined || value === "") return "—";
-
-  const n =
-    typeof value === "number"
-      ? value
-      : Number(String(value).replace(/[^0-9.-]/g, ""));
-
-  if (!Number.isFinite(n)) return String(value);
-
-  if (n >= 1_000_000_000_000)
-    return `${(n / 1_000_000_000_000).toFixed(2)}T`;
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
-
-  return n.toLocaleString("en-GB");
-}
-
 export default function WatchlistPage() {
   const { items, loading, ready, toggleTicker } = useWatchlist();
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>("all");
@@ -136,6 +133,21 @@ export default function WatchlistPage() {
   const [mounted, setMounted] = useState(false);
   const [alerts, setAlerts] = useState<PriceAlertRow[]>([]);
   const [alertModalSymbol, setAlertModalSymbol] = useState<string | null>(null);
+  const [scannerMap, setScannerMap] = useState<Record<string, any>>({});
+
+  // Fetch scanner readiness data
+  useEffect(() => {
+    fetch("/api/aurora-market-scanner?universe=all", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        const map: Record<string, any> = {};
+        (d?.rows || []).forEach((r: any) => {
+          if (r.ticker) map[r.ticker.toUpperCase()] = r;
+        });
+        setScannerMap(map);
+      })
+      .catch(() => {});
+  }, []);
 
   // Stock Analysis section
   const [analysisTicker, setAnalysisTicker] = useState("");
@@ -221,15 +233,23 @@ export default function WatchlistPage() {
   }
 
   const rows: WatchlistRow[] = useMemo(() => {
-    return (items || []).map((item: any) => ({
+    return (items || []).map((item: any) => {
+      const sym = (item.symbol || item.ticker || "").toUpperCase();
+      const sc = scannerMap[sym];
+      return {
       id: item.id,
-      symbol: item.symbol || item.ticker || "",
+      symbol: sym,
       company_name: item.company_name ?? item.name ?? null,
       created_at: item.created_at ?? null,
       source: item.source ?? null,
       universe: item.universe ?? item.bucket ?? null,
       scanner_source: item.scanner_source ?? null,
       market_cap: item.market_cap ?? null,
+      readiness: sc?.readiness ?? null,
+      rises_count_18m: sc?.rises_count_18m ?? null,
+      most_recent_hat_price: sc?.most_recent_hat_price ?? null,
+      most_recent_hat_date: sc?.most_recent_hat_date ?? null,
+      drop_from_hat_pct: sc?.drop_from_hat_pct ?? null,
       score:
         typeof item.score === "number"
           ? item.score
@@ -252,8 +272,8 @@ export default function WatchlistPage() {
           : item.change !== undefined && item.change !== null
             ? Number(item.change)
             : null,
-    }));
-  }, [items]);
+    }});
+  }, [items, scannerMap]);
 
   const coreCount = useMemo(
     () => rows.filter((row) => normaliseSource(row) === "core").length,
@@ -336,25 +356,6 @@ export default function WatchlistPage() {
 
   const { data: portfolio } = usePortfolio();
   const isDemo = portfolio.brokerMode === "demo";
-  const [switching, setSwitching] = useState(false);
-
-  const switchMode = useCallback(async (next: "live" | "demo") => {
-    if (switching) return;
-    setSwitching(true);
-    try {
-      const res = await fetch("/api/broker/set-mode", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: next }),
-      });
-      if (res.ok) {
-        window.location.reload();
-        return;
-      }
-    } catch { /* ignore */ } finally {
-      setSwitching(false);
-    }
-  }, [switching]);
 
   return (
     <div className="space-y-6 p-6">
@@ -369,42 +370,14 @@ export default function WatchlistPage() {
               </span>
             )}
           </h1>
-          <p className="mt-2 text-sm text-white/60">
+          <p className="mt-1 text-sm text-white/50">
             {isDemo
-              ? "Practice watchlist for your demo account."
-              : "Saved companies from Aurora Market Scanner and your personal picks."}
+              ? "Viewing practice account"
+              : "Viewing live account"}
           </p>
         </div>
 
-        {/* Live / Demo switcher */}
-        <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 p-1">
-          <button
-            type="button"
-            onClick={() => switchMode("live")}
-            disabled={switching || !isDemo}
-            className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
-              !isDemo
-                ? "bg-emerald-400/15 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.15)]"
-                : "text-white/50 hover:text-white/70"
-            }`}
-          >
-            <span className={`h-2 w-2 rounded-full ${!isDemo ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" : "bg-slate-600"}`} />
-            Live Watchlist
-          </button>
-          <button
-            type="button"
-            onClick={() => switchMode("demo")}
-            disabled={switching || isDemo}
-            className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
-              isDemo
-                ? "bg-amber-400/15 text-amber-300 shadow-[0_0_12px_rgba(245,158,11,0.15)]"
-                : "text-white/50 hover:text-white/70"
-            }`}
-          >
-            <span className={`h-2 w-2 rounded-full ${isDemo ? "bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.7)]" : "bg-slate-600"}`} />
-            Demo Watchlist
-          </button>
-        </div>
+        <BrokerModeToggle initialMode={portfolio.brokerMode || "live"} onModeChange={() => window.location.reload()} />
       </div>
 
       {/* Demo banner */}
@@ -529,14 +502,14 @@ export default function WatchlistPage() {
       </div>
 
       <ExpiredBlur>
-        <div className="overflow-hidden rounded-3xl border border-cyan-500/10 bg-[#041225]/95">
+        <div className="overflow-visible rounded-3xl border border-cyan-500/10 bg-[#041225]/95">
           <div className="overflow-x-auto">
             <table className="min-w-full">
               <thead className="bg-white/[0.03]">
                 <tr className="border-b border-white/5 text-left text-[11px] uppercase tracking-[0.28em] text-white/45">
-                  <th className="px-6 py-4">Watch</th>
+                  <th className="px-3 py-2.5">Watch</th>
 
-                  <th className="px-6 py-4">
+                  <th className="px-3 py-2.5">
                     <button
                       onClick={() => handleSort("ticker")}
                       className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
@@ -546,7 +519,7 @@ export default function WatchlistPage() {
                     </button>
                   </th>
 
-                  <th className="px-6 py-4">
+                  <th className="px-3 py-2.5">
                     <button
                       onClick={() => handleSort("company")}
                       className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
@@ -556,7 +529,9 @@ export default function WatchlistPage() {
                     </button>
                   </th>
 
-                  <th className="px-6 py-4">
+                  <th className="px-3 py-2.5">Readiness</th>
+
+                  <th className="px-3 py-2.5">
                     <button
                       onClick={() => handleSort("source")}
                       className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
@@ -566,21 +541,7 @@ export default function WatchlistPage() {
                     </button>
                   </th>
 
-                  <th className="px-6 py-4">Market Cap</th>
-
-                  <th className="px-6 py-4">
-                    <button
-                      onClick={() => handleSort("score")}
-                      className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
-                    >
-                      Score
-                      <span className="text-white/30">&#8597;</span>
-                    </button>
-                  </th>
-
-                  <th className="px-6 py-4">Change</th>
-
-                  <th className="px-6 py-4">
+                  <th className="px-3 py-2.5">
                     <button
                       onClick={() => handleSort("added")}
                       className="inline-flex items-center gap-2 text-left transition hover:text-cyan-300"
@@ -590,8 +551,8 @@ export default function WatchlistPage() {
                     </button>
                   </th>
 
-                  <th className="px-6 py-4">Chart</th>
-                  <th className="px-6 py-4">Action</th>
+                  <th className="px-3 py-2.5">Chart</th>
+                  <th className="px-3 py-2.5">Action</th>
                 </tr>
               </thead>
 
@@ -599,7 +560,7 @@ export default function WatchlistPage() {
                 {filteredRows.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={8}
                       className="px-6 py-16 text-center text-white/55"
                     >
                       No watchlist stocks found for this filter.
@@ -614,11 +575,11 @@ export default function WatchlistPage() {
                         key={`${row.id ?? row.symbol}-${idx}`}
                         className="border-b border-white/5 text-white/88 transition hover:bg-white/[0.025]"
                       >
-                        <td className="px-6 py-5">
+                        <td className="px-3 py-2.5">
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => handleRemove(row.symbol)}
-                              className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-cyan-400/35 bg-cyan-500/10 text-cyan-300 shadow-[0_0_18px_rgba(0,200,255,0.10)] transition hover:scale-105 hover:bg-cyan-500/20"
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-cyan-400/35 bg-cyan-500/10 text-sm text-cyan-300 transition hover:scale-105 hover:bg-cyan-500/20"
                               title="Remove from watchlist"
                             >
                               &#9733;
@@ -632,7 +593,7 @@ export default function WatchlistPage() {
                               return (
                                 <button
                                   onClick={() => setAlertModalSymbol(row.symbol)}
-                                  className={`relative inline-flex h-9 w-9 items-center justify-center rounded-full border text-sm transition hover:scale-105 ${
+                                  className={`relative inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs transition hover:scale-105 ${
                                     hasTriggered
                                       ? "animate-pulse border-red-400/40 bg-red-500/15 text-red-300"
                                       : hasActive
@@ -659,67 +620,105 @@ export default function WatchlistPage() {
                           </div>
                         </td>
 
-                        <td className="px-6 py-5">
+                        <td className="px-3 py-2.5">
                           <Link
                             href={`/dashboard/stocks/${encodeURIComponent(row.symbol)}`}
-                            className="font-semibold tracking-wide text-white transition hover:text-cyan-300"
+                            className="text-sm font-semibold text-white transition hover:text-cyan-300"
                           >
                             {row.symbol}
                           </Link>
                         </td>
 
-                        <td className="px-6 py-5 text-white/85">
+                        <td className="px-3 py-2.5 text-xs text-white/75">
                           {row.company_name || "—"}
                         </td>
 
-                        <td className="px-6 py-5">
+                        <td className="px-3 py-2.5">
+                          {(() => {
+                            const rd = getReadiness(row);
+                            return (
+                              <div className="relative inline-block group">
+                                <div className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-xs font-bold cursor-help ${rd.bg}`}>
+                                  <span className={`h-2 w-2 rounded-full flex-shrink-0 ${rd.dot}`} />
+                                  <span className={rd.text}>{rd.label}</span>
+                                </div>
+                                <div className="absolute z-50 left-0 top-full mt-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none group-hover:pointer-events-auto w-72 bg-[#080f1e] border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
+                                  <div className={`px-4 py-2.5 border-b border-white/10 flex items-center gap-2.5 ${rd.bg}`}>
+                                    <span className={`w-2.5 h-2.5 rounded-full ${rd.dot}`} />
+                                    <div>
+                                      <p className={`text-xs font-bold ${rd.text}`}>
+                                        {row.readiness === "green" ? "READY TO WATCH" : row.readiness === "amber" ? "APPROACHING" : row.readiness === "red" ? "NOT YET READY" : "INSUFFICIENT DATA"}
+                                      </p>
+                                      <p className="text-white/40 text-[10px]">Aurora Readiness — {row.symbol}</p>
+                                    </div>
+                                  </div>
+                                  <div className="p-3 space-y-2.5">
+                                    <p className="text-white/60 text-xs leading-relaxed">{rd.tooltip}</p>
+                                    {row.most_recent_hat_price && (
+                                      <div className="grid grid-cols-3 gap-1.5">
+                                        <div className="bg-white/5 rounded-lg p-2 text-center">
+                                          <p className="text-white/30 text-[10px] mb-0.5">Last peak</p>
+                                          <p className="text-xs font-bold text-white">${Number(row.most_recent_hat_price).toFixed(2)}</p>
+                                        </div>
+                                        <div className="bg-white/5 rounded-lg p-2 text-center">
+                                          <p className="text-white/30 text-[10px] mb-0.5">Peak date</p>
+                                          <p className="text-xs font-bold text-white">{row.most_recent_hat_date ? new Date(row.most_recent_hat_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "2-digit" }) : "—"}</p>
+                                        </div>
+                                        <div className="bg-white/5 rounded-lg p-2 text-center">
+                                          <p className="text-white/30 text-[10px] mb-0.5">Drop</p>
+                                          <p className={`text-xs font-bold ${parseFloat(String(row.drop_from_hat_pct || "0")) >= 20 ? "text-green-400" : parseFloat(String(row.drop_from_hat_pct || "0")) >= 10 ? "text-amber-400" : "text-red-400"}`}>{parseFloat(String(row.drop_from_hat_pct || "0")).toFixed(1)}%</p>
+                                        </div>
+                                      </div>
+                                    )}
+                                    <div>
+                                      <div className="flex justify-between mb-1">
+                                        <p className="text-white/30 text-[10px] uppercase tracking-wider font-bold">Peaks (12m)</p>
+                                        <span className={`text-[10px] font-bold ${(row.rises_count_18m || 0) >= 3 ? "text-green-400" : "text-red-400"}`}>{row.rises_count_18m || 0}/3</span>
+                                      </div>
+                                      <div className="flex gap-1.5">
+                                        {[1, 2, 3].map((n) => (
+                                          <div key={n} className={`flex-1 h-1.5 rounded-full ${n <= (row.rises_count_18m || 0) ? "bg-gradient-to-r from-cyan-400 to-purple-400" : "bg-white/10"}`} />
+                                        ))}
+                                      </div>
+                                    </div>
+                                    <p className="text-white/20 text-[10px] pt-1 border-t border-white/5">Based on Aurora peak detection — not a buy signal.</p>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </td>
+
+                        <td className="px-3 py-2.5">
                           <span
-                            className={`inline-flex rounded-full border px-4 py-2 text-[11px] uppercase tracking-[0.24em] ${sourceBadgeClass(source)}`}
+                            className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] uppercase tracking-[0.18em] ${sourceBadgeClass(source)}`}
                           >
                             {sourceLabel(row)}
                           </span>
                         </td>
 
-                        <td className="px-6 py-5 text-white/80">
-                          {formatMarketCap(row.market_cap)}
-                        </td>
-
-                        <td className="px-6 py-5 font-medium text-cyan-300">
-                          {row.score ?? "—"}
-                        </td>
-
-                        <td
-                          className={`px-6 py-5 ${
-                            (row.change_pct ?? 0) >= 0
-                              ? "text-emerald-300"
-                              : "text-red-300"
-                          }`}
-                        >
-                          {formatPercent(row.change_pct)}
-                        </td>
-
-                        <td className="px-6 py-5 text-white/65">
+                        <td className="px-3 py-2.5 text-xs text-white/55">
                           {formatDate(row.created_at)}
                         </td>
 
                         <td className="px-3 py-2">
-                          <div className="w-[200px] h-[100px] overflow-hidden rounded-xl">
+                          <div className="w-[160px] h-[80px] overflow-hidden rounded-lg">
                             <MiniChart ticker={row.symbol} />
                           </div>
                         </td>
 
-                        <td className="px-6 py-5">
-                          <div className="flex items-center gap-3">
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center gap-2">
                             <Link
                               href={`/dashboard/stocks/${encodeURIComponent(row.symbol)}`}
-                              className="inline-flex items-center rounded-full border border-cyan-400/35 bg-cyan-500/10 px-5 py-3 text-sm font-medium text-cyan-300 transition hover:bg-cyan-500/20"
+                              className="inline-flex items-center rounded-full border border-cyan-400/35 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-300 transition hover:bg-cyan-500/20"
                             >
-                              View Chart
+                              View
                             </Link>
 
                             <button
                               onClick={() => handleRemove(row.symbol)}
-                              className="inline-flex items-center rounded-full border border-fuchsia-400/25 bg-fuchsia-500/10 px-5 py-3 text-sm font-medium text-fuchsia-200 transition hover:bg-fuchsia-500/20"
+                              className="inline-flex items-center rounded-full border border-fuchsia-400/25 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-medium text-fuchsia-200 transition hover:bg-fuchsia-500/20"
                             >
                               Remove
                             </button>

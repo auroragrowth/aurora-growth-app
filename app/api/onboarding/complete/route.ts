@@ -18,6 +18,8 @@ export async function POST() {
     .update({
       onboarding_tour_completed: true,
       onboarding_tour_completed_at: new Date().toISOString(),
+      has_seen_welcome: true,
+      welcome_popup_shown_count: 99,
     })
     .eq("id", user.id);
 

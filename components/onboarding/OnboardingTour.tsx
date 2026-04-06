@@ -118,16 +118,18 @@ export default function OnboardingTour() {
         if (!res.ok) return;
         const data = await res.json();
 
-        if (data.onboarding_tour_completed) {
+        // DB is the source of truth — if any dismiss flag is set, never show
+        if (
+          data.onboarding_tour_completed ||
+          data.has_seen_welcome_message ||
+          (data.welcome_popup_shown_count ?? 0) >= 3
+        ) {
+          // Sync to localStorage so we skip DB next time
           localStorage.setItem("aurora_tour_completed", "true");
           localStorage.setItem("aurora_tour_done", "true");
           localStorage.setItem("aurora_all_popups_done", "true");
           return;
         }
-
-        // Only show if login_count <= 3 or they previously started the tour
-        const loginCount = data.login_count ?? 0;
-        if (loginCount > 3 && !savedStep) return;
 
         const resumeStep = savedStep ? parseInt(savedStep, 10) : 0;
         setStep(resumeStep);
@@ -189,15 +191,26 @@ export default function OnboardingTour() {
   }, []);
 
   const completeTour = useCallback(async () => {
+    // 1. Hide immediately
     setVisible(false);
+
+    // 2. Set localStorage immediately — survives until cleared
     localStorage.setItem("aurora_tour_completed", "true");
     localStorage.setItem("aurora_tour_done", "true");
     localStorage.setItem("aurora_all_popups_done", "true");
     localStorage.removeItem("aurora_tour_step");
+    localStorage.removeItem("aurora_tour_skip_session");
+
+    // 3. Save to DB — source of truth across devices/browsers
     try {
-      await fetch("/api/onboarding/complete", { method: "POST" });
+      const res = await fetch("/api/onboarding/complete", { method: "POST" });
+      if (!res.ok) {
+        // Retry once after a short delay
+        await new Promise((r) => setTimeout(r, 1000));
+        await fetch("/api/onboarding/complete", { method: "POST" });
+      }
     } catch {
-      // best effort — localStorage already blocks re-show
+      // localStorage blocks re-show even if DB fails
     }
     showDismissToast();
   }, [showDismissToast]);
