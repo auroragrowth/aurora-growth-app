@@ -338,6 +338,36 @@ async function run() {
   }
 
   console.log(`Readiness: green=${green} amber=${amber} red=${red} grey=${grey}`);
+
+  // ── Update watchlist in_scanner status ──
+  console.log("[Scanner] Updating watchlist scanner status...");
+
+  const { data: scannerStocks } = await supabase
+    .from("scanner_results")
+    .select("ticker");
+
+  const scannerTickers = new Set(
+    (scannerStocks || []).map((s) => s.ticker)
+  );
+
+  for (const tbl of ["watchlist_live", "watchlist_demo"]) {
+    const { data: wl } = await supabase
+      .from(tbl)
+      .select("symbol, user_id, is_invested");
+
+    let offCount = 0;
+    for (const item of wl || []) {
+      const inScanner = scannerTickers.has(item.symbol);
+      await supabase
+        .from(tbl)
+        .update({ in_scanner: inScanner })
+        .eq("user_id", item.user_id)
+        .eq("symbol", item.symbol);
+      if (!inScanner && !item.is_invested) offCount++;
+    }
+    console.log(`[Scanner] ${tbl}: ${offCount} non-invested stocks off list`);
+  }
+
   console.log("Scanner sync complete");
 }
 

@@ -40,6 +40,7 @@ type WatchlistRow = {
   most_recent_hat_date?: string | null;
   drop_from_hat_pct?: number | null;
   is_invested?: boolean | null;
+  in_scanner?: boolean | null;
 };
 
 type SourceType = "core" | "alternative" | "mylist";
@@ -304,6 +305,7 @@ export default function WatchlistPage() {
       most_recent_hat_date: sc?.most_recent_hat_date ?? null,
       drop_from_hat_pct: sc?.drop_from_hat_pct ?? null,
       is_invested: item.is_invested ?? false,
+      in_scanner: item.in_scanner ?? true,
       score:
         typeof item.score === "number"
           ? item.score
@@ -637,6 +639,24 @@ export default function WatchlistPage() {
                 </tr>
               </thead>
 
+              <caption className="caption-bottom p-0">
+                <div className="flex items-center gap-4 px-3 py-2.5 flex-wrap">
+                  <p className="text-white/20 text-xs">Row colour:</p>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded bg-green-500/30 border border-green-500/30" />
+                    <span className="text-green-400 text-xs">Invested</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded bg-red-500/20 border border-red-500/20" />
+                    <span className="text-red-400 text-xs">Dropped off Aurora list</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded bg-white/5 border border-white/10" />
+                    <span className="text-white/30 text-xs">On list — not invested</span>
+                  </div>
+                </div>
+              </caption>
+
               <tbody>
                 {filteredRows.length === 0 ? (
                   <tr>
@@ -656,7 +676,9 @@ export default function WatchlistPage() {
                         key={`${row.id ?? row.symbol}-${idx}`}
                         className={`border-b text-white/88 transition-all duration-300 ${
                           investedSet.has(row.symbol)
-                            ? "border-cyan-500/20 bg-gradient-to-r from-cyan-500/10 via-purple-500/10 to-pink-500/10"
+                            ? "border-green-500/20 bg-green-500/10 hover:bg-green-500/15"
+                            : row.in_scanner === false && !investedSet.has(row.symbol)
+                            ? "border-red-500/15 bg-red-500/[0.08] hover:bg-red-500/[0.12]"
                             : "border-white/5 hover:bg-white/[0.025]"
                         }`}
                       >
@@ -715,7 +737,14 @@ export default function WatchlistPage() {
                         </td>
 
                         <td className="px-3 py-2.5 text-xs text-white/75">
-                          {row.company_name || "—"}
+                          <span className="inline-flex items-center gap-1">
+                            {row.company_name || "—"}
+                            {row.in_scanner === false && !investedSet.has(row.symbol) && (
+                              <span className="ml-1 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] bg-red-500/20 text-red-400 border border-red-500/20 font-bold whitespace-nowrap">
+                                ⚠ Off list
+                              </span>
+                            )}
+                          </span>
                         </td>
 
                         <td className="px-3 py-2.5">

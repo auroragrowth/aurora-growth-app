@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { getWatchlistTable } from "@/lib/watchlist/getTable";
 import { sendUserAlert } from "@/lib/telegram/alerts";
 
@@ -92,6 +93,12 @@ export async function POST(req: NextRequest) {
 
     console.log(`Adding ${symbol} to ${table} for user ${ctx.user.id}`);
 
+    const { data: scannerHit } = await supabaseAdmin
+      .from("scanner_results")
+      .select("ticker")
+      .eq("ticker", symbol)
+      .maybeSingle();
+
     const { error } = await ctx.supabase
       .from(table)
       .upsert(
@@ -102,6 +109,7 @@ export async function POST(req: NextRequest) {
           source: body.source || "My List",
           is_aurora_recommended: (body.source || "").includes("Aurora"),
           added_by: "user",
+          in_scanner: !!scannerHit,
         },
         { onConflict: "user_id,symbol" }
       );
