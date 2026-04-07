@@ -203,7 +203,7 @@ export default function PriceAlertModal({
             <div className="mt-1 text-sm text-white/40">{companyName}</div>
           )}
           <div className="mt-1 text-sm text-white/50">
-            Current price: £{base.toFixed(2)}
+            Current price: ${base.toFixed(2)}
           </div>
         </div>
 
@@ -230,7 +230,7 @@ export default function PriceAlertModal({
           </div>
           <div className="mt-2 flex items-center gap-2">
             <span className="text-lg font-semibold text-white">
-              £{rise.price.toFixed(2)}
+              ${rise.price.toFixed(2)}
             </span>
             <span className="text-xs text-emerald-300/70">
               (+{rise.pct}%)
@@ -275,7 +275,7 @@ export default function PriceAlertModal({
           </div>
           <div className="mt-2 flex items-center gap-2">
             <span className="text-lg font-semibold text-white">
-              £{fall.price.toFixed(2)}
+              ${fall.price.toFixed(2)}
             </span>
             <span className="text-xs text-red-300/70">
               (−{fall.pct}%)
@@ -324,7 +324,7 @@ export default function PriceAlertModal({
           </div>
           <div className="mt-2">
             <span className="text-lg font-semibold text-white">
-              £{entry.price.toFixed(2)}
+              ${entry.price.toFixed(2)}
             </span>
             <span className="ml-2 text-xs text-amber-300/70">
               (−{entry.pct}%)

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -11,25 +12,25 @@ export async function GET() {
     } = await supabase.auth.getUser();
 
     if (!user) {
-      return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+      return NextResponse.json({ ok: false, alerts: [] }, { status: 401 });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("price_alerts")
       .select("*")
       .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(100);
 
     if (error) {
+      console.error("[Alerts GET]", error.message);
       return NextResponse.json({ ok: true, alerts: [] });
     }
 
     return NextResponse.json({ ok: true, alerts: data || [] });
   } catch (error: any) {
-    return NextResponse.json(
-      { ok: false, error: error?.message },
-      { status: 500 }
-    );
+    console.error("[Alerts GET]", error?.message);
+    return NextResponse.json({ ok: false, alerts: [] }, { status: 500 });
   }
 }
 
@@ -49,8 +50,10 @@ export async function POST(req: NextRequest) {
     const alert_type = String(body.alert_type || "").trim();
     const target_price = Number(body.target_price);
     const reference_price = Number(body.reference_price) || null;
-    const percentage = Number(body.percentage) || null;
+    const current_price = Number(body.current_price) || null;
     const company_name = body.company_name || null;
+    const alert_source = body.alert_source || "custom";
+    const alert_label = body.alert_label || null;
 
     if (!symbol || !alert_type || !Number.isFinite(target_price)) {
       return NextResponse.json(
@@ -59,121 +62,67 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Get user's telegram chat_id for the alert row
     const { data: profile } = await supabase
       .from("profiles")
-      .select("telegram_chat_id")
+      .select("telegram_chat_id, telegram_connected, first_name, full_name")
       .eq("id", user.id)
       .maybeSingle();
 
-    const row: Record<string, any> = {
-      user_id: user.id,
-      symbol,
-      company_name,
-      alert_type,
-      target_price,
-      reference_price,
-      percentage,
-      telegram_chat_id: profile?.telegram_chat_id || null,
-      is_active: true,
-      triggered: false,
-      notification_sent: false,
-    };
-
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from("price_alerts")
-      .insert(row)
+      .insert({
+        user_id: user.id,
+        symbol,
+        company_name,
+        alert_type,
+        target_price,
+        reference_price,
+        current_price,
+        alert_source,
+        alert_label,
+        is_active: true,
+        triggered: false,
+        notification_sent: false,
+      })
       .select()
       .single();
 
     if (error) {
-      const msg = error.message || "";
-      if (msg.includes("reference_price") || msg.includes("percentage") || msg.includes("is_active")) {
-        const { reference_price: _r, percentage: _p, is_active: _a, ...fallback } = row;
-        const retry = await supabase
-          .from("price_alerts")
-          .insert(fallback)
-          .select()
-          .single();
-
-        if (retry.error) {
-          return NextResponse.json({ error: retry.error.message }, { status: 500 });
-        }
-        // Send Telegram confirmation for fallback path too
-        if (profile?.telegram_chat_id && process.env.TELEGRAM_BOT_TOKEN) {
-          const telegramMsg = [
-            '🔔 *Aurora Price Alert Set*',
-            '',
-            `*${symbol}*${company_name ? ` — ${company_name}` : ''}`,
-            '',
-            alert_type.includes('above')
-              ? `📈 Alert when price rises *above $${target_price.toFixed(2)}*`
-              : alert_type.includes('entry')
-                ? `⚡ Entry level alert at *$${target_price.toFixed(2)}*`
-                : `📉 Alert when price falls *below $${target_price.toFixed(2)}*`,
-            '',
-            '_You will be notified here when this level is hit._',
-            '',
-            '— Aurora Growth'
-          ].filter(Boolean).join('\n')
-
-          fetch(
-            `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                chat_id: profile.telegram_chat_id,
-                text: telegramMsg,
-                parse_mode: 'Markdown'
-              })
-            }
-          ).catch(() => {})
-        }
-        return NextResponse.json({ ok: true, alert: retry.data });
-      }
+      console.error("[Alerts POST] DB error:", error.message);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Send Telegram confirmation if chat_id exists
-    if (profile?.telegram_chat_id && process.env.TELEGRAM_BOT_TOKEN) {
-      const telegramMsg = [
-        '🔔 *Aurora Price Alert Set*',
-        '',
-        `*${symbol}*${company_name ? ` — ${company_name}` : ''}`,
-        '',
-        alert_type.includes('above')
-          ? `📈 Alert when price rises *above $${target_price.toFixed(2)}*`
-          : alert_type.includes('entry')
-            ? `⚡ Entry level alert at *$${target_price.toFixed(2)}*`
-            : `📉 Alert when price falls *below $${target_price.toFixed(2)}*`,
-        '',
-        reference_price ? `Reference price: $${reference_price.toFixed(2)}` : '',
-        '',
-        '_You will be notified here when this level is hit._',
-        '',
-        '— Aurora Growth'
-      ].filter(Boolean).join('\n')
+    // Send Telegram confirmation
+    if (profile?.telegram_chat_id && profile?.telegram_connected && process.env.TELEGRAM_BOT_TOKEN) {
+      const firstName = profile.first_name || profile.full_name?.split(" ")?.[0] || "there";
+      const isAbove = alert_type.includes("above");
+      const isEntry = alert_type.includes("entry");
+      const icon = isAbove ? "📈" : isEntry ? "⚡" : "📉";
+      const direction = isAbove
+        ? "rises above"
+        : isEntry
+          ? "hits entry level"
+          : "falls below";
 
       fetch(
         `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`,
         {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             chat_id: profile.telegram_chat_id,
-            text: telegramMsg,
-            parse_mode: 'Markdown'
-          })
+            text: `${icon} *Aurora Alert Set*\n\nHi ${firstName}!\n\n*${symbol}*${company_name ? ` — ${company_name}` : ""}\n\nYou will be notified when ${symbol} ${direction} *$${target_price.toFixed(2)}*${reference_price ? `\n\nReference price: $${reference_price.toFixed(2)}` : ""}\n\n_Aurora Growth_`,
+            parse_mode: "Markdown",
+          }),
         }
-      ).catch(() => {})
+      ).catch((e) => console.error("[Alerts] Telegram error:", e));
     }
 
     return NextResponse.json({ ok: true, alert: data });
   } catch (error: any) {
-    return NextResponse.json(
-      { ok: false, error: error?.message },
-      { status: 500 }
-    );
+    console.error("[Alerts POST]", error?.message);
+    return NextResponse.json({ error: error?.message }, { status: 500 });
   }
 }
 
@@ -193,13 +142,13 @@ export async function DELETE(req: NextRequest) {
     const symbol = searchParams.get("symbol");
 
     if (id) {
-      await supabase
+      await supabaseAdmin
         .from("price_alerts")
         .delete()
         .eq("id", id)
         .eq("user_id", user.id);
     } else if (symbol) {
-      await supabase
+      await supabaseAdmin
         .from("price_alerts")
         .delete()
         .eq("symbol", symbol.toUpperCase())
@@ -208,9 +157,6 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error: any) {
-    return NextResponse.json(
-      { ok: false, error: error?.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: error?.message }, { status: 500 });
   }
 }

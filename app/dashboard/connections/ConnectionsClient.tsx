@@ -5,6 +5,7 @@ import { useBrokerPopup } from "@/components/providers/BrokerPopupProvider";
 
 import BrokerModeToggle from "@/components/broker/BrokerModeToggle";
 import { ConnectionGuideButton } from "@/components/broker/ConnectionGuideModal";
+import AlertsPanel from "@/components/telegram/AlertsPanel";
 
 type Connection = {
   id: string;
@@ -181,16 +182,13 @@ function TelegramSection() {
             )}
           </div>
 
-          <div className="mt-5 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-            Alerts active for
-          </div>
-          <ul className="mt-2 space-y-1.5 text-sm text-white/60">
-            <li className="flex items-center gap-2"><span className="text-emerald-400">&#10003;</span> Price rise/fall alerts</li>
-            <li className="flex items-center gap-2"><span className="text-emerald-400">&#10003;</span> Entry level alerts</li>
-            <li className="flex items-center gap-2"><span className="text-emerald-400">&#10003;</span> Watchlist notifications</li>
-          </ul>
+          <div className="my-5 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-          <div className="mt-auto flex flex-wrap gap-2 pt-6">
+          <AlertsPanel />
+
+          <div className="my-5 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={sendTestAlert}
               disabled={sendingTest}

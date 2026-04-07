@@ -39,6 +39,7 @@ type WatchlistRow = {
   most_recent_hat_price?: number | null;
   most_recent_hat_date?: string | null;
   drop_from_hat_pct?: number | null;
+  is_invested?: boolean | null;
 };
 
 type SourceType = "core" | "alternative" | "mylist";
@@ -134,6 +135,9 @@ export default function WatchlistPage() {
   const [alerts, setAlerts] = useState<PriceAlertRow[]>([]);
   const [alertModalSymbol, setAlertModalSymbol] = useState<string | null>(null);
   const [scannerMap, setScannerMap] = useState<Record<string, any>>({});
+  const [investedSet, setInvestedSet] = useState<Set<string>>(new Set());
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
 
   // Fetch scanner readiness data
   useEffect(() => {
@@ -148,6 +152,55 @@ export default function WatchlistPage() {
       })
       .catch(() => {});
   }, []);
+
+  // Sync invested set from items
+  useEffect(() => {
+    setInvestedSet(
+      new Set(items.filter((i: any) => i.is_invested).map((i: any) => (i.symbol || "").toUpperCase()))
+    );
+  }, [items]);
+
+  const toggleInvested = async (symbol: string) => {
+    const newVal = !investedSet.has(symbol);
+    setInvestedSet((prev) => {
+      const next = new Set(prev);
+      if (newVal) next.add(symbol);
+      else next.delete(symbol);
+      return next;
+    });
+    try {
+      await fetch("/api/watchlist/invested", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ symbol, is_invested: newVal }),
+      });
+    } catch {
+      setInvestedSet((prev) => {
+        const next = new Set(prev);
+        if (newVal) next.delete(symbol);
+        else next.add(symbol);
+        return next;
+      });
+    }
+  };
+
+  const syncFromT212 = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/broker/sync-positions", { method: "POST" });
+      const data = await res.json();
+      if (data.success) {
+        setSyncResult(`✓ ${data.message}`);
+        setTimeout(() => window.location.reload(), 1500);
+      } else {
+        setSyncResult(`✗ ${data.error}`);
+      }
+    } catch (e: any) {
+      setSyncResult(`✗ ${e.message}`);
+    }
+    setSyncing(false);
+  };
 
   // Stock Analysis section
   const [analysisTicker, setAnalysisTicker] = useState("");
@@ -250,6 +303,7 @@ export default function WatchlistPage() {
       most_recent_hat_price: sc?.most_recent_hat_price ?? null,
       most_recent_hat_date: sc?.most_recent_hat_date ?? null,
       drop_from_hat_pct: sc?.drop_from_hat_pct ?? null,
+      is_invested: item.is_invested ?? false,
       score:
         typeof item.score === "number"
           ? item.score
@@ -377,8 +431,35 @@ export default function WatchlistPage() {
           </p>
         </div>
 
-        <BrokerModeToggle initialMode={portfolio.brokerMode || "live"} onModeChange={() => window.location.reload()} />
+        <div className="flex items-center gap-3">
+          <button
+            onClick={syncFromT212}
+            disabled={syncing}
+            title="Import your open T212 positions to watchlist"
+            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-white/50 transition-all hover:bg-white/10 hover:text-white/80 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {syncing ? (
+              <>
+                <span className="h-3 w-3 animate-spin rounded-full border border-white/40 border-t-white" />
+                Syncing...
+              </>
+            ) : (
+              <>🔗 Sync T212</>
+            )}
+          </button>
+          <BrokerModeToggle initialMode={portfolio.brokerMode || "live"} onModeChange={() => window.location.reload()} />
+        </div>
       </div>
+
+      {syncResult && (
+        <div className={`rounded-xl border px-4 py-2.5 text-sm ${
+          syncResult.startsWith("✓")
+            ? "border-green-500/20 bg-green-500/10 text-green-400"
+            : "border-red-500/20 bg-red-500/10 text-red-400"
+        }`}>
+          {syncResult}
+        </div>
+      )}
 
       {/* Demo banner */}
       {isDemo && (
@@ -573,7 +654,11 @@ export default function WatchlistPage() {
                     return (
                       <tr
                         key={`${row.id ?? row.symbol}-${idx}`}
-                        className="border-b border-white/5 text-white/88 transition hover:bg-white/[0.025]"
+                        className={`border-b text-white/88 transition-all duration-300 ${
+                          investedSet.has(row.symbol)
+                            ? "border-cyan-500/20 bg-gradient-to-r from-cyan-500/10 via-purple-500/10 to-pink-500/10"
+                            : "border-white/5 hover:bg-white/[0.025]"
+                        }`}
                       >
                         <td className="px-3 py-2.5">
                           <div className="flex items-center gap-2">
@@ -721,6 +806,28 @@ export default function WatchlistPage() {
                               className="inline-flex items-center rounded-full border border-fuchsia-400/25 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-medium text-fuchsia-200 transition hover:bg-fuchsia-500/20"
                             >
                               Remove
+                            </button>
+
+                            <button
+                              onClick={() => toggleInvested(row.symbol)}
+                              title={investedSet.has(row.symbol) ? "Mark as not invested" : "Invested in this stock"}
+                              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                                investedSet.has(row.symbol)
+                                  ? "bg-gradient-to-r from-cyan-500/20 via-purple-500/20 to-pink-500/20 border border-cyan-400/30 text-cyan-400"
+                                  : "bg-white/5 border border-white/10 text-white/30 hover:text-white/60 hover:bg-white/10"
+                              }`}
+                            >
+                              {investedSet.has(row.symbol) ? (
+                                <>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse flex-shrink-0" />
+                                  Invested
+                                </>
+                              ) : (
+                                <>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-white/20 flex-shrink-0" />
+                                  Invest
+                                </>
+                              )}
                             </button>
                           </div>
                         </td>

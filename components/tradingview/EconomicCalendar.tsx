@@ -15,7 +15,7 @@ export default function EconomicCalendar() {
       colorTheme: 'dark',
       isTransparent: true,
       width: '100%',
-      height: 500,
+      height: '100%',
       locale: 'en',
       importanceFilter: '-1,0,1',
       countryFilter: 'us,eu,gb,jp,cn'
@@ -25,5 +25,5 @@ export default function EconomicCalendar() {
     return () => { if (containerRef.current) containerRef.current.innerHTML = '' }
   }, [])
 
-  return <div ref={containerRef} className="tradingview-widget-container" />
+  return <div ref={containerRef} className="tradingview-widget-container" style={{ height: '100%', width: '100%' }} />
 }

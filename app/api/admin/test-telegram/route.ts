@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { sendAdminAlert } from "@/lib/telegram/admin";
+import { notifyAdmin } from "@/lib/telegram/admin";
+
+export const dynamic = "force-dynamic";
 
 export async function POST() {
   const supabase = await createClient();
@@ -22,18 +24,20 @@ export async function POST() {
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
-  if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_ADMIN_CHAT_ID) {
+  if (!process.env.TELEGRAM_BOT_TOKEN) {
     return NextResponse.json(
-      { error: "TELEGRAM_BOT_TOKEN or TELEGRAM_ADMIN_CHAT_ID not set in .env.local" },
+      { error: "TELEGRAM_BOT_TOKEN not set in .env.local" },
       { status: 500 }
     );
   }
 
   try {
-    await sendAdminAlert(
-      `✅ Test alert from Aurora Admin\nTriggered by: ${user.email}`,
-      "info"
-    );
+    await notifyAdmin({
+      type: "info",
+      title: "Admin Test Notification",
+      message: "This is a test notification from Aurora Growth admin panel.",
+      data: { sent_by: user.email, platform: "Aurora Growth" },
+    });
     return NextResponse.json({ ok: true, message: "Test alert sent" });
   } catch (err) {
     return NextResponse.json(

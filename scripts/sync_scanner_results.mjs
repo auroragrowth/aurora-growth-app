@@ -242,7 +242,102 @@ async function run() {
 
   console.log(`Inserted rows: ${combined.length}`);
   console.log(`Core rows: ${coreRows.length}`);
-  console.log(`Alternative rows: ${altRows.length}`);
+  console.log(`Alternative rows: ${dedupedAlt.length}`);
+
+  // Fetch live prices from Yahoo Finance to fix Finviz parsing issues
+  console.log("Fetching live prices from Yahoo Finance...");
+  const { data: allStocks } = await supabase
+    .from("scanner_results")
+    .select("ticker");
+
+  let priceUpdated = 0;
+  for (let i = 0; i < (allStocks || []).length; i += 10) {
+    const batch = (allStocks || []).slice(i, i + 10);
+    await Promise.all(
+      batch.map(async (s) => {
+        try {
+          const res = await fetch(
+            `https://query1.finance.yahoo.com/v8/finance/chart/${s.ticker}?interval=1d&range=1d`,
+            { headers: { "User-Agent": "Mozilla/5.0" } }
+          );
+          const json = await res.json();
+          const meta = json?.chart?.result?.[0]?.meta;
+          if (!meta?.regularMarketPrice) return;
+          const prev = meta.chartPreviousClose || meta.previousClose || 0;
+          const changePct = prev > 0
+            ? ((meta.regularMarketPrice - prev) / prev) * 100
+            : 0;
+          await supabase
+            .from("scanner_results")
+            .update({
+              price: meta.regularMarketPrice,
+              change_percent: Math.round(changePct * 100) / 100,
+              high_52w: meta.fiftyTwoWeekHigh || null,
+              low_52w: meta.fiftyTwoWeekLow || null,
+            })
+            .eq("ticker", s.ticker);
+          priceUpdated++;
+        } catch {
+          // skip
+        }
+      })
+    );
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  console.log(`Updated live prices for ${priceUpdated} stocks`);
+
+  // Recalculate Aurora Readiness from peak data
+  console.log("Calculating Aurora Readiness...");
+  const cutoff = new Date(Date.now() - 12 * 30 * 24 * 60 * 60 * 1000)
+    .toISOString().split("T")[0];
+
+  const { data: peaks } = await supabase
+    .from("stock_peaks")
+    .select("ticker, peak_date, peak_price, rise_percent")
+    .gte("rise_percent", 20)
+    .gte("peak_date", cutoff);
+
+  const byTicker = {};
+  for (const p of peaks || []) {
+    if (!byTicker[p.ticker]) byTicker[p.ticker] = [];
+    byTicker[p.ticker].push(p);
+  }
+
+  const { data: updatedStocks } = await supabase
+    .from("scanner_results")
+    .select("ticker, price");
+
+  let green = 0, amber = 0, red = 0, grey = 0;
+
+  for (const stock of updatedStocks || []) {
+    const tickerPeaks = byTicker[stock.ticker] || [];
+    const risesCount = tickerPeaks.length;
+    const sorted = [...tickerPeaks].sort((a, b) =>
+      new Date(b.peak_date) - new Date(a.peak_date));
+    const latestHat = sorted[0]?.peak_price || null;
+    const latestHatDate = sorted[0]?.peak_date || null;
+    const currentPrice = parseFloat(stock.price || "0");
+    const dropPct = latestHat && currentPrice > 0
+      ? Math.round(((latestHat - currentPrice) / latestHat * 100) * 10) / 10
+      : null;
+
+    let readiness = "grey";
+    if (risesCount >= 3 && dropPct !== null) {
+      if (dropPct >= 20) { readiness = "green"; green++; }
+      else if (dropPct >= 10) { readiness = "amber"; amber++; }
+      else { readiness = "red"; red++; }
+    } else { grey++; }
+
+    await supabase.from("scanner_results").update({
+      rises_count_18m: risesCount,
+      most_recent_hat_price: latestHat,
+      most_recent_hat_date: latestHatDate,
+      drop_from_hat_pct: dropPct,
+      readiness,
+    }).eq("ticker", stock.ticker);
+  }
+
+  console.log(`Readiness: green=${green} amber=${amber} red=${red} grey=${grey}`);
   console.log("Scanner sync complete");
 }
 

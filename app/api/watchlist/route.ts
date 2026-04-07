@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getWatchlistTable } from "@/lib/watchlist/getTable";
+import { sendUserAlert } from "@/lib/telegram/alerts";
 
 export const dynamic = "force-dynamic";
 
@@ -109,6 +110,24 @@ export async function POST(req: NextRequest) {
       console.error("Watchlist POST insert error:", error.message);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Send Telegram notification to user
+    try {
+      const { data: tgProfile } = await ctx.supabase
+        .from("profiles")
+        .select("telegram_chat_id, telegram_connected, first_name, full_name")
+        .eq("id", ctx.user.id)
+        .single();
+
+      if (tgProfile?.telegram_chat_id && tgProfile?.telegram_connected) {
+        const firstName = tgProfile.first_name ||
+          tgProfile.full_name?.split(" ")[0] || "there";
+        sendUserAlert(
+          tgProfile.telegram_chat_id,
+          `⭐ *Aurora Watchlist*\n\nHi ${firstName}, *${symbol}* has been added to your ${ctx.mode} watchlist.\n\nOpen Aurora to set a price alert or plan your entry with the Investment Calculator.\n\n_Aurora Growth_`
+        ).catch(() => {});
+      }
+    } catch {}
 
     return NextResponse.json({
       success: true,

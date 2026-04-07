@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { sendAdminAlert } from "@/lib/telegram/admin";
+import { sendAdminAlert, adminNotify } from "@/lib/telegram/admin";
+import { sendUserAlert } from "@/lib/telegram/alerts";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export default async function PostLoginPage() {
   // Use admin client to bypass RLS and avoid false nulls
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("plan_key, has_completed_plan_selection, subscription_status")
+    .select("plan_key, has_completed_plan_selection, subscription_status, telegram_chat_id, telegram_connected, first_name, full_name")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -66,6 +67,23 @@ export default async function PostLoginPage() {
     profile.subscription_status === "active";
 
   if (hasPlan) {
+    adminNotify.login(user.email || "unknown").catch(() => {});
+
+    // Send Telegram login notification to user
+    if (profile.telegram_chat_id && profile.telegram_connected) {
+      const firstName = profile.first_name ||
+        profile.full_name?.split(" ")[0] || "there";
+      const now = new Date().toLocaleString("en-GB", {
+        timeZone: "Europe/London",
+        day: "2-digit", month: "short",
+        hour: "2-digit", minute: "2-digit",
+      });
+      sendUserAlert(
+        profile.telegram_chat_id,
+        `🔐 *Aurora Growth*\n\nHi ${firstName}, you just logged in to Aurora Growth.\n\n_${now}_`
+      ).catch(() => {});
+    }
+
     redirect("/dashboard");
   }
 

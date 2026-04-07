@@ -17,6 +17,7 @@ export type WatchlistItem = {
   company_name?: string | null;
   source?: string | null;
   created_at?: string | null;
+  is_invested?: boolean | null;
 };
 
 type ToggleResult = {
@@ -109,6 +110,7 @@ export function WatchlistProvider({ children }: { children: ReactNode }) {
             company_name: row.company_name || null,
             source: row.source || null,
             created_at: row.created_at || null,
+            is_invested: row.is_invested ?? false,
           }))
         );
       } else {

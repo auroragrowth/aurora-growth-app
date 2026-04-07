@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -15,17 +17,18 @@ export default async function SelectPlanPage() {
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
+  const { data: profile } = await supabaseAdmin
     .from("profiles")
     .select(
-      "plan_key, billing_interval, subscription_status, has_seen_plan_selection"
+      "plan_key, billing_interval, subscription_status, has_seen_plan_selection, has_completed_plan_selection"
     )
     .eq("id", user.id)
     .single();
 
   // Already has a plan or completed selection — go to dashboard
   const hasPlan =
-    ["core", "pro", "elite"].includes(profile?.plan_key ?? "") ||
+    (profile?.plan_key && profile.plan_key !== "none") ||
+    profile?.has_completed_plan_selection === true ||
     profile?.subscription_status === "active" ||
     profile?.subscription_status === "trialing";
 
