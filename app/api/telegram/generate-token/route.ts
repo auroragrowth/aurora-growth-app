@@ -4,7 +4,7 @@ import crypto from "crypto";
 
 export const dynamic = "force-dynamic";
 
-const BOT_USERNAME = "auroragrowth_admin_bot";
+const BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || "AuroraGrowthAlertsBot";
 
 export async function POST() {
   try {

@@ -43,11 +43,11 @@ export default async function DashboardPage() {
       user.email?.split("@")[0] ||
       "there";
 
-  const plan = profile?.plan_key ?? profile?.plan ?? "free";
+  const plan = profile?.plan_key ?? profile?.plan ?? "core";
   const planLabel =
     plan === "elite" ? "Aurora Elite" :
     plan === "pro" ? "Aurora Pro" :
-    plan === "core" ? "Aurora Core" : "Free";
+    "Aurora Core";
 
   // Watchlist count (mode-aware)
   const { data: modeProfile } = await supabase

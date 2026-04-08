@@ -38,8 +38,8 @@ export default async function DashboardLayout({
   let fullName =
     user.email?.split("@")[0] ||
     "User";
-  let plan = "free";
-  let planLabel = "Aurora Free";
+  let plan = "core";
+  let planLabel = "Aurora Core";
   let subscriptionStatus: string | null = null;
   let currentPeriodEnd: string | null = null;
   try {
@@ -59,12 +59,11 @@ export default async function DashboardLayout({
         fullName;
     }
 
-    plan = profile?.plan_key ?? profile?.plan ?? "free";
+    plan = profile?.plan_key ?? profile?.plan ?? "core";
     planLabel =
       plan === "elite" ? "Aurora Elite" :
       plan === "pro" ? "Aurora Pro" :
-      plan === "core" ? "Aurora Core" :
-      "Aurora Free";
+      "Aurora Core";
     subscriptionStatus = profile?.subscription_status ?? null;
     currentPeriodEnd = profile?.current_period_end ?? null;
   } catch (err) {

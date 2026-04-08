@@ -20,7 +20,7 @@ export default async function PostLoginPage() {
   // Use admin client to bypass RLS and avoid false nulls
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select("plan_key, has_completed_plan_selection, subscription_status, telegram_chat_id, telegram_connected, first_name, full_name")
+    .select("plan_key, has_completed_plan_selection, subscription_status, trading212_connected, telegram_chat_id, telegram_connected, first_name, full_name")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -82,6 +82,10 @@ export default async function PostLoginPage() {
         profile.telegram_chat_id,
         `🔐 *Aurora Growth*\n\nHi ${firstName}, you just logged in to Aurora Growth.\n\n_${now}_`
       ).catch(() => {});
+    }
+
+    if (!profile.trading212_connected) {
+      redirect("/dashboard/connections");
     }
 
     redirect("/dashboard");

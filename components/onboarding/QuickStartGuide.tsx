@@ -43,7 +43,7 @@ const STEP_DEFS: StepDef[] = [
   {
     key: "scannerViewed",
     label: "Run the scanner",
-    description: "Open the scanner and explore today\u2019s Aurora opportunities",
+    description: "Open the scanner and explore today&rsquo;s Aurora opportunities",
     cta: "Go to Scanner \u2192",
     href: "/dashboard/market-scanner",
   },
@@ -227,7 +227,7 @@ export default function QuickStartGuide() {
           <div className="flex items-start justify-between p-5 pb-3">
             <div>
               <h3 className="text-base font-semibold text-white">
-                {allDone ? "\u2726 You\u2019re all set!" : "\u2726 Aurora Quick Start"}
+                {allDone ? "\u2726 You&rsquo;re all set!" : "\u2726 Aurora Quick Start"}
               </h3>
               <p className="mt-1 text-xs text-white/50">
                 {allDone
@@ -265,7 +265,7 @@ export default function QuickStartGuide() {
                 onClick={handleAllDoneClick}
                 className="w-full rounded-xl bg-gradient-to-r from-cyan-400 to-blue-400 py-2.5 text-sm font-semibold text-slate-950 transition hover:brightness-110"
               >
-                Got it \u2014 let\u2019s go
+                Got it &mdash; let&rsquo;s go
               </button>
             </div>
           ) : (
@@ -306,7 +306,7 @@ export default function QuickStartGuide() {
                         {/* Content */}
                         <div className="flex-1 min-w-0">
                           <div className={`text-sm font-medium ${done ? "text-white/50 line-through" : "text-white/90"}`}>
-                            Step {i + 1} \u2014 {def.label}
+                            Step {i + 1} &mdash; {def.label}
                           </div>
 
                           {!done && (

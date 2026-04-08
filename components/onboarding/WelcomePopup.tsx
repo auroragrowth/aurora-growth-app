@@ -1,45 +1,78 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Props = {
   onDismiss: () => void;
 };
 
+const LS_KEYS = ["aurora_tour_done", "aurora_all_popups_done", "aurora_tour_completed"];
+
+function isLocallyDismissed() {
+  if (typeof window === "undefined") return true;
+  return LS_KEYS.some((k) => localStorage.getItem(k) === "true");
+}
+
+function setLocallyDismissed() {
+  if (typeof window === "undefined") return;
+  LS_KEYS.forEach((k) => localStorage.setItem(k, "true"));
+}
+
 export default function WelcomePopup({ onDismiss }: Props) {
+  const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Check localStorage FIRST — no flicker, no API call needed
-  if (typeof window !== "undefined") {
-    if (
-      localStorage.getItem("aurora_tour_done") === "true" ||
-      localStorage.getItem("aurora_all_popups_done") === "true"
-    ) {
-      return null;
-    }
-  }
+  useEffect(() => {
+    // Check localStorage FIRST — instant, no network
+    if (isLocallyDismissed()) return;
+
+    // Then check DB
+    (async () => {
+      try {
+        const res = await fetch("/api/onboarding");
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (
+          data.onboarding_tour_completed ||
+          data.has_seen_welcome ||
+          data.has_seen_welcome_popup ||
+          data.has_seen_welcome_message ||
+          (data.welcome_popup_shown_count ?? 0) >= 3
+        ) {
+          setLocallyDismissed();
+          return;
+        }
+
+        setVisible(true);
+      } catch {
+        // Don't show on error
+      }
+    })();
+  }, []);
 
   async function dismiss() {
     setLoading(true);
-    localStorage.setItem("aurora_tour_done", "true");
-    localStorage.setItem("aurora_all_popups_done", "true");
+    setVisible(false);
+    setLocallyDismissed();
     try {
       await fetch("/api/onboarding", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           has_seen_welcome_popup: true,
-          has_seen_plan_selection: true,
-          onboarding_step: "plan_selection",
+          has_seen_welcome: true,
           onboarding_tour_completed: true,
-          welcome_popup_shown_count: 10,
+          welcome_popup_shown_count: 99,
         }),
       });
     } catch {
-      // Non-fatal — proceed regardless
+      // Non-fatal — localStorage blocks re-show
     }
     onDismiss();
   }
+
+  if (!visible) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm">

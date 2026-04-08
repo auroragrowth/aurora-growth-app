@@ -21,10 +21,8 @@ export function getPlanLabel(plan?: string | null) {
       return "Pro Membership";
     case "elite":
       return "Elite Membership";
-    case "free":
-      return "Aurora Free";
     default:
-      return "No plan Membership";
+      return "Core Membership";
   }
 }
 
@@ -38,10 +36,8 @@ export function getPlanShortLabel(plan?: string | null) {
       return "Pro";
     case "elite":
       return "Elite";
-    case "free":
-      return "Free";
     default:
-      return "No plan";
+      return "Core";
   }
 }
 

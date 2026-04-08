@@ -13,8 +13,8 @@ type SubscriptionState = {
 };
 
 const SubscriptionContext = createContext<SubscriptionState>({
-  planKey: "free",
-  planName: "Aurora Free",
+  planKey: "core",
+  planName: "Aurora Core",
   subscriptionStatus: null,
   currentPeriodEnd: null,
   isExpired: false,

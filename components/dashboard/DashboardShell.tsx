@@ -117,8 +117,8 @@ export default function DashboardShell({
   userEmail,
   lastLogin,
   joinDate,
-  planName = "Aurora Free",
-  planKey = "free",
+  planName = "Aurora Core",
+  planKey = "core",
   subscriptionStatus = null,
   currentPeriodEnd = null,
   brokerStatus: initialBrokerStatus = "Disconnected",
@@ -401,7 +401,7 @@ export default function DashboardShell({
                         </span>
                       );
                     }
-                    if (!currentPeriodEnd && planKey !== "free" && ["core", "pro", "elite"].includes(planKey)) {
+                    if (!currentPeriodEnd && ["core", "pro", "elite"].includes(planKey)) {
                       return (
                         <span className="text-white/40">
                           · Contact support

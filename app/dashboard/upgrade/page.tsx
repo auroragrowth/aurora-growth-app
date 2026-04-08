@@ -24,7 +24,7 @@ export default async function UpgradePage() {
     .eq("id", user.id)
     .single();
 
-  const currentPlan = (profile?.plan_key ?? profile?.plan ?? "free") as string;
+  const currentPlan = (profile?.plan_key ?? profile?.plan ?? "core") as string;
   const subscriptionStatus = profile?.subscription_status ?? null;
   const currentPeriodEnd = profile?.current_period_end ?? null;
 

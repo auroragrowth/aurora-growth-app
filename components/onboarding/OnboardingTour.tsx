@@ -122,6 +122,7 @@ export default function OnboardingTour() {
         if (
           data.onboarding_tour_completed ||
           data.has_seen_welcome_message ||
+          data.has_seen_welcome ||
           (data.welcome_popup_shown_count ?? 0) >= 3
         ) {
           // Sync to localStorage so we skip DB next time

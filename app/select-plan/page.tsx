@@ -19,11 +19,9 @@ export default async function SelectPlanPage() {
 
   const { data: profile } = await supabaseAdmin
     .from("profiles")
-    .select(
-      "plan_key, billing_interval, subscription_status, has_seen_plan_selection, has_completed_plan_selection"
-    )
+    .select("plan_key, billing_interval, subscription_status, has_completed_plan_selection")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
   // Already has a plan or completed selection — go to dashboard
   const hasPlan =
@@ -52,7 +50,7 @@ export default async function SelectPlanPage() {
     features: planFeatures[row.plan_key as PlanKey] ?? [],
   }));
 
-  const showWelcome = !profile?.has_seen_plan_selection;
+  const showWelcome = !profile?.has_completed_plan_selection;
 
   return (
     <SelectPlanClient

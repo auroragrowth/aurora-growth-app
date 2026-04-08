@@ -21,7 +21,7 @@ export function getPlanLabel(planKey?: string | null): string {
     case "core":
       return "Core";
     default:
-      return "No plan";
+      return "Core";
   }
 }
 

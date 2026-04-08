@@ -8,7 +8,7 @@ type SidebarPlanCardProps = {
 function getPlanStyles(plan?: string | null, active?: boolean) {
   const value = (plan || "").toLowerCase();
 
-  if (!active || !value || value === "free" || value === "no plan") {
+  if (!active || !value || value === "no plan") {
     return {
       wrapper:
         "border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(2,6,23,0.96))] shadow-[0_0_0_rgba(0,0,0,0)]",
@@ -22,7 +22,7 @@ function getPlanStyles(plan?: string | null, active?: boolean) {
   if (value === "core") {
     return {
       wrapper:
-        "border-cyan-400/25 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_35%),linear-gradient(180deg,rgba(8,47,73,0.95),rgba(2,6,23,0.98))] shadow-[0_0_35px_rgba(34,211,238,0.14)]",
+        "border-cyan-400/25 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_35%),linear-gradient(180deg,rgba(8,47,73,0.95),rgba(2,6,23,0.98))] shadow-[0_0_16px_rgba(34,211,238,0.08)]",
       badge:
         "border-cyan-400/30 bg-cyan-500/15 text-cyan-100",
       button:
@@ -33,7 +33,7 @@ function getPlanStyles(plan?: string | null, active?: boolean) {
   if (value === "pro") {
     return {
       wrapper:
-        "border-fuchsia-400/25 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.20),transparent_35%),linear-gradient(180deg,rgba(88,28,135,0.95),rgba(2,6,23,0.98))] shadow-[0_0_40px_rgba(217,70,239,0.16)]",
+        "border-fuchsia-400/25 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.20),transparent_35%),linear-gradient(180deg,rgba(88,28,135,0.95),rgba(2,6,23,0.98))] shadow-[0_0_16px_rgba(217,70,239,0.08)]",
       badge:
         "border-fuchsia-400/30 bg-fuchsia-500/15 text-fuchsia-100",
       button:
@@ -43,7 +43,7 @@ function getPlanStyles(plan?: string | null, active?: boolean) {
 
   return {
     wrapper:
-      "border-amber-300/25 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_35%),linear-gradient(180deg,rgba(120,53,15,0.95),rgba(2,6,23,0.98))] shadow-[0_0_42px_rgba(251,191,36,0.16)]",
+      "border-amber-300/25 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.18),transparent_35%),linear-gradient(180deg,rgba(120,53,15,0.95),rgba(2,6,23,0.98))] shadow-[0_0_16px_rgba(251,191,36,0.08)]",
     badge:
       "border-amber-300/30 bg-amber-400/15 text-amber-100",
     button:
@@ -61,7 +61,7 @@ export default function SidebarPlanCard({
   return (
     <div
       className={[
-        "rounded-3xl border p-5 transition-all duration-300",
+        "rounded-3xl border p-3 transition-all duration-300",
         styles.wrapper,
       ].join(" ")}
     >
@@ -88,7 +88,7 @@ export default function SidebarPlanCard({
       <Link
         href="/dashboard/upgrade"
         className={[
-          "mt-5 inline-flex w-full items-center justify-center rounded-full border px-4 py-2.5 text-sm font-semibold transition",
+          "mt-3 inline-flex w-full items-center justify-center rounded-full border px-4 py-1.5 text-sm font-semibold transition",
           styles.button,
         ].join(" ")}
       >

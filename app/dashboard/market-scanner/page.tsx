@@ -560,8 +560,20 @@ export default function MarketScannerPage() {
       localStorage.setItem("scanner_tab", tab);
     }
   };
-  const [sortKey, setSortKey] = useState<SortKey>("score");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [sortKey, setSortKey] = useState<SortKey>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("scanner_sort_key") as SortKey | null;
+      if (saved) return saved;
+    }
+    return "readiness";
+  });
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("scanner_sort_dir") as "asc" | "desc" | null;
+      if (saved) return saved;
+    }
+    return "asc";
+  });
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   const [hoverRow, setHoverRow] = useState<ScannerRow | null>(null);
@@ -569,6 +581,28 @@ export default function MarketScannerPage() {
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inPopupRef = useRef(false);
   const inTickerRef = useRef(false);
+
+  // Restore scroll position when returning to scanner
+  useEffect(() => {
+    const savedScroll = sessionStorage.getItem("scanner_scroll");
+    if (savedScroll) {
+      const t = setTimeout(() => {
+        window.scrollTo({ top: parseInt(savedScroll), behavior: "instant" as ScrollBehavior });
+        sessionStorage.removeItem("scanner_scroll");
+      }, 150);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
+  // Save scroll position before navigating away
+  useEffect(() => {
+    const links = document.querySelectorAll<HTMLAnchorElement>("a[href^='/dashboard/stocks/']");
+    const handler = () => {
+      sessionStorage.setItem("scanner_scroll", String(window.scrollY));
+    };
+    links.forEach((el) => el.addEventListener("click", handler));
+    return () => links.forEach((el) => el.removeEventListener("click", handler));
+  });
 
   const [aiOverview, setAiOverview] = useState<string | null>(null);
   const [aiOverviewLoading, setAiOverviewLoading] = useState(false);
@@ -820,14 +854,19 @@ export default function MarketScannerPage() {
   }
 
   function handleSort(nextKey: SortKey) {
+    let newDir: "asc" | "desc";
     if (sortKey === nextKey) {
-      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-      return;
+      newDir = sortDirection === "asc" ? "desc" : "asc";
+      setSortDirection(newDir);
+    } else {
+      newDir = nextKey === "ticker" || nextKey === "company_name" ? "asc" : "desc";
+      setSortKey(nextKey);
+      setSortDirection(newDir);
     }
-    setSortKey(nextKey);
-    setSortDirection(
-      nextKey === "ticker" || nextKey === "company_name" ? "asc" : "desc"
-    );
+    if (typeof window !== "undefined") {
+      localStorage.setItem("scanner_sort_key", sortKey === nextKey ? nextKey : nextKey);
+      localStorage.setItem("scanner_sort_dir", newDir);
+    }
   }
 
   const tabs: { key: TabFilter; label: string }[] = [

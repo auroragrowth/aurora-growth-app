@@ -9,10 +9,8 @@ function getPlanLabel(plan: string | null | undefined) {
       return "Aurora Elite";
     case "pro":
       return "Aurora Pro";
-    case "core":
-      return "Aurora Core";
     default:
-      return "Aurora Free";
+      return "Aurora Core";
   }
 }
 
@@ -56,7 +54,7 @@ export default async function BillingSettingsPage() {
     .eq("id", user.id)
     .single();
 
-  const plan = profile?.plan_key ?? profile?.plan ?? "free";
+  const plan = profile?.plan_key ?? profile?.plan ?? "core";
   const planLabel = getPlanLabel(plan);
   const planClasses = getPlanClasses(plan);
   const subscriptionStatus = formatStatus(profile?.subscription_status);

@@ -46,10 +46,10 @@ function cn(...classes: Array<string | false | null | undefined>) {
 function getPlanTheme(plan?: string | null, active?: boolean) {
   const value = (plan || "").toLowerCase();
 
-  if (!active || !value || value === "free" || value === "no plan") {
+  if (!active || !value || value === "no plan") {
     return {
       card: "border-white/8 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(2,6,23,0.96))]",
-      glow: "shadow-[0_0_30px_rgba(8,15,40,0.35)]",
+      glow: "shadow-[0_0_15px_rgba(8,15,40,0.2)]",
       badge: "border-slate-400/20 bg-slate-500/10 text-slate-200",
       label: "No plan",
       subtitle: "Plan inactive",
@@ -59,7 +59,7 @@ function getPlanTheme(plan?: string | null, active?: boolean) {
   if (value === "core") {
     return {
       card: "border-cyan-400/20 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_35%),linear-gradient(180deg,rgba(10,34,64,0.96),rgba(2,6,23,0.98))]",
-      glow: "shadow-[0_0_38px_rgba(34,211,238,0.12)]",
+      glow: "shadow-[0_0_18px_rgba(34,211,238,0.08)]",
       badge: "border-cyan-400/25 bg-cyan-500/10 text-cyan-100",
       label: "Core",
       subtitle: "Plan active",
@@ -69,7 +69,7 @@ function getPlanTheme(plan?: string | null, active?: boolean) {
   if (value === "pro") {
     return {
       card: "border-fuchsia-400/20 bg-[radial-gradient(circle_at_top_left,rgba(217,70,239,0.18),transparent_35%),linear-gradient(180deg,rgba(60,30,110,0.96),rgba(2,6,23,0.98))]",
-      glow: "shadow-[0_0_38px_rgba(217,70,239,0.14)]",
+      glow: "shadow-[0_0_18px_rgba(217,70,239,0.08)]",
       badge: "border-fuchsia-400/25 bg-fuchsia-500/10 text-fuchsia-100",
       label: "Pro",
       subtitle: "Plan active",
@@ -78,7 +78,7 @@ function getPlanTheme(plan?: string | null, active?: boolean) {
 
   return {
     card: "border-amber-300/20 bg-[radial-gradient(circle_at_top_left,rgba(251,191,36,0.16),transparent_35%),linear-gradient(180deg,rgba(82,50,14,0.96),rgba(2,6,23,0.98))]",
-    glow: "shadow-[0_0_40px_rgba(251,191,36,0.14)]",
+    glow: "shadow-[0_0_18px_rgba(251,191,36,0.08)]",
     badge: "border-amber-300/25 bg-amber-400/10 text-amber-100",
     label: "Elite",
     subtitle: "Plan active",
@@ -96,7 +96,7 @@ function getTrading212Theme(
   if (status === "connected") {
     return {
       wrapper: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100",
-      dot: "bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.75)]",
+      dot: "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]",
       label: "Trading 212 connected",
     };
   }
@@ -104,14 +104,14 @@ function getTrading212Theme(
   if (status === "attention") {
     return {
       wrapper: "border-amber-400/20 bg-amber-500/10 text-amber-100",
-      dot: "bg-amber-300 shadow-[0_0_14px_rgba(251,191,36,0.75)]",
+      dot: "bg-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.5)]",
       label: "Trading 212 needs attention",
     };
   }
 
   return {
     wrapper: "border-rose-400/20 bg-rose-500/10 text-rose-100",
-    dot: "bg-rose-400 shadow-[0_0_14px_rgba(251,113,133,0.75)]",
+    dot: "bg-rose-400 shadow-[0_0_8px_rgba(251,113,133,0.5)]",
     label: "Not connected to Trading 212",
   };
 }
@@ -182,7 +182,7 @@ export default function DashboardSidebar({
         collapsed ? "w-20" : "w-[265px]"
       )}
     >
-      <div className="flex items-center justify-between border-b border-white/6 px-4 py-5">
+      <div className="flex items-center justify-between border-b border-white/6 px-4 py-2">
         <Link href="/dashboard" className="flex items-center overflow-hidden">
           <Image
             src="/aurora-logo.png"
@@ -202,18 +202,18 @@ export default function DashboardSidebar({
         </button>
       </div>
 
-      <div className="px-3 py-4">
+      <div className="px-3 py-1.5">
         <Link
           href="/dashboard/upgrade"
           className={cn(
-            "block rounded-3xl border p-4 transition-all duration-300 hover:scale-[1.01]",
+            "block rounded-2xl border p-2 transition-all duration-300 hover:scale-[1.01]",
             planTheme.card,
             planTheme.glow
           )}
         >
-          <div className={cn("flex", collapsed ? "justify-center" : "justify-between gap-3")}>
+          <div className={cn("flex", collapsed ? "justify-center" : "justify-between gap-2")}>
             <div className={cn(collapsed && "hidden")}>
-              <div className="text-3xl font-semibold text-white">{planTheme.label}</div>
+              <div className="text-lg font-semibold text-white">{planTheme.label}</div>
               <div className="mt-1 text-sm text-white/70">{planTheme.subtitle}</div>
             </div>
 
@@ -232,7 +232,7 @@ export default function DashboardSidebar({
               <div
                 className={cn(
                   "h-3.5 w-3.5 rounded-full",
-                  planActive ? "bg-cyan-300 shadow-[0_0_14px_rgba(34,211,238,0.8)]" : "bg-slate-500"
+                  planActive ? "bg-cyan-300 shadow-[0_0_8px_rgba(34,211,238,0.5)]" : "bg-slate-500"
                 )}
               />
             )}
@@ -241,7 +241,7 @@ export default function DashboardSidebar({
       </div>
 
       <nav className="flex-1 px-3">
-        <div className="space-y-1">
+        <div className="-space-y-px">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
@@ -251,15 +251,15 @@ export default function DashboardSidebar({
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "group flex items-center rounded-2xl px-3 py-3 text-sm transition",
+                  "group flex items-center rounded-xl px-3 py-1.5 text-sm transition",
                   active
-                    ? "bg-white/10 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.05)]"
-                    : "text-white/75 hover:bg-white/5 hover:text-white",
-                  collapsed ? "justify-center" : "gap-3"
+                    ? "bg-white/10 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.025)]"
+                    : "text-white/75 hover:bg-white/3 hover:text-white",
+                  collapsed ? "justify-center" : "gap-1.5"
                 )}
                 title={collapsed ? item.label : undefined}
               >
-                <Icon className={cn("h-5 w-5 shrink-0", active ? "text-cyan-300" : "text-white/70")} />
+                <Icon className={cn("h-[13px] w-[13px] shrink-0", active ? "text-cyan-300" : "text-white/70")} />
                 {!collapsed && <span>{item.label}</span>}
               </Link>
             );
@@ -267,12 +267,12 @@ export default function DashboardSidebar({
         </div>
       </nav>
 
-      <div className="border-t border-white/6 px-3 py-4">
+      <div className="border-t border-white/6 px-3 py-0.5">
         <div
           className={cn(
-            "rounded-2xl border px-3 py-3",
+            "rounded-2xl border px-3 py-1",
             connectionTheme.wrapper,
-            collapsed ? "flex justify-center" : "flex items-center gap-3"
+            collapsed ? "flex justify-center" : "flex items-center gap-1"
           )}
           title={collapsed ? connectionTheme.label : undefined}
         >
@@ -289,8 +289,8 @@ export default function DashboardSidebar({
           onClick={handleLogout}
           disabled={loggingOut}
           className={cn(
-            "mt-3 w-full rounded-2xl border border-cyan-400/20 bg-[linear-gradient(90deg,rgba(6,182,212,0.12),rgba(59,130,246,0.10),rgba(217,70,239,0.10))] px-4 py-3 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-[linear-gradient(90deg,rgba(6,182,212,0.18),rgba(59,130,246,0.14),rgba(217,70,239,0.14))] disabled:opacity-60",
-            collapsed ? "flex items-center justify-center" : "flex items-center justify-center gap-2"
+            "mt-0.5 w-full rounded-2xl border border-cyan-400/20 bg-[linear-gradient(90deg,rgba(6,182,212,0.12),rgba(59,130,246,0.10),rgba(217,70,239,0.10))] px-4 py-1 text-sm font-semibold text-white transition hover:border-cyan-300/30 hover:bg-[linear-gradient(90deg,rgba(6,182,212,0.18),rgba(59,130,246,0.14),rgba(217,70,239,0.14))] disabled:opacity-60",
+            collapsed ? "flex items-center justify-center" : "flex items-center justify-center gap-0.5"
           )}
           title={collapsed ? "Log out" : undefined}
         >
@@ -299,7 +299,7 @@ export default function DashboardSidebar({
         </button>
 
         {!collapsed && (
-          <div className="mt-4 border-t border-white/6 pt-4">
+          <div className="mt-0.5 border-t border-white/6 pt-0.5">
             <div className="truncate text-sm font-medium text-white">
               {userName || "Aurora member"}
             </div>
@@ -309,7 +309,7 @@ export default function DashboardSidebar({
           </div>
         )}
 
-        <div className="mt-3 flex justify-center">
+        <div className="mt-0.5 flex justify-center">
           <button
             type="button"
             onClick={() => {

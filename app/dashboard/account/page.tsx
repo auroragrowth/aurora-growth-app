@@ -11,8 +11,7 @@ function getPlanLabel(plan: string | null | undefined) {
   switch ((plan || "").toLowerCase()) {
     case "elite": return "Aurora Elite";
     case "pro": return "Aurora Pro";
-    case "core": return "Aurora Core";
-    default: return "Aurora Free";
+    default: return "Aurora Core";
   }
 }
 
@@ -112,7 +111,7 @@ export default async function AccountPage() {
     } catch { /* ignore */ }
   }
 
-  const plan = profile?.plan_key ?? profile?.plan ?? "free";
+  const plan = profile?.plan_key ?? profile?.plan ?? "core";
   const planLabel = getPlanLabel(plan);
   const fullName = profile?.full_name?.trim() || user.user_metadata?.full_name || "";
   const email = profile?.email || user.email || "";
