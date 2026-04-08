@@ -565,7 +565,7 @@ export default function VIXDashboardPage() {
           height={450}
           id="spx-compare"
           interval="W"
-          compareSymbols={[{ symbol: "CAPITALCOM:US500", position: "SameScale" }]}
+          compareSymbols={[{ symbol: "FOREXCOM:SPXUSD", position: "SameScale" }]}
         />
         <p className="mt-3 px-2 text-xs text-slate-500">
           VIX (blue) typically moves opposite to S&P 500 (orange). When VIX
