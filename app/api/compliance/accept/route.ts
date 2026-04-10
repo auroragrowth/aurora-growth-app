@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
 
   <!-- Header -->
   <tr><td style="padding:28px 32px 20px 32px;background:radial-gradient(circle at top left,rgba(36,215,238,0.18),transparent 30%),radial-gradient(circle at top right,rgba(139,92,246,0.18),transparent 30%),linear-gradient(180deg,#071123 0%,#04101f 100%);border-bottom:1px solid rgba(83,175,255,0.18);">
-    <img src="https://auroragrowth.co.uk/wp-content/uploads/2026/04/Aurora_Logo_email.png" alt="Aurora Growth Academy" style="height:48px;width:auto;display:block;margin-bottom:16px;">
+    <img src="https://auroragrowth.co.uk/wp-content/uploads/2026/04/AGA_Logo.png" alt="Aurora Growth Academy" style="height:48px;width:auto;display:block;margin-bottom:16px;">
     <div style="display:inline-block;padding:7px 12px;border-radius:999px;border:1px solid rgba(36,215,238,0.24);background:rgba(8,16,35,0.8);color:#70ebff;font-size:11px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;margin-bottom:14px;">
       Terms &amp; Risk Acceptance
     </div>

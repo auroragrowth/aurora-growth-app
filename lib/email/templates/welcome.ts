@@ -19,7 +19,7 @@ export function welcomeEmail(firstName: string): string {
               radial-gradient(circle at top right, rgba(139,92,246,0.18), transparent 30%),
               linear-gradient(180deg,#071123 0%,#04101f 100%);
               border-bottom:1px solid rgba(83,175,255,0.18);">
-              <img src="https://auroragrowth.co.uk/wp-content/uploads/2026/04/Aurora_Logo_email.png" alt="Aurora Growth Academy" style="height:48px;width:auto;display:block;margin-bottom:18px;">
+              <img src="https://auroragrowth.co.uk/wp-content/uploads/2026/04/AGA_Logo.png" alt="Aurora Growth Academy" style="height:48px;width:auto;display:block;margin-bottom:18px;">
               <div style="display:inline-block;padding:9px 14px;border-radius:999px;border:1px solid rgba(36,215,238,0.24);background:rgba(8,16,35,0.8);color:#70ebff;font-size:12px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;margin-bottom:18px;">
                 Aurora Growth Academy
               </div>

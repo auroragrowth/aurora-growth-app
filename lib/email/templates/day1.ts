@@ -7,7 +7,7 @@ export function day1Email(firstName: string) {
       <tr>
         <td align="center">
           <table width="600" style="background:#04101f;border-radius:20px;padding:32px;">
-            <img src="https://auroragrowth.co.uk/wp-content/uploads/2026/04/Aurora_Logo_email.png" style="height:40px;margin-bottom:20px;">
+            <img src="https://auroragrowth.co.uk/wp-content/uploads/2026/04/AGA_Logo.png" style="height:40px;margin-bottom:20px;">
             <h1 style="color:#ffffff;">How Aurora actually works</h1>
             <p>Hi ${firstName},</p>
             <p>Yesterday you saw what Aurora does — today I’ll show you how it actually works.</p>

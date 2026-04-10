@@ -2,7 +2,7 @@ function cleanName(name: string): string {
   return (name || 'there').trim().replace(/,+$/, '').trim()
 }
 
-const LOGO = 'https://auroragrowth.co.uk/wp-content/uploads/2026/04/Aurora_Logo_email.png'
+const LOGO = 'https://auroragrowth.co.uk/wp-content/uploads/2026/04/AGA_Logo.png'
 const APP = 'https://app.auroragrowth.co.uk'
 
 function wrap(badge: string, title: string, intro: string, ctaLabel: string, ctaUrl: string, greeting: string, bodyHtml: string, secondaryCta?: { label: string; url: string }): string {

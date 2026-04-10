@@ -7,7 +7,7 @@ export function day3Email(firstName: string) {
       <tr>
         <td align="center">
           <table width="600" style="max-width:600px;background:#04101f;border-radius:20px;padding:32px;">
-            <img src="https://auroragrowth.co.uk/wp-content/uploads/2026/04/Aurora_Logo_email.png" style="height:40px;margin-bottom:20px;display:block;">
+            <img src="https://auroragrowth.co.uk/wp-content/uploads/2026/04/AGA_Logo.png" style="height:40px;margin-bottom:20px;display:block;">
 
             <h1 style="color:#ffffff;font-size:32px;">Why most people lose money investing</h1>
 

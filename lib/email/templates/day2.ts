@@ -7,7 +7,7 @@ export function day2Email(firstName: string) {
       <tr>
         <td align="center">
           <table width="600" style="background:#04101f;border-radius:20px;padding:32px;">
-            <img src="https://auroragrowth.co.uk/wp-content/uploads/2026/04/Aurora_Logo_email.png" style="height:40px;margin-bottom:20px;">
+            <img src="https://auroragrowth.co.uk/wp-content/uploads/2026/04/AGA_Logo.png" style="height:40px;margin-bottom:20px;">
             <h1 style="color:#ffffff;">Here’s how this works on a real stock</h1>
             <p>Hi ${firstName},</p>
             <p>Let’s look at a simple example.</p>
