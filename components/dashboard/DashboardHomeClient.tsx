@@ -39,7 +39,7 @@ export default function DashboardHomeClient() {
       <div className="grid gap-6 xl:grid-cols-[1.6fr_0.9fr]">
         <section className="rounded-[32px] border border-cyan-500/15 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.10),transparent_28%),linear-gradient(180deg,rgba(5,17,38,0.98),rgba(2,10,25,0.98))] px-8 py-9 shadow-[0_30px_80px_rgba(0,0,0,0.32)]">
           <div className="mb-4 inline-flex items-center rounded-full border border-cyan-400/20 bg-cyan-400/10 px-4 py-1.5 text-[11px] uppercase tracking-[0.30em] text-cyan-300">
-            Aurora Growth Workspace
+            Aurora Growth Academy
           </div>
 
           <h1 className="max-w-4xl text-5xl font-semibold leading-[1.08] tracking-tight text-white md:text-6xl">

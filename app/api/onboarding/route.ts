@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 const ALLOWED_FIELDS = [
   "onboarding_step",
@@ -40,10 +41,10 @@ export async function GET() {
     return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
   }
 
-  // Try to read onboarding columns — these may not exist if migrations haven't run
+  // Use admin client so RLS can't interfere
   let extended: Record<string, unknown> = {};
   try {
-    const { data: ext } = await supabase
+    const { data: ext } = await supabaseAdmin
       .from("profiles")
       .select(
         "onboarding_step, has_seen_welcome_popup, has_seen_plan_selection, has_completed_onboarding, has_seen_trading212_prompt, trading212_connected, trading212_mode, has_completed_plan_selection, login_count, welcome_popup_shown_count, has_seen_welcome, onboarding_tour_completed, onboarding_tour_completed_at"

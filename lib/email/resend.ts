@@ -13,7 +13,7 @@ export async function sendAuroraEmail({
   to,
   subject,
   html,
-  from = 'Aurora Growth <onboarding@auroragrowth.co.uk>'
+  from = 'Aurora Growth Academy <onboarding@auroragrowth.co.uk>'
 }: SendEmailParams) {
   try {
     const { data, error } = await resend.emails.send({

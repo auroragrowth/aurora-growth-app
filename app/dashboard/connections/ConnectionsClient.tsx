@@ -370,6 +370,104 @@ function ConnectionCard({
   );
 }
 
+/* ── Notification Preferences ──────────────────────── */
+
+function NotificationPreferences() {
+  const [prefs, setPrefs] = useState<{
+    notify_telegram: boolean;
+    notify_email: boolean;
+    notify_in_app: boolean;
+  } | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/profile/notification-prefs", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.ok) setPrefs(d.prefs);
+      })
+      .catch(() => {});
+  }, []);
+
+  async function toggle(key: "notify_telegram" | "notify_email" | "notify_in_app") {
+    if (!prefs) return;
+    const updated = { ...prefs, [key]: !prefs[key] };
+    setPrefs(updated);
+    setSaving(true);
+    try {
+      await fetch("/api/profile/notification-prefs", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updated),
+      });
+    } catch {
+      setPrefs(prefs); // revert
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const channels = [
+    { key: "notify_telegram" as const, label: "Telegram", icon: "💬", desc: "Receive alerts via Telegram bot" },
+    { key: "notify_email" as const, label: "Email", icon: "📧", desc: "Receive alerts to your email address" },
+    { key: "notify_in_app" as const, label: "In-App", icon: "🔔", desc: "See alerts inside Aurora dashboard" },
+  ];
+
+  return (
+    <div className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-8 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
+      <div className="flex items-center gap-3">
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-purple-400/20 bg-purple-400/10">
+          <span className="text-lg">⚙️</span>
+        </div>
+        <div>
+          <h2 className="text-xl font-semibold text-white">Notification Preferences</h2>
+          <p className="text-xs text-slate-400">Choose how you receive alerts and notifications</p>
+        </div>
+      </div>
+
+      <div className="my-5 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+      {!prefs ? (
+        <div className="text-sm text-white/40">Loading preferences...</div>
+      ) : (
+        <div className="space-y-3">
+          {channels.map((ch) => (
+            <div
+              key={ch.key}
+              className={`flex items-center justify-between rounded-2xl border p-4 transition ${
+                prefs[ch.key]
+                  ? "border-cyan-400/15 bg-cyan-400/5"
+                  : "border-white/8 bg-white/[0.02]"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-xl">{ch.icon}</span>
+                <div>
+                  <div className="text-sm font-medium text-white">{ch.label}</div>
+                  <div className="text-xs text-slate-400">{ch.desc}</div>
+                </div>
+              </div>
+              <button
+                onClick={() => toggle(ch.key)}
+                disabled={saving}
+                className={`relative flex-shrink-0 h-7 w-12 rounded-full transition-colors ${
+                  prefs[ch.key] ? "bg-cyan-500" : "bg-white/10"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                    prefs[ch.key] ? "translate-x-5" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Main Page ─────────────────────────────────────── */
 
 export default function ConnectionsClient() {
@@ -435,7 +533,7 @@ export default function ConnectionsClient() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1400px] space-y-6 px-2">
+    <div className="mx-auto w-full space-y-6 px-2">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight text-white md:text-4xl">Connections</h1>
         <p className="mt-2 text-base text-slate-400">Manage your broker and notification integrations.</p>
@@ -496,6 +594,9 @@ export default function ConnectionsClient() {
         {/* ═══ RIGHT — Telegram Alerts ═══ */}
         <TelegramSection />
       </div>
+
+      {/* ═══ Notification Preferences ═══ */}
+      <NotificationPreferences />
     </div>
   );
 }

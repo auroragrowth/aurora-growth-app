@@ -81,6 +81,7 @@ export async function POST(req: NextRequest) {
         current_price,
         alert_source,
         alert_label,
+        telegram_chat_id: profile?.telegram_chat_id || null,
         is_active: true,
         triggered: false,
         notification_sent: false,
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Send Telegram confirmation
-    if (profile?.telegram_chat_id && profile?.telegram_connected && process.env.TELEGRAM_BOT_TOKEN) {
+    if (profile?.telegram_chat_id && process.env.TELEGRAM_BOT_TOKEN) {
       const firstName = profile.first_name || profile.full_name?.split(" ")?.[0] || "there";
       const isAbove = alert_type.includes("above");
       const isEntry = alert_type.includes("entry");
@@ -112,7 +113,7 @@ export async function POST(req: NextRequest) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             chat_id: profile.telegram_chat_id,
-            text: `${icon} *Aurora Alert Set*\n\nHi ${firstName}!\n\n*${symbol}*${company_name ? ` — ${company_name}` : ""}\n\nYou will be notified when ${symbol} ${direction} *$${target_price.toFixed(2)}*${reference_price ? `\n\nReference price: $${reference_price.toFixed(2)}` : ""}\n\n_Aurora Growth_`,
+            text: `${icon} *Aurora Alert Set*\n\nHi ${firstName}!\n\n*${symbol}*${company_name ? ` — ${company_name}` : ""}\n\nYou will be notified when ${symbol} ${direction} *$${target_price.toFixed(2)}*${reference_price ? `\n\nReference price: $${reference_price.toFixed(2)}` : ""}\n\n_Aurora Growth Academy_`,
             parse_mode: "Markdown",
           }),
         }

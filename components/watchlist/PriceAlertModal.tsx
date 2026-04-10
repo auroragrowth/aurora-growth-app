@@ -55,7 +55,7 @@ export default function PriceAlertModal({
       const pct = base > 0 ? Math.round(((existingAlerts.above.target_price - base) / base) * 100) : 10;
       return { enabled: true, pct, price: existingAlerts.above.target_price };
     }
-    return { enabled: false, pct: 10, price: base * 1.1 };
+    return { enabled: false, pct: 10, price: +(base * 1.1).toFixed(2) };
   });
 
   const [fall, setFall] = useState<AlertConfig>(() => {
@@ -63,7 +63,7 @@ export default function PriceAlertModal({
       const pct = base > 0 ? Math.round(((base - existingAlerts.below.target_price) / base) * 100) : 10;
       return { enabled: true, pct, price: existingAlerts.below.target_price };
     }
-    return { enabled: false, pct: 10, price: base * 0.9 };
+    return { enabled: false, pct: 10, price: +(base * 0.9).toFixed(2) };
   });
 
   const [entry, setEntry] = useState<AlertConfig>(() => {
@@ -71,48 +71,74 @@ export default function PriceAlertModal({
       const pct = base > 0 ? Math.round(((base - existingAlerts.entry.target_price) / base) * 100) : 20;
       return { enabled: true, pct, price: existingAlerts.entry.target_price };
     }
-    return { enabled: false, pct: 20, price: base * 0.8 };
+    return { enabled: false, pct: 20, price: +(base * 0.8).toFixed(2) };
   });
 
+  // String states for the input fields so user can type freely
+  const [riseInput, setRiseInput] = useState(rise.price > 0 ? rise.price.toFixed(2) : "");
+  const [fallInput, setFallInput] = useState(fall.price > 0 ? fall.price.toFixed(2) : "");
+  const [entryInput, setEntryInput] = useState(entry.price > 0 ? entry.price.toFixed(2) : "");
+
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (base <= 0) return;
-    if (!existingAlerts.above) {
-      setRise((r) =>
-        r.price === 0
-          ? { ...r, price: base * (1 + r.pct / 100) }
-          : r
-      );
+    if (!existingAlerts.above && rise.price === 0) {
+      const p = +(base * 1.1).toFixed(2);
+      setRise((r) => ({ ...r, price: p, pct: 10 }));
+      setRiseInput(p.toFixed(2));
     }
-    if (!existingAlerts.below) {
-      setFall((f) =>
-        f.price === 0
-          ? { ...f, price: base * (1 - f.pct / 100) }
-          : f
-      );
+    if (!existingAlerts.below && fall.price === 0) {
+      const p = +(base * 0.9).toFixed(2);
+      setFall((f) => ({ ...f, price: p, pct: 10 }));
+      setFallInput(p.toFixed(2));
     }
-    if (!existingAlerts.entry) {
-      setEntry((e) =>
-        e.price === 0
-          ? { ...e, price: base * (1 - e.pct / 100) }
-          : e
-      );
+    if (!existingAlerts.entry && entry.price === 0) {
+      const p = +(base * 0.8).toFixed(2);
+      setEntry((e) => ({ ...e, price: p, pct: 20 }));
+      setEntryInput(p.toFixed(2));
     }
   }, [base, existingAlerts]);
 
-  function adjustRise(delta: number) {
-    const next = Math.max(5, Math.min(50, rise.pct + delta));
-    setRise({ ...rise, pct: next, price: base * (1 + next / 100) });
+  function handlePriceChange(
+    val: string,
+    type: "rise" | "fall" | "entry"
+  ) {
+    // Update the raw input string
+    if (type === "rise") setRiseInput(val);
+    if (type === "fall") setFallInput(val);
+    if (type === "entry") setEntryInput(val);
+
+    const num = parseFloat(val);
+    if (isNaN(num) || num <= 0) {
+      if (type === "rise") setRise((r) => ({ ...r, price: 0, pct: 0 }));
+      if (type === "fall") setFall((f) => ({ ...f, price: 0, pct: 0 }));
+      if (type === "entry") setEntry((e) => ({ ...e, price: 0, pct: 0 }));
+      return;
+    }
+
+    if (type === "rise") {
+      const pct = base > 0 ? Math.round(((num - base) / base) * 100) : 0;
+      setRise((r) => ({ ...r, price: num, pct }));
+    } else if (type === "fall") {
+      const pct = base > 0 ? Math.round(((base - num) / base) * 100) : 0;
+      setFall((f) => ({ ...f, price: num, pct }));
+    } else {
+      const pct = base > 0 ? Math.round(((base - num) / base) * 100) : 0;
+      setEntry((e) => ({ ...e, price: num, pct }));
+    }
   }
 
-  function adjustFall(delta: number) {
-    const next = Math.max(5, Math.min(50, fall.pct + delta));
-    setFall({ ...fall, pct: next, price: base * (1 - next / 100) });
+  function handleBlur(type: "rise" | "fall" | "entry") {
+    if (type === "rise" && rise.price > 0) setRiseInput(rise.price.toFixed(2));
+    if (type === "fall" && fall.price > 0) setFallInput(fall.price.toFixed(2));
+    if (type === "entry" && entry.price > 0) setEntryInput(entry.price.toFixed(2));
   }
 
   async function handleSave() {
     setSaving(true);
+    setError("");
     try {
       // Delete all existing alerts for this symbol first
       await fetch(`/api/alerts?symbol=${symbol}`, { method: "DELETE" });
@@ -120,6 +146,7 @@ export default function PriceAlertModal({
       const saves: Promise<any>[] = [];
 
       if (rise.enabled) {
+        if (!rise.price || rise.price <= 0) { setError("Rise alert needs a valid price"); setSaving(false); return; }
         saves.push(
           fetch("/api/alerts", {
             method: "POST",
@@ -127,16 +154,17 @@ export default function PriceAlertModal({
             body: JSON.stringify({
               symbol,
               company_name: companyName,
-              alert_type: "price_above",
-              target_price: rise.price,
-              reference_price: base,
+              alert_type: "above",
+              target_price: +rise.price.toFixed(2),
+              reference_price: +base.toFixed(2),
               percentage: rise.pct,
             }),
-          })
+          }).then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "Failed to save rise alert"); return d; })
         );
       }
 
       if (fall.enabled) {
+        if (!fall.price || fall.price <= 0) { setError("Fall alert needs a valid price"); setSaving(false); return; }
         saves.push(
           fetch("/api/alerts", {
             method: "POST",
@@ -144,16 +172,17 @@ export default function PriceAlertModal({
             body: JSON.stringify({
               symbol,
               company_name: companyName,
-              alert_type: "price_below",
-              target_price: fall.price,
-              reference_price: base,
+              alert_type: "below",
+              target_price: +fall.price.toFixed(2),
+              reference_price: +base.toFixed(2),
               percentage: fall.pct,
             }),
-          })
+          }).then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "Failed to save fall alert"); return d; })
         );
       }
 
       if (entry.enabled) {
+        if (!entry.price || entry.price <= 0) { setError("Entry alert needs a valid price"); setSaving(false); return; }
         saves.push(
           fetch("/api/alerts", {
             method: "POST",
@@ -162,23 +191,26 @@ export default function PriceAlertModal({
               symbol,
               company_name: companyName,
               alert_type: "entry_level",
-              target_price: entry.price,
-              reference_price: base,
+              target_price: +entry.price.toFixed(2),
+              reference_price: +base.toFixed(2),
               percentage: entry.pct,
             }),
-          })
+          }).then(async (r) => { const d = await r.json(); if (!r.ok) throw new Error(d.error || "Failed to save entry alert"); return d; })
         );
       }
 
       await Promise.all(saves);
       onSaved();
       onClose();
-    } catch {
-      /* ignore */
+    } catch (err: any) {
+      setError(err?.message || "Failed to save alerts");
     } finally {
       setSaving(false);
     }
   }
+
+  const inputClass = (focusColor: string) =>
+    `w-28 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-lg font-semibold text-white outline-none transition focus:border-${focusColor}-400/40 focus:bg-white/8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`;
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -229,26 +261,20 @@ export default function PriceAlertModal({
             Alert when price rises above
           </div>
           <div className="mt-2 flex items-center gap-2">
-            <span className="text-lg font-semibold text-white">
-              ${rise.price.toFixed(2)}
-            </span>
+            <span className="text-white/50 text-sm">$</span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={riseInput}
+              onChange={(e) => handlePriceChange(e.target.value, "rise")}
+              onBlur={() => handleBlur("rise")}
+              placeholder={(base * 1.1).toFixed(2)}
+              className="w-28 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-lg font-semibold text-white outline-none transition focus:border-emerald-400/40 focus:bg-white/8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            />
             <span className="text-xs text-emerald-300/70">
-              (+{rise.pct}%)
+              {rise.pct > 0 ? `+${rise.pct}%` : rise.pct < 0 ? `${rise.pct}%` : ""}
             </span>
-            <div className="ml-auto flex gap-1">
-              <button
-                onClick={() => adjustRise(-5)}
-                className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/50 transition hover:bg-white/10"
-              >
-                −
-              </button>
-              <button
-                onClick={() => adjustRise(5)}
-                className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/50 transition hover:bg-white/10"
-              >
-                +
-              </button>
-            </div>
           </div>
         </div>
 
@@ -274,26 +300,20 @@ export default function PriceAlertModal({
             Alert when price falls below
           </div>
           <div className="mt-2 flex items-center gap-2">
-            <span className="text-lg font-semibold text-white">
-              ${fall.price.toFixed(2)}
-            </span>
+            <span className="text-white/50 text-sm">$</span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={fallInput}
+              onChange={(e) => handlePriceChange(e.target.value, "fall")}
+              onBlur={() => handleBlur("fall")}
+              placeholder={(base * 0.9).toFixed(2)}
+              className="w-28 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-lg font-semibold text-white outline-none transition focus:border-red-400/40 focus:bg-white/8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            />
             <span className="text-xs text-red-300/70">
-              (−{fall.pct}%)
+              {fall.pct > 0 ? `−${fall.pct}%` : ""}
             </span>
-            <div className="ml-auto flex gap-1">
-              <button
-                onClick={() => adjustFall(-5)}
-                className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/50 transition hover:bg-white/10"
-              >
-                −
-              </button>
-              <button
-                onClick={() => adjustFall(5)}
-                className="rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/50 transition hover:bg-white/10"
-              >
-                +
-              </button>
-            </div>
           </div>
         </div>
 
@@ -320,29 +340,42 @@ export default function PriceAlertModal({
             </button>
           </div>
           <div className="mt-1 text-xs text-white/35">
-            Alert when price hits ladder entry level
+            Alert when price hits entry level
           </div>
-          <div className="mt-2">
-            <span className="text-lg font-semibold text-white">
-              ${entry.price.toFixed(2)}
-            </span>
-            <span className="ml-2 text-xs text-amber-300/70">
-              (−{entry.pct}%)
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-white/50 text-sm">$</span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={entryInput}
+              onChange={(e) => handlePriceChange(e.target.value, "entry")}
+              onBlur={() => handleBlur("entry")}
+              placeholder={(base * 0.8).toFixed(2)}
+              className="w-28 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-lg font-semibold text-white outline-none transition focus:border-amber-400/40 focus:bg-white/8 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+            />
+            <span className="text-xs text-amber-300/70">
+              {entry.pct > 0 ? `−${entry.pct}%` : ""}
             </span>
           </div>
           <div className="mt-1 text-[11px] text-white/25">
-            Based on calculator data or first {entry.pct}% drop from current
+            Enter your target entry price
           </div>
         </div>
+
+        {/* Error */}
+        {error && (
+          <div className="px-5 pt-3 text-xs text-red-400">{error}</div>
+        )}
 
         {/* Actions */}
         <div className="flex gap-2 px-5 py-4">
           <button
             onClick={handleSave}
-            disabled={saving || (!rise.enabled && !fall.enabled && !entry.enabled)}
+            disabled={saving}
             className="flex-1 rounded-xl bg-cyan-500/20 py-2.5 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/30 disabled:opacity-40"
           >
-            {saving ? "Saving..." : "Save Alerts"}
+            {saving ? "Saving..." : (!rise.enabled && !fall.enabled && !entry.enabled) ? "Clear Alerts" : "Save Alerts"}
           </button>
           <button
             onClick={onClose}

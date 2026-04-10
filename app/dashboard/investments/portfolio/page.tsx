@@ -1,7 +1,7 @@
 export default function InvestmentPortfolioPage() {
   return (
     <div className="space-y-6">
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-6 backdrop-blur-xl">
+      <div className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-8 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
         <div className="text-xs uppercase tracking-[0.2em] text-cyan-300/70">
           Investments
         </div>
@@ -14,7 +14,7 @@ export default function InvestmentPortfolioPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+        <div className="rounded-2xl border border-white/8 bg-[rgba(8,20,43,0.9)] p-5">
           <div className="text-xs uppercase tracking-[0.18em] text-white/45">
             Holdings
           </div>
@@ -24,7 +24,7 @@ export default function InvestmentPortfolioPage() {
           </p>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+        <div className="rounded-2xl border border-white/8 bg-[rgba(8,20,43,0.9)] p-5">
           <div className="text-xs uppercase tracking-[0.18em] text-white/45">
             Value
           </div>
@@ -34,7 +34,7 @@ export default function InvestmentPortfolioPage() {
           </p>
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+        <div className="rounded-2xl border border-white/8 bg-[rgba(8,20,43,0.9)] p-5">
           <div className="text-xs uppercase tracking-[0.18em] text-white/45">
             Performance
           </div>

@@ -30,14 +30,14 @@ export default async function ChangelogPage() {
   const latest = changelog[0]
 
   return (
-    <div className="p-6 max-w-3xl mx-auto space-y-6">
+    <div className="p-6 mx-auto space-y-6">
 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">Changelog</h1>
           <p className="text-white/50 text-sm mt-1">
-            Aurora Growth release history
+            Aurora Growth Academy release history
           </p>
         </div>
         {latest && (
@@ -125,7 +125,7 @@ export default async function ChangelogPage() {
       {/* Footer */}
       <div className="text-center pt-4 border-t border-white/5">
         <p className="text-white/20 text-xs">
-          Aurora Growth · Built with care ·
+          Aurora Growth Academy · Built with care ·
           Questions? Use the Aurora Assistant chat
         </p>
       </div>

@@ -194,7 +194,7 @@ function ChartInner() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <div className="mb-6 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -396,7 +396,7 @@ export default function ChartClient() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-slate-950 text-white">
-          <div className="mx-auto max-w-7xl px-4 py-8">Loading chart...</div>
+          <div className="mx-auto px-4 py-8">Loading chart...</div>
         </div>
       }
     >

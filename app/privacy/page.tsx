@@ -1,169 +1,144 @@
-import Link from "next/link";
-
 export default function PrivacyPage() {
+  const updated = '10 April 2026'
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#020817] text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.12),transparent_30%),radial-gradient(circle_at_right,rgba(139,92,246,0.14),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.10),transparent_35%)]" />
-      <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.15)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.15)_1px,transparent_1px)] [background-size:56px_56px]" />
+    <div className="min-h-screen py-12 px-4" style={{ background: '#030712' }}>
+      <div className="max-w-3xl mx-auto space-y-8">
 
-      <div className="relative z-10 mx-auto max-w-4xl px-6 py-12 sm:py-16">
-        <div className="mb-6">
-          <Link
-            href="/signup"
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10"
-          >
-            ← Back to signup
-          </Link>
+        <div>
+          <a href="/dashboard" className="text-white/30 text-xs hover:text-white/60 underline">
+            &larr; Back to Aurora Growth Academy
+          </a>
+          <h1 className="text-white text-3xl font-bold mt-4">Privacy Policy</h1>
+          <p className="text-white/30 text-sm mt-1">Last updated: {updated}</p>
         </div>
 
-        <div className="rounded-[32px] border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-xl sm:p-10">
-          <div className="mb-10 text-center">
-            <div className="relative mb-6 flex justify-center">
-              <div className="absolute h-28 w-28 rounded-full bg-gradient-to-r from-cyan-500/20 via-blue-500/20 to-violet-500/20 blur-2xl" />
-              <img
-                src="/aurora-logo.png"
-                alt="Aurora Growth"
-                className="relative h-28 w-auto"
-              />
-            </div>
+        <div className="p-5 rounded-2xl bg-cyan-400/8 border border-cyan-400/20">
+          <p className="text-cyan-400 font-bold text-sm mb-1">Your privacy matters to us</p>
+          <p className="text-white/60 text-sm leading-relaxed">
+            This policy explains what personal data we collect, how we use it, and your rights under
+            the UK General Data Protection Regulation (UK GDPR) and the Data Protection Act 2018.
+          </p>
+        </div>
 
-            <h1 className="bg-gradient-to-r from-cyan-400 via-sky-400 to-violet-400 bg-clip-text text-4xl font-extrabold text-transparent sm:text-5xl">
-              Privacy Policy
-            </h1>
+        {[
+          {
+            title: '1. Who we are',
+            body: `Aurora Growth Academy is the data controller for personal data collected through this Platform. For data protection enquiries contact us at: info@auroragrowth.co.uk`
+          },
+          {
+            title: '2. What data we collect',
+            body: `We collect the following personal data:
 
-            <p className="mt-4 text-white/70">Effective date: 10 March 2026</p>
+Account data: email address, name (if provided), password (encrypted).
+
+Usage data: pages visited, features used, time spent on the Platform, browser type, device type, IP address.
+
+Subscription data: subscription plan, payment history (payment card details are handled by Stripe and never stored by us).
+
+Broker connection data: Trading 212 API key (stored encrypted). We do not store your Trading 212 account password.
+
+Telegram data: your Telegram chat ID if you choose to connect Telegram for alerts.
+
+Communication data: emails sent to or received from us.`
+          },
+          {
+            title: '3. How we use your data',
+            body: `We use your personal data to:
+
+Provide and operate the Platform and your account.
+Process your subscription payments.
+Send you service emails including account confirmations, subscription notices, and onboarding messages.
+Send you Telegram notifications if you have connected Telegram.
+Improve the Platform through analysis of usage patterns.
+Comply with our legal obligations.
+
+We do not use your data for automated decision-making that produces legal or similarly significant effects on you.`
+          },
+          {
+            title: '4. Legal basis for processing',
+            body: `We process your personal data on the following legal bases:
+
+Contract: processing your subscription and providing the service you have signed up for.
+Legitimate interests: improving the Platform and keeping it secure.
+Legal obligation: complying with applicable laws.
+Consent: sending marketing communications (you can withdraw consent at any time).`
+          },
+          {
+            title: '5. Data sharing',
+            body: `We share your personal data with the following third parties only where necessary:
+
+Supabase (database hosting \u2014 EU West region).
+Stripe (payment processing).
+Resend (transactional email delivery).
+Telegram (if you connect Telegram alerts).
+
+We do not sell your personal data to any third party. We do not share your data for marketing purposes.`
+          },
+          {
+            title: '6. Data retention',
+            body: `We retain your personal data for as long as your account is active. If you close your account we will delete your personal data within 30 days, except where we are required to retain it for legal or tax purposes (typically up to 7 years for financial records).
+
+Usage and analytics data is retained in anonymised form.`
+          },
+          {
+            title: '7. Your rights under UK GDPR',
+            body: `You have the following rights regarding your personal data:
+
+Right of access: request a copy of the data we hold about you.
+Right to rectification: request correction of inaccurate data.
+Right to erasure: request deletion of your data (\u201Cright to be forgotten\u201D).
+Right to restriction: request that we limit processing of your data.
+Right to data portability: receive your data in a machine-readable format.
+Right to object: object to processing based on legitimate interests.
+Right to withdraw consent: withdraw consent at any time where processing is based on consent.
+
+To exercise any of these rights contact us at info@auroragrowth.co.uk. We will respond within 30 days.
+
+You also have the right to lodge a complaint with the Information Commissioner\u2019s Office (ICO) at ico.org.uk.`
+          },
+          {
+            title: '8. Security',
+            body: `We take the security of your personal data seriously. We use industry-standard encryption for data in transit (HTTPS/TLS) and at rest. API keys are stored encrypted. Access to production data is restricted to authorised personnel only.
+
+Despite these measures no internet transmission is 100% secure. Please use a strong password and enable two-factor authentication on your account.`
+          },
+          {
+            title: '9. Cookies',
+            body: `We use cookies and similar technologies to operate the Platform. Please see our Cookie Policy for details.`
+          },
+          {
+            title: '10. Changes to this policy',
+            body: `We may update this Privacy Policy from time to time. We will notify you of significant changes by email. The date at the top of this page shows when it was last updated.`
+          },
+          {
+            title: '11. Contact',
+            body: `Data protection enquiries: info@auroragrowth.co.uk
+
+Information Commissioner\u2019s Office (ICO): ico.org.uk \u00B7 0303 123 1113`
+          },
+        ].map(section => (
+          <div key={section.title}
+            className="p-6 rounded-2xl space-y-3"
+            style={{ background: '#0a0f1e', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <h2 className="text-white font-bold text-base">{section.title}</h2>
+            {section.body.split('\n\n').map((para, i) => (
+              <p key={i} className="text-white/60 text-sm leading-relaxed">{para}</p>
+            ))}
           </div>
+        ))}
 
-          <div className="space-y-8 text-sm leading-7 text-white/80 sm:text-base">
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">1. Introduction</h2>
-              <p>
-                This Privacy Policy explains how Aurora Growth collects, uses, stores,
-                and protects your personal information when you use our website,
-                dashboard, member services, and related digital products.
-              </p>
-            </section>
+        <p className="text-white/20 text-xs text-center">
+          Aurora Growth Academy &middot; {updated}
+        </p>
 
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">2. Information We Collect</h2>
-              <p>We may collect personal information such as:</p>
-              <ul className="ml-6 list-disc space-y-2">
-                <li>full name</li>
-                <li>email address</li>
-                <li>phone number</li>
-                <li>account credentials and login-related data</li>
-                <li>subscription and billing-related details</li>
-                <li>device, browser, and usage analytics</li>
-                <li>messages or enquiries you send to us</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">3. How We Use Your Information</h2>
-              <p>We may use your information to:</p>
-              <ul className="ml-6 list-disc space-y-2">
-                <li>create and manage your account</li>
-                <li>provide access to Aurora Growth services and features</li>
-                <li>process subscriptions and related billing</li>
-                <li>send service messages, login emails, and account notifications</li>
-                <li>improve platform performance and user experience</li>
-                <li>provide support and respond to enquiries</li>
-                <li>protect the security and integrity of the platform</li>
-              </ul>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">4. Lawful Basis</h2>
-              <p>
-                We process personal data where necessary to perform our contract with
-                you, pursue legitimate business interests, comply with legal
-                obligations, or where you have given consent.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">5. Sharing of Information</h2>
-              <p>
-                We may share information with trusted service providers and technology
-                partners that help us operate Aurora Growth, such as hosting,
-                authentication, analytics, communications, and payment providers. We do
-                not sell your personal data.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">6. Security</h2>
-              <p>
-                We take reasonable technical and organisational measures to help
-                protect your personal information. However, no system can be guaranteed
-                to be completely secure.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">7. Retention</h2>
-              <p>
-                We retain personal information only for as long as reasonably necessary
-                for account operation, legal compliance, dispute resolution, internal
-                record keeping, and related business purposes.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">8. Cookies and Analytics</h2>
-              <p>
-                Aurora Growth may use cookies, local storage, and analytics
-                technologies to maintain login sessions, remember preferences,
-                understand platform usage, and improve performance.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">9. Your Rights</h2>
-              <p>
-                Subject to applicable law, you may have the right to request access
-                to, correction of, deletion of, restriction of, or objection to the
-                processing of your personal information. You may also have the right to
-                request a copy of certain personal data.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">10. Third-Party Services</h2>
-              <p>
-                Aurora Growth may integrate with third-party services such as payment
-                processors, authentication systems, and data providers. Those services
-                operate under their own terms and privacy policies.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">11. Children’s Privacy</h2>
-              <p>
-                Aurora Growth is not intended for users under the age of 18, and we do
-                not knowingly collect personal information from children.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">12. Updates to This Policy</h2>
-              <p>
-                We may update this Privacy Policy from time to time. Any changes will
-                be posted on this page together with a revised effective date.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">13. Contact</h2>
-              <p>
-                If you have questions about this Privacy Policy or how Aurora Growth
-                handles personal data, please contact us using the contact details on
-                our website.
-              </p>
-            </section>
-          </div>
+        <div className="text-center">
+          <a href="/dashboard"
+            className="px-6 py-3 rounded-xl font-bold text-sm
+            bg-white/10 text-white/60 hover:bg-white/15 transition-all">
+            &larr; Back to Aurora Growth Academy
+          </a>
         </div>
       </div>
-    </main>
-  );
+    </div>
+  )
 }

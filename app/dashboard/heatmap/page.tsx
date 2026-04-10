@@ -17,7 +17,7 @@ export default function HeatmapPage() {
         </p>
       </div>
 
-      <div className="rounded-3xl border border-white/10 bg-[#08111f] p-4">
+      <div className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
         <StockHeatmap />
       </div>
     </div>

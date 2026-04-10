@@ -98,6 +98,18 @@ export async function GET(req: NextRequest) {
   // Score
   const score = parseInt(scanner?.score || scanner?.aurora_score || '0') || null
 
+  // Peak data from scanner
+  const mostRecentHatPrice = scanner?.most_recent_hat_price
+    ? parseFloat(scanner.most_recent_hat_price)
+    : null
+  const mostRecentHatDate = scanner?.most_recent_hat_date || null
+  const dropFromHatPct = scanner?.drop_from_hat_pct
+    ? parseFloat(scanner.drop_from_hat_pct)
+    : null
+  const risesCount18m = scanner?.rises_count_18m
+    ? parseInt(scanner.rises_count_18m)
+    : null
+
   return NextResponse.json({
     ticker,
     company: yahoo.name || scanner?.company || scanner?.company_name || ticker,
@@ -119,5 +131,9 @@ export async function GET(req: NextRequest) {
     scannerType: scanner?.scanner_type || null,
     pe: scanner?.pe || null,
     roe: scanner?.roe || null,
+    mostRecentHatPrice,
+    mostRecentHatDate,
+    dropFromHatPct,
+    risesCount18m,
   })
 }

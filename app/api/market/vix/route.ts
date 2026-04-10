@@ -9,27 +9,41 @@ import { NextResponse } from "next/server";
 export async function GET() {
   try {
     const response = await fetch(
-      "https://query1.finance.yahoo.com/v7/finance/quote?symbols=%5EVIX",
+      "https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d&range=5d",
       {
         headers: {
-          "User-Agent": "Aurora-Growth-App",
+          "User-Agent": "Mozilla/5.0 (compatible; AuroraGrowth/1.0)",
         },
         cache: "no-store",
       }
     );
 
     if (!response.ok) {
-      throw new Error("Failed to fetch VIX data");
+      throw new Error(`Yahoo Finance returned ${response.status}`);
     }
 
     const data = await response.json();
+    const result = data?.chart?.result?.[0];
+    const meta = result?.meta;
+    const closes = result?.indicators?.quote?.[0]?.close || [];
 
-    const result = data?.quoteResponse?.result?.[0];
+    const vix = meta?.regularMarketPrice ?? null;
 
-    const vix = result?.regularMarketPrice ?? null;
-    const change = result?.regularMarketChange ?? null;
-    const changePercent = result?.regularMarketChangePercent ?? null;
-    const timestamp = result?.regularMarketTime ?? null;
+    // Find previous trading day's close
+    let prevClose = vix;
+    for (let i = closes.length - 2; i >= 0; i--) {
+      if (closes[i] != null) {
+        prevClose = closes[i];
+        break;
+      }
+    }
+
+    const change = vix != null && prevClose != null ? vix - prevClose : null;
+    const changePercent =
+      vix != null && prevClose != null && prevClose > 0
+        ? (change! / prevClose) * 100
+        : null;
+    const timestamp = meta?.regularMarketTime ?? null;
 
     return NextResponse.json({
       vix,

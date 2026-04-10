@@ -20,7 +20,8 @@ export async function requireAdmin() {
     .eq("id", user.id)
     .single();
 
-  if (!profile?.is_admin) {
+  const ADMIN_EMAIL = "paulrudland@me.com";
+  if (!profile?.is_admin || user.email !== ADMIN_EMAIL) {
     redirect("/dashboard");
   }
 

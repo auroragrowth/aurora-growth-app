@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import MarketCountdown from "@/components/dashboard/MarketCountdown";
 import MarketOverview from "@/components/tradingview/MarketOverview";
+import AuroraMethodExplainer from "@/components/dashboard/AuroraMethodExplainer";
 
 type ScannerRow = {
   ticker?: string;
@@ -74,11 +75,11 @@ export default async function DashboardPage() {
 
   return (
     <main className="text-white">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 py-8 md:px-8 lg:px-10">
+      <div className="mx-auto flex w-full flex-col gap-6 px-6 py-8 md:px-8 lg:px-10">
         <MarketCountdown />
 
         {/* Welcome hero */}
-        <section className="overflow-hidden rounded-[28px] border border-cyan-500/15 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_34%),linear-gradient(135deg,rgba(3,7,18,0.96),rgba(2,6,23,0.92))] shadow-[0_0_0_1px_rgba(14,165,233,0.04),0_20px_80px_rgba(2,6,23,0.65)] p-6 md:p-8">
+        <section className="overflow-hidden rounded-[32px] border border-cyan-500/12 bg-[radial-gradient(circle_at_top_left,_rgba(14,165,233,0.18),_transparent_34%),linear-gradient(135deg,rgba(3,7,18,0.96),rgba(2,6,23,0.92))] shadow-[0_28px_90px_rgba(0,0,0,0.32)] p-6 md:p-8">
           <div className="mb-4 inline-flex w-fit items-center rounded-full border border-cyan-400/25 bg-cyan-500/10 px-4 py-1 text-[11px] font-semibold uppercase tracking-[0.35em] text-cyan-300">
             Dashboard
           </div>
@@ -94,7 +95,7 @@ export default async function DashboardPage() {
 
         {/* Quick stats */}
         <section className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-3xl border border-cyan-500/20 bg-[#07152f]/90 p-5 shadow-[0_0_30px_rgba(0,180,255,0.08)]">
+          <div className="rounded-2xl border border-white/8 bg-[rgba(8,20,43,0.9)] p-5">
             <div className="text-xs uppercase tracking-[0.28em] text-white/45">Active Plan</div>
             <div className="mt-3 text-2xl font-semibold text-cyan-300">{planLabel}</div>
             <div className="mt-2 text-sm text-white/55">
@@ -102,21 +103,24 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-emerald-400/20 bg-[#07152f]/90 p-5 shadow-[0_0_30px_rgba(16,185,129,0.08)]">
+          <div className="rounded-2xl border border-white/8 bg-[rgba(8,20,43,0.9)] p-5">
             <div className="text-xs uppercase tracking-[0.28em] text-white/45">Watchlist</div>
             <div className="mt-3 text-2xl font-semibold text-emerald-300">{watchlistCount ?? 0}</div>
             <div className="mt-2 text-sm text-white/55">Stocks tracked</div>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-[#07152f]/90 p-5">
+          <div className="rounded-2xl border border-white/8 bg-[rgba(8,20,43,0.9)] p-5">
             <div className="text-xs uppercase tracking-[0.28em] text-white/45">Market</div>
             <div className="mt-3 text-2xl font-semibold text-white">Open</div>
             <div className="mt-2 text-sm text-white/55">US equities</div>
           </div>
         </section>
 
+        {/* Aurora Method Explainer */}
+        <AuroraMethodExplainer />
+
         {/* Market Overview */}
-        <section className="rounded-[28px] border border-cyan-500/10 bg-[linear-gradient(180deg,rgba(8,15,35,0.95),rgba(2,6,23,0.98))] p-6 shadow-[0_10px_40px_rgba(2,6,23,0.45)]">
+        <section className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-8 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
           <div className="text-[11px] uppercase tracking-[0.35em] text-cyan-300/80">Market Overview</div>
           <h2 className="mt-2 text-2xl font-semibold text-white">Key Indices & Stocks</h2>
           <div className="mt-4">
@@ -127,7 +131,7 @@ export default async function DashboardPage() {
         {/* Top scanner stocks + quick links */}
         <div className="grid gap-6 lg:grid-cols-[1.4fr_0.6fr]">
           {/* Top 3 scanner stocks */}
-          <section className="rounded-[28px] border border-cyan-500/10 bg-[linear-gradient(180deg,rgba(8,15,35,0.95),rgba(2,6,23,0.98))] p-6 shadow-[0_10px_40px_rgba(2,6,23,0.45)]">
+          <section className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-8 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
             <div className="text-[11px] uppercase tracking-[0.35em] text-cyan-300/80">Top Scanner Picks</div>
             <h2 className="mt-2 text-2xl font-semibold text-white">Highest Scored Stocks</h2>
 
@@ -139,7 +143,7 @@ export default async function DashboardPage() {
                   <Link
                     key={stock.ticker || i}
                     href={`/dashboard/stocks/${encodeURIComponent(stock.ticker || "")}`}
-                    className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/50 p-4 transition hover:bg-white/[0.04]"
+                    className="flex items-center justify-between rounded-xl border border-white/10 bg-slate-950/50 p-4 transition hover:bg-white/[0.04]"
                   >
                     <div className="flex items-center gap-4">
                       <div className="flex h-10 w-10 items-center justify-center rounded-full border border-cyan-400/25 bg-cyan-500/10 text-sm font-semibold text-cyan-300">
@@ -167,7 +171,7 @@ export default async function DashboardPage() {
           </section>
 
           {/* Quick links */}
-          <section className="rounded-[28px] border border-cyan-500/10 bg-[linear-gradient(180deg,rgba(8,15,35,0.95),rgba(2,6,23,0.98))] p-6">
+          <section className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-8 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
             <div className="text-[11px] uppercase tracking-[0.35em] text-cyan-300/80">Quick Links</div>
             <div className="mt-4 space-y-2">
               {[
@@ -180,7 +184,7 @@ export default async function DashboardPage() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-950/40 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/[0.04] hover:text-white"
+                  className="flex items-center justify-between rounded-xl border border-white/10 bg-slate-950/40 px-4 py-3 text-sm text-slate-200 transition hover:bg-white/[0.04] hover:text-white"
                 >
                   {link.label}
                   <span className="text-white/30">→</span>
@@ -189,6 +193,7 @@ export default async function DashboardPage() {
             </div>
           </section>
         </div>
+
       </div>
     </main>
   );

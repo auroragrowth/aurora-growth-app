@@ -44,7 +44,7 @@ export default function VolatilityCompassPage() {
     <div className="space-y-6">
       {/* Header */}
 
-      <section className="overflow-hidden rounded-[32px] border border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.22),transparent_22%),linear-gradient(180deg,rgba(7,23,54,0.92)_0%,rgba(3,14,36,0.96)_100%)] shadow-[0_20px_80px_rgba(0,0,0,0.22)]">
+      <section className="overflow-hidden rounded-[32px] border border-cyan-500/12 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.22),transparent_22%),linear-gradient(180deg,rgba(7,23,54,0.92)_0%,rgba(3,14,36,0.96)_100%)] shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
         <div className="px-6 py-7 sm:px-8 lg:px-10">
           <div className="max-w-4xl">
             <div className="mb-3 inline-flex items-center rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.34em] text-cyan-200">
@@ -68,7 +68,7 @@ export default function VolatilityCompassPage() {
       {/* VIX Display */}
 
       <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(4,18,45,0.82)_0%,rgba(3,14,36,0.9)_100%)] p-6 shadow-[0_10px_40px_rgba(0,0,0,0.18)]">
+        <div className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(4,18,45,0.82)_0%,rgba(3,14,36,0.9)_100%)] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
           <div className="flex items-center gap-3 mb-4">
             <Activity className="h-6 w-6 text-cyan-300" />
             <h3 className="text-lg font-semibold text-white">
@@ -83,7 +83,7 @@ export default function VolatilityCompassPage() {
           )}
         </div>
 
-        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(4,18,45,0.82)_0%,rgba(3,14,36,0.9)_100%)] p-6 shadow-[0_10px_40px_rgba(0,0,0,0.18)]">
+        <div className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(4,18,45,0.82)_0%,rgba(3,14,36,0.9)_100%)] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
           <div className="flex items-center gap-3 mb-4">
             <TrendingUp className="h-6 w-6 text-emerald-300" />
             <h3 className="text-lg font-semibold text-white">
@@ -96,7 +96,7 @@ export default function VolatilityCompassPage() {
           </div>
         </div>
 
-        <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(4,18,45,0.82)_0%,rgba(3,14,36,0.9)_100%)] p-6 shadow-[0_10px_40px_rgba(0,0,0,0.18)]">
+        <div className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(4,18,45,0.82)_0%,rgba(3,14,36,0.9)_100%)] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
           <div className="flex items-center gap-3 mb-4">
             <TrendingDown className="h-6 w-6 text-yellow-300" />
             <h3 className="text-lg font-semibold text-white">
@@ -114,7 +114,7 @@ export default function VolatilityCompassPage() {
 
       {/* Chart */}
 
-      <section className="rounded-[32px] border border-white/10 bg-[linear-gradient(180deg,rgba(4,18,45,0.82)_0%,rgba(3,14,36,0.9)_100%)] p-6 shadow-[0_10px_40px_rgba(0,0,0,0.18)]">
+      <section className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
         <h3 className="text-lg font-semibold text-white mb-4">
           VIX Chart
         </h3>

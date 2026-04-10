@@ -23,6 +23,8 @@ type User = {
   trading212_connected: boolean;
   created_at: string | null;
   last_login_at: string | null;
+  compliance_accepted: boolean;
+  compliance_accepted_at: string | null;
 };
 
 type Tab = "overview" | "users" | "email" | "system";
@@ -197,6 +199,7 @@ function UsersTab({
                 <th className="px-3 py-2.5 text-left">Plan</th>
                 <th className="px-3 py-2.5 text-left">Status</th>
                 <th className="px-3 py-2.5 text-left">Connected</th>
+                <th className="px-3 py-2.5 text-left">T&amp;C</th>
                 <th className="px-3 py-2.5 text-left">Joined</th>
                 <th className="px-3 py-2.5 text-left">Actions</th>
               </tr>
@@ -204,7 +207,7 @@ function UsersTab({
             <tbody className="divide-y divide-white/5">
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-10 text-center text-white/30">
+                  <td colSpan={7} className="px-6 py-10 text-center text-white/30">
                     No users match your search.
                   </td>
                 </tr>
@@ -253,6 +256,13 @@ function UsersTab({
                           <span className="text-white/15 text-xs">—</span>
                         )}
                       </div>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {user.compliance_accepted ? (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-green-500/15 text-green-400 border border-green-500/20 font-bold">{'\u2713'} Signed</span>
+                      ) : (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20 font-bold">Pending</span>
+                      )}
                     </td>
                     <td className="px-3 py-2.5 text-white/30 text-xs whitespace-nowrap">
                       {fmtShortDate(user.created_at)}
@@ -429,7 +439,7 @@ function EmailTab() {
         <h3 className="text-white font-bold text-sm mb-1">Email Info</h3>
         <div className="text-white/40 text-xs space-y-1">
           <p>Template: Welcome to Aurora Growth Academy</p>
-          <p>From: Aurora Growth &lt;onboarding@auroragrowth.co.uk&gt;</p>
+          <p>From: Aurora Growth Academy &lt;onboarding@auroragrowth.co.uk&gt;</p>
           <p>Onboarding sequence: Days 1-7 auto-sent after signup</p>
         </div>
       </div>

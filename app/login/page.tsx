@@ -17,7 +17,6 @@ function LoginPageInner() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState(searchParams.get("error") || "");
-
   const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
@@ -93,7 +92,7 @@ function LoginPageInner() {
             <div className="mb-6">
               <Image
                 src="/aurora-logo.png"
-                alt="Aurora Growth"
+                alt="Aurora Growth Academy"
                 width={190}
                 height={48}
                 priority
@@ -102,7 +101,7 @@ function LoginPageInner() {
             </div>
 
             <p className="text-xs uppercase tracking-[0.38em] text-cyan-300/85">
-              Aurora Growth
+              Aurora Growth Academy
             </p>
 
             <h1 className="mt-6 text-4xl font-semibold leading-tight text-white md:text-5xl">

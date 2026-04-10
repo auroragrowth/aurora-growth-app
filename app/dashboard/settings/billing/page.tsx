@@ -63,7 +63,7 @@ export default async function BillingSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[30px] border border-white/10 bg-[linear-gradient(135deg,rgba(8,21,50,0.88),rgba(4,13,32,0.92))] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.22)] md:p-8">
+      <section className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.32)] md:p-8">
         <div className="text-[11px] uppercase tracking-[0.28em] text-cyan-200/75">
           Aurora Growth
         </div>
@@ -76,7 +76,7 @@ export default async function BillingSettingsPage() {
       </section>
 
       <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <section className={`rounded-[28px] border p-6 shadow-[0_20px_60px_rgba(0,0,0,0.20)] ${planClasses}`}>
+        <section className={`rounded-[32px] border p-6 shadow-[0_28px_90px_rgba(0,0,0,0.32)] ${planClasses}`}>
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
@@ -138,7 +138,7 @@ export default async function BillingSettingsPage() {
         </section>
 
         <section className="space-y-6">
-          <div className="rounded-[28px] border border-white/10 bg-[rgba(5,14,32,0.78)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.20)]">
+          <div className="rounded-[32px] border border-cyan-500/12 bg-[rgba(8,20,43,0.9)] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
             <div className="flex items-center gap-2 text-cyan-100">
               <ShieldCheck size={18} />
               <span className="text-sm font-semibold uppercase tracking-[0.18em]">
@@ -159,7 +159,7 @@ export default async function BillingSettingsPage() {
             </div>
           </div>
 
-          <div className="rounded-[28px] border border-white/10 bg-[rgba(5,14,32,0.78)] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.20)]">
+          <div className="rounded-[32px] border border-cyan-500/12 bg-[rgba(8,20,43,0.9)] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
             <div className="flex items-center gap-2 text-cyan-100">
               <CalendarDays size={18} />
               <span className="text-sm font-semibold uppercase tracking-[0.18em]">

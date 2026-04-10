@@ -19,6 +19,7 @@ import {
   ChevronDown,
   CalendarDays,
   Grid3X3,
+  Bell,
 } from "lucide-react";
 import { usePortfolio } from "@/components/providers/PortfolioProvider";
 import BrokerModeToggle from "@/components/broker/BrokerModeToggle";
@@ -131,6 +132,10 @@ export default function DashboardShell({
   const profileRef = useRef<HTMLDivElement | null>(null);
   const [brokerStatus, setBrokerStatus] = useState(initialBrokerStatus);
   const [brokerConnected, setBrokerConnected] = useState(initialBrokerConnected);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const notifRef = useRef<HTMLDivElement | null>(null);
 
   const refreshBrokerStatus = useCallback(async () => {
     try {
@@ -154,6 +159,43 @@ export default function DashboardShell({
     window.addEventListener("aurora:broker-connected", handler);
     return () => window.removeEventListener("aurora:broker-connected", handler);
   }, [refreshBrokerStatus]);
+
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications", { cache: "no-store" });
+      const data = await res.json();
+      const notifs = data.notifications || [];
+      setNotifications(notifs);
+      setUnreadCount(notifs.filter((n: any) => !n.read).length);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+    const id = setInterval(fetchNotifications, 60_000);
+    return () => clearInterval(id);
+  }, [fetchNotifications]);
+
+  async function markAllRead() {
+    await fetch("/api/notifications", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ all: true }),
+    }).catch(() => {});
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    setUnreadCount(0);
+  }
+
+  useEffect(() => {
+    function handleClickOutsideNotif(event: MouseEvent) {
+      if (!notifRef.current) return;
+      if (!notifRef.current.contains(event.target as Node)) {
+        setNotifOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutsideNotif);
+    return () => document.removeEventListener("mousedown", handleClickOutsideNotif);
+  }, []);
 
   const firstName = useMemo(() => getFirstName(userName, userEmail), [userName, userEmail]);
   const initials = useMemo(() => getInitials(userName, userEmail), [userName, userEmail]);
@@ -412,10 +454,76 @@ export default function DashboardShell({
                   })()}
                 </div>
 
+                {/* Notification Bell */}
+                <div ref={notifRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => { setNotifOpen((v) => !v); setProfileOpen(false); }}
+                    className="relative flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white"
+                    title="Notifications"
+                  >
+                    <Bell className="h-[18px] w-[18px]" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white shadow-[0_0_8px_rgba(239,68,68,0.5)]">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
+                  </button>
+
+                  {notifOpen && (
+                    <div className="absolute right-0 top-[calc(100%+10px)] w-[340px] rounded-3xl border border-cyan-300/10 bg-[#091425]/95 shadow-2xl backdrop-blur-xl overflow-hidden">
+                      <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
+                        <h3 className="text-sm font-semibold text-white">Notifications</h3>
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={markAllRead}
+                            className="text-[11px] text-cyan-400 transition hover:text-cyan-300"
+                          >
+                            Mark all read
+                          </button>
+                        )}
+                      </div>
+                      <div className="max-h-[400px] overflow-y-auto">
+                        {notifications.length === 0 ? (
+                          <div className="px-4 py-8 text-center text-sm text-white/30">
+                            No notifications yet
+                          </div>
+                        ) : (
+                          notifications.slice(0, 20).map((n: any) => (
+                            <a
+                              key={n.id}
+                              href={n.link || "#"}
+                              onClick={() => setNotifOpen(false)}
+                              className={`block border-b border-white/5 px-4 py-3 transition hover:bg-white/5 ${
+                                !n.read ? "bg-cyan-400/5" : ""
+                              }`}
+                            >
+                              <div className="flex items-start gap-2">
+                                {!n.read && (
+                                  <span className="mt-1.5 h-2 w-2 flex-shrink-0 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.6)]" />
+                                )}
+                                <div className={!n.read ? "" : "pl-4"}>
+                                  <div className="text-sm font-medium text-white">{n.title}</div>
+                                  <div className="mt-0.5 text-xs text-white/40">{n.message}</div>
+                                  <div className="mt-1 text-[10px] text-white/25">
+                                    {new Date(n.created_at).toLocaleDateString("en-GB", {
+                                      day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
+                                    })}
+                                  </div>
+                                </div>
+                              </div>
+                            </a>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div ref={profileRef} className="relative">
                   <button
                     type="button"
-                    onClick={() => setProfileOpen((v) => !v)}
+                    onClick={() => { setProfileOpen((v) => !v); setNotifOpen(false); }}
                     className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-2.5 py-2 pr-3 transition hover:bg-white/10"
                   >
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[linear-gradient(135deg,rgba(61,209,255,.24),rgba(112,91,255,.20))] text-sm font-semibold text-white ring-1 ring-white/10 shadow-[0_0_20px_rgba(87,211,243,0.12)]">

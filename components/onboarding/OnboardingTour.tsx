@@ -25,7 +25,7 @@ const QUOTES = [
 
 const STEPS: TourStep[] = [
   {
-    title: "Welcome to Aurora Growth \u2726",
+    title: "Welcome to Aurora Growth Academy \u2726",
     body: "Let us show you around in 60 seconds. This quick tour covers the 7 key parts of Aurora so you can start finding opportunities straight away.",
     selector: null,
     cta: "Start tour \u2192",

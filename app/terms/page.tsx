@@ -1,191 +1,104 @@
-import Link from "next/link";
-
 export default function TermsPage() {
+  const updated = '10 April 2026'
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#020817] text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(34,211,238,0.12),transparent_30%),radial-gradient(circle_at_right,rgba(139,92,246,0.14),transparent_30%),radial-gradient(circle_at_bottom_left,rgba(59,130,246,0.10),transparent_35%)]" />
-      <div className="absolute inset-0 opacity-[0.08] [background-image:linear-gradient(rgba(255,255,255,0.15)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.15)_1px,transparent_1px)] [background-size:56px_56px]" />
+    <div className="min-h-screen py-12 px-4" style={{ background: '#030712' }}>
+      <div className="max-w-3xl mx-auto space-y-8">
 
-      <div className="relative z-10 mx-auto max-w-4xl px-6 py-12 sm:py-16">
-        <div className="mb-6">
-          <Link
-            href="/signup"
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white transition hover:bg-white/10"
-          >
-            ← Back to signup
-          </Link>
+        <div>
+          <a href="/dashboard" className="text-white/30 text-xs hover:text-white/60 underline">
+            &larr; Back to Aurora Growth Academy
+          </a>
+          <h1 className="text-white text-3xl font-bold mt-4">Terms of Service</h1>
+          <p className="text-white/30 text-sm mt-1">Last updated: {updated}</p>
         </div>
 
-        <div className="rounded-[32px] border border-white/10 bg-white/5 p-8 shadow-2xl backdrop-blur-xl sm:p-10">
-          <div className="mb-10 text-center">
-            <div className="relative mb-6 flex justify-center">
-              <div className="absolute h-28 w-28 rounded-full bg-gradient-to-r from-cyan-500/20 via-blue-500/20 to-violet-500/20 blur-2xl" />
-              <img
-                src="/aurora-logo.png"
-                alt="Aurora Growth"
-                className="relative h-28 w-auto"
-              />
-            </div>
+        {[
+          {
+            title: '1. About Aurora Growth Academy',
+            body: `Aurora Growth Academy (\u201Cwe\u201D, \u201Cus\u201D, \u201Cour\u201D) is an educational software platform that provides investment methodology tools, market information, and educational content. Aurora Growth Academy is operated as an educational service and is not a financial services firm, investment adviser, stockbroker, or portfolio manager.
 
-            <h1 className="bg-gradient-to-r from-cyan-400 via-sky-400 to-violet-400 bg-clip-text text-4xl font-extrabold text-transparent sm:text-5xl">
-              Terms & Conditions
-            </h1>
+Aurora Growth Academy is not authorised or regulated by the Financial Conduct Authority (FCA) or any other financial regulator to provide financial advice, investment advice, or portfolio management services.`
+          },
+          {
+            title: '2. Educational Purpose Only',
+            body: `All content, tools, calculators, data, analysis, and information provided on Aurora Growth Academy (\u201Cthe Platform\u201D) is for educational and informational purposes only.
 
-            <p className="mt-4 text-white/70">Effective date: 10 March 2026</p>
+Nothing on the Platform constitutes or should be construed as: financial advice; investment advice; a recommendation to buy or sell any investment; an offer or solicitation to buy or sell any investment; or tax advice.
+
+You are solely responsible for all investment decisions you make. We strongly recommend you seek independent regulated financial advice before making any investment decision.`
+          },
+          {
+            title: '3. Subscription and Payment',
+            body: `Aurora Growth Academy offers paid subscription plans (Core, Pro, Elite) providing access to the Platform\u2019s features. By subscribing you agree to pay the applicable subscription fee.
+
+Subscriptions are billed on a recurring monthly or annual basis as selected at the time of purchase. Payments are processed by Stripe. You can cancel your subscription at any time from your account settings. Cancellation takes effect at the end of the current billing period.
+
+We reserve the right to change subscription pricing with 30 days\u2019 notice to existing subscribers.`
+          },
+          {
+            title: '4. Acceptable Use',
+            body: `You agree to use Aurora Growth Academy solely for your own personal educational purposes. You must not: share your account credentials with others; redistribute, resell, or commercially exploit any content from the Platform; use automated tools to scrape or extract data from the Platform; use the Platform for any unlawful purpose; or attempt to circumvent any security measures.
+
+You must be at least 18 years of age to use Aurora Growth Academy.`
+          },
+          {
+            title: '5. Third-Party Integrations',
+            body: `Aurora Growth Academy integrates with third-party services including Trading 212 and Telegram. Your use of these services is subject to their own terms and conditions. Aurora Growth Academy does not hold, manage, or have access to your investment funds through any broker integration. Any orders placed through broker integrations are placed by you directly with your broker.`
+          },
+          {
+            title: '6. Disclaimer of Warranties',
+            body: `The Platform is provided \u201Cas is\u201D without any warranty of any kind, express or implied. We do not warrant that: the Platform will be uninterrupted or error-free; market data will be accurate, complete, or up to date; any investment methodology will generate profits; or the Platform will meet your particular requirements.
+
+Market data is provided for educational purposes and may be delayed. Do not rely on Platform data for time-sensitive trading decisions.`
+          },
+          {
+            title: '7. Limitation of Liability',
+            body: `To the fullest extent permitted by law, Aurora Growth Academy shall not be liable for any investment losses, financial losses, or any indirect, incidental, special, consequential, or punitive damages arising from your use of the Platform or your reliance on any information provided.
+
+Our total liability to you for any direct losses shall not exceed the total subscription fees paid by you in the 12 months preceding the claim.`
+          },
+          {
+            title: '8. Intellectual Property',
+            body: `All content, methodology, software, and materials on the Platform are the intellectual property of Aurora Growth Academy and are protected by applicable copyright and other intellectual property laws. You may not copy, reproduce, distribute, or create derivative works from any Platform content without our written permission.`
+          },
+          {
+            title: '9. Privacy',
+            body: `Your use of Aurora Growth Academy is subject to our Privacy Policy, which is incorporated into these Terms by reference. By using the Platform you consent to our collection and use of your personal data as described in our Privacy Policy.`
+          },
+          {
+            title: '10. Changes to Terms',
+            body: `We reserve the right to update these Terms at any time. We will notify you of material changes by email or via the Platform. Your continued use of the Platform after changes take effect constitutes your acceptance of the revised Terms.`
+          },
+          {
+            title: '11. Governing Law',
+            body: `These Terms are governed by the laws of England and Wales. Any disputes arising from these Terms or your use of the Platform shall be subject to the exclusive jurisdiction of the courts of England and Wales.`
+          },
+          {
+            title: '12. Contact',
+            body: `For any questions about these Terms please contact us at: info@auroragrowth.co.uk`
+          },
+        ].map(section => (
+          <div key={section.title}
+            className="p-6 rounded-2xl space-y-3"
+            style={{ background: '#0a0f1e', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <h2 className="text-white font-bold text-base">{section.title}</h2>
+            {section.body.split('\n\n').map((para, i) => (
+              <p key={i} className="text-white/60 text-sm leading-relaxed">{para}</p>
+            ))}
           </div>
+        ))}
 
-          <div className="space-y-8 text-sm leading-7 text-white/80 sm:text-base">
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">1. Introduction</h2>
-              <p>
-                These Terms & Conditions govern your use of Aurora Growth, including
-                our website, dashboard, member areas, watchlists, calculators,
-                analytics, and related digital services. By using Aurora Growth or
-                creating an account, you agree to these Terms.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">2. About the Service</h2>
-              <p>
-                Aurora Growth is a digital platform providing access to market tools,
-                research features, educational content, dashboards, subscription
-                services, and related software functionality.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">3. Eligibility</h2>
-              <p>
-                You must be at least 18 years old and legally able to enter into a
-                binding agreement to use Aurora Growth. You agree that any information
-                you provide during registration is accurate and complete.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">4. Your Account</h2>
-              <p>
-                You are responsible for keeping your login details secure and for any
-                activity carried out under your account. You must notify us promptly if
-                you believe your account has been accessed without authorisation.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">5. Subscriptions and Payments</h2>
-              <p>
-                Some features may only be available under a paid plan. By subscribing,
-                you agree to pay the applicable fees and any recurring charges unless
-                cancelled. We may suspend or remove paid access if payment fails,
-                expires, is reversed, or is cancelled.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">6. No Financial Advice</h2>
-              <p>
-                Aurora Growth is provided for educational, informational, and research
-                purposes only. Nothing on the platform constitutes financial,
-                investment, legal, or tax advice, or a recommendation to buy or sell
-                any asset, instrument, or security. You remain fully responsible for
-                your own decisions.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">7. Data and Availability</h2>
-              <p>
-                We do not guarantee that any market data, alerts, screeners, charts,
-                prices, analytics, or other information displayed through Aurora Growth
-                will always be accurate, complete, current, uninterrupted, or error-free.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">8. Acceptable Use</h2>
-              <p>
-                You agree not to misuse Aurora Growth, attempt unauthorised access,
-                interfere with the service, upload harmful code, scrape protected
-                content, resell restricted features, or use the platform for unlawful,
-                abusive, or fraudulent purposes.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">9. Intellectual Property</h2>
-              <p>
-                All branding, software, layouts, dashboards, text, graphics, content,
-                and platform functionality are owned by or licensed to Aurora Growth
-                unless otherwise stated. You may not copy, modify, distribute, or
-                commercially exploit any part of the service without permission.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">10. Suspension and Termination</h2>
-              <p>
-                We may suspend, restrict, or terminate access where necessary for
-                security, maintenance, legal reasons, non-payment, or breach of these
-                Terms.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">11. Limitation of Liability</h2>
-              <p>
-                To the fullest extent permitted by law, Aurora Growth shall not be
-                liable for any indirect, incidental, special, consequential, or
-                economic loss, including trading losses, investment losses, loss of
-                profits, loss of data, or business interruption arising from use of the
-                platform.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">12. Service Provided As Is</h2>
-              <p>
-                Aurora Growth is provided on an “as is” and “as available” basis,
-                without warranties of any kind, whether express or implied.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">13. Changes to the Service</h2>
-              <p>
-                We may update, improve, suspend, withdraw, or change any part of Aurora
-                Growth at any time, including features, plans, integrations, and
-                pricing.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">14. Changes to These Terms</h2>
-              <p>
-                We may revise these Terms from time to time. Continued use of Aurora
-                Growth after changes take effect means you accept the updated Terms.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">15. Governing Law</h2>
-              <p>
-                These Terms are governed by the laws of England and Wales. Any dispute
-                relating to them shall be subject to the exclusive jurisdiction of the
-                courts of England and Wales.
-              </p>
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-xl font-semibold text-white">16. Contact</h2>
-              <p>
-                If you have any questions about these Terms & Conditions, please
-                contact Aurora Growth using the contact details shown on the website.
-              </p>
-            </section>
-          </div>
+        <div className="p-4 rounded-xl bg-amber-400/8 border border-amber-400/20">
+          <p className="text-amber-400/80 text-xs leading-relaxed">
+            <strong>Educational use only.</strong> Aurora Growth Academy does not provide financial advice
+            and is not regulated by the FCA. Capital at risk.
+          </p>
         </div>
+
+        <p className="text-white/20 text-xs text-center">
+          Aurora Growth Academy &middot; {updated}
+        </p>
       </div>
-    </main>
-  );
+    </div>
+  )
 }

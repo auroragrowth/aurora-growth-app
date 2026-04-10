@@ -49,11 +49,11 @@ ${symbol} has ${typeText} of *$${targetPrice.toFixed(2)}*
 
 Current price: $${currentPrice.toFixed(2)}
 
-_Review your position in Aurora Growth_`
+_Review your position in Aurora Growth Academy_`
 }
 
 export function welcomeMessage(firstName: string): string {
-  return `✦ *Aurora Growth — Connected!*
+  return `✦ *Aurora Growth Academy — Connected!*
 
 Welcome ${firstName}! Your Telegram is now linked.
 
@@ -62,5 +62,5 @@ You will receive alerts here when:
 📉 A stock drops to your entry level
 ⚡ An Aurora ladder entry is triggered
 
-_Aurora Growth — Invest with clarity_`
+_Aurora Growth Academy — Invest with clarity_`
 }

@@ -22,6 +22,7 @@ password
 
 if(!error){
 setMessage("Password updated");
+fetch("/api/auth/password-changed", { method: "POST" }).catch(() => {});
 setTimeout(()=>router.push("/login"),1500);
 }
 

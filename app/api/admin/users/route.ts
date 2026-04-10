@@ -12,7 +12,7 @@ export async function GET() {
     const { data, error } = await supabaseAdmin
       .from("profiles")
       .select(
-        "id, email, first_name, full_name, plan_key, subscription_status, is_admin, is_suspended, suspended_reason, telegram_connected, trading212_connected, created_at, last_login_at"
+        "id, email, first_name, full_name, plan_key, subscription_status, is_admin, is_suspended, suspended_reason, telegram_connected, trading212_connected, created_at, last_login_at, compliance_accepted, compliance_accepted_at"
       )
       .order("created_at", { ascending: false });
 

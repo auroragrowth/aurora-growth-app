@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+
 export async function GET() {
   try {
     const res = await fetch(
       "https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?interval=1d&range=1y",
       {
         headers: { "User-Agent": "Mozilla/5.0 (compatible; AuroraGrowth/1.0)" },
-        next: { revalidate: 300 },
+        cache: "no-store",
       }
     );
 
@@ -24,7 +27,16 @@ export async function GET() {
     const timestamps = result?.timestamp || [];
 
     const current = meta?.regularMarketPrice ?? 0;
-    const prevClose = meta?.chartPreviousClose ?? current;
+
+    // Find previous trading day's close (last non-null close before the most recent)
+    let prevClose = current;
+    for (let i = closes.length - 2; i >= 0; i--) {
+      if (closes[i] != null) {
+        prevClose = closes[i];
+        break;
+      }
+    }
+
     const change = current - prevClose;
     const changePct = prevClose > 0 ? (change / prevClose) * 100 : 0;
 

@@ -280,8 +280,8 @@ export default function WatchlistPage() {
   function existingAlertsForModal(symbol: string) {
     const all = alerts.filter((a) => a.symbol === symbol && !a.triggered);
     return {
-      above: all.find((a) => a.alert_type === "price_above") || undefined,
-      below: all.find((a) => a.alert_type === "price_below") || undefined,
+      above: all.find((a) => a.alert_type === "above") || undefined,
+      below: all.find((a) => a.alert_type === "below") || undefined,
       entry: all.find((a) => a.alert_type === "entry_level") || undefined,
     };
   }

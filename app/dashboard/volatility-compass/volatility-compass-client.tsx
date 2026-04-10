@@ -215,7 +215,7 @@ export default function VolatilityCompassClient({
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(91,140,255,0.22),_transparent_35%),linear-gradient(180deg,#020b22_0%,#081734_45%,#12357e_100%)] text-white">
-      <div className="mx-auto max-w-7xl px-6 py-10">
+      <div className="mx-auto px-6 py-10">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="text-xs uppercase tracking-[0.28em] text-cyan-300/80">

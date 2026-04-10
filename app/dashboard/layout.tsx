@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
+import ComplianceFooter from "@/components/compliance/ComplianceFooter";
+import CookieBanner from "@/components/compliance/CookieBanner";
+import ComplianceAcceptanceModal from "@/components/compliance/ComplianceAcceptanceModal";
 import DashboardShell from "@/components/dashboard/DashboardShell";
 import WelcomeModal from "@/components/dashboard/WelcomeModal";
 import ExpiryBanner from "@/components/dashboard/ExpiryBanner";
 import { BrokerPopupProvider } from "@/components/providers/BrokerPopupProvider";
 import { PortfolioProvider } from "@/components/providers/PortfolioProvider";
 import { SubscriptionProvider } from "@/components/providers/SubscriptionProvider";
-import OnboardingTour from "@/components/onboarding/OnboardingTour";
+
 import QuickStartGuide from "@/components/onboarding/QuickStartGuide";
 import BrokerConnectPopup from "@/components/onboarding/BrokerConnectPopup";
 import AuroraChatWidget from "@/components/chat/AuroraChatWidget";
@@ -147,13 +150,16 @@ export default async function DashboardLayout({
           brokerStatus={brokerStatus}
           brokerConnected={brokerConnected}
         >
+          <ComplianceAcceptanceModal />
           <ExpiryBanner />
           {children}
+          <ComplianceFooter />
           <WelcomeModal firstName={fullName.split(" ")[0]} />
-          <OnboardingTour />
+
           <QuickStartGuide />
           <BrokerConnectPopup />
           <AuroraChatWidget />
+          <CookieBanner />
         </DashboardShell>
       </BrokerPopupProvider>
       </PortfolioProvider>

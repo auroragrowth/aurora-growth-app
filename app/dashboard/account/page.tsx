@@ -6,6 +6,7 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import AccountProfileForm from "./AccountProfileForm";
 import RestartTourButton from "./RestartTourButton";
 import CopyButton from "./CopyButton";
+import ComplianceStatus from "@/components/compliance/ComplianceStatus";
 
 function getPlanLabel(plan: string | null | undefined) {
   switch ((plan || "").toLowerCase()) {
@@ -134,7 +135,7 @@ export default async function AccountPage() {
       : "border-white/10 bg-white/5 text-slate-400";
 
   return (
-    <div className="mx-auto w-full max-w-[1100px] space-y-6 px-2">
+    <div className="mx-auto w-full space-y-6 px-2">
 
       {/* ═══ SECTION 1 — Profile Header ═══ */}
       <section className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-8 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
@@ -301,7 +302,10 @@ export default async function AccountPage() {
         </div>
       </section>
 
-      {/* ═══ SECTION 6 — Account Actions ═══ */}
+      {/* ═══ SECTION 6 — Terms & Compliance ═══ */}
+      <ComplianceStatus />
+
+      {/* ═══ SECTION 7 — Account Actions ═══ */}
       <section className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] p-8 shadow-[0_28px_90px_rgba(0,0,0,0.32)]">
         <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">Account Actions</div>
 

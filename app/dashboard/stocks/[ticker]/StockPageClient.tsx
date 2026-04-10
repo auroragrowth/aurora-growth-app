@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Tooltip from '@/components/ui/Tooltip'
+import AuroraStockCalculator from '@/components/stocks/AuroraStockCalculator'
 
 /* ────────────────────────────────────────────
    TradingView Widget Helpers
@@ -183,7 +184,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
 
       {/* TOP SEARCH BAR */}
       <div className="border-b border-white/10 bg-[#080f1e]/80 backdrop-blur px-6 py-3">
-        <div className="max-w-7xl mx-auto flex items-center gap-3">
+        <div className="mx-auto flex items-center gap-3">
           <button onClick={() => router.back()}
             className="text-white/40 hover:text-white transition-colors text-sm flex items-center gap-1">
             &larr; Back
@@ -218,7 +219,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
 
       {/* STOCK INFO BAR */}
       <div className="border-b border-white/10 px-6 py-4 bg-[#080f1e]">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+        <div className="mx-auto flex flex-wrap items-center justify-between gap-4">
 
           {/* Price block */}
           <div className="flex items-center gap-6">
@@ -303,7 +304,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
       </div>
 
       {/* CONTENT */}
-      <div className="max-w-7xl mx-auto px-6 py-6 space-y-6">
+      <div className="mx-auto px-6 py-6 space-y-6">
 
         {/* 4 metric cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -401,8 +402,19 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
             </div>
           </div>
 
-          {/* RIGHT — Intelligence + News + Profile */}
+          {/* RIGHT — Calculator + Intelligence + News + Profile */}
           <div className="space-y-6">
+
+            {/* Aurora Calculator */}
+            {stockData && price > 0 && (
+              <AuroraStockCalculator
+                ticker={ticker}
+                currentPrice={price}
+                lastPeak={stockData.mostRecentHatPrice || null}
+                lastPeakDate={stockData.mostRecentHatDate || null}
+                dropFromPeak={stockData.dropFromHatPct || null}
+              />
+            )}
 
             {/* Aurora Intelligence */}
             <div className="bg-white/5 border border-white/10 rounded-2xl p-5">

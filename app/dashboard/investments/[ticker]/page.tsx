@@ -1,16 +1,27 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getCurrentUser, getUserConnection, getBaseUrl } from "@/lib/trading212/connections";
+import { trading212Fetch, getTrading212AuthHeader } from "@/lib/trading212/client";
 
 type Trading212Position = {
+  // Nested format (older/detail endpoints)
   instrument?: {
     ticker?: string;
     name?: string;
     currency?: string;
     isin?: string;
   };
+  // Flat format (portfolio endpoint)
+  ticker?: string;
+  companyName?: string;
+  fullName?: string;
   quantity?: number;
   currentPrice?: number;
+  averagePrice?: number;
   averagePricePaid?: number;
+  ppl?: number;
+  fxPpl?: number;
+  initialFillDate?: string;
   walletImpact?: {
     currency?: string;
     totalCost?: number;
@@ -21,11 +32,6 @@ type Trading212Position = {
   createdAt?: string;
 };
 
-type RouteResponse = {
-  ok?: boolean;
-  positions?: Trading212Position[];
-  error?: string;
-};
 
 function num(value?: number | null) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
@@ -201,28 +207,110 @@ function buildAuroraLadder(params: {
   };
 }
 
-async function getPosition(ticker: string) {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    "http://127.0.0.1:3001";
+// Cache instruments per mode
+const instrumentCache = new Map<string, { data: any[]; cachedAt: number }>();
+const INST_CACHE_TTL = 300_000;
 
-  const res = await fetch(`${baseUrl}/api/trading212/positions`, {
-    cache: "no-store",
-  });
+async function getInstrumentNames(connection: any): Promise<Record<string, string>> {
+  const mode = connection.mode || "live";
+  const cached = instrumentCache.get(mode);
+  const nameMap: Record<string, string> = {};
 
-  const json = (await res.json()) as RouteResponse;
-
-  if (!res.ok || !json?.ok || !Array.isArray(json.positions)) {
-    return null;
+  let instruments: any[] = [];
+  if (cached && Date.now() - cached.cachedAt < INST_CACHE_TTL) {
+    instruments = cached.data;
+  } else {
+    try {
+      const baseUrl = connection.base_url || getBaseUrl(mode);
+      const auth = getTrading212AuthHeader(connection);
+      const res = await fetch(`${baseUrl}/equity/metadata/instruments`, {
+        headers: { Authorization: auth },
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          instruments = data;
+          instrumentCache.set(mode, { data: instruments, cachedAt: Date.now() });
+        }
+      }
+    } catch {}
   }
 
+  for (const inst of instruments) {
+    if (inst.ticker) {
+      nameMap[inst.ticker] = inst.shortName || inst.name || inst.ticker;
+    }
+  }
+  return nameMap;
+}
+
+async function getPosition(ticker: string) {
   const normalTicker = decodeURIComponent(ticker).toUpperCase();
 
-  return (
-    json.positions.find((p) => cleanTicker(p.instrument?.ticker).toUpperCase() === normalTicker) ||
-    null
-  );
+  try {
+    const user = await getCurrentUser();
+    const connection = await getUserConnection(user.id);
+
+    if (!connection?.api_key_encrypted || !connection.is_connected) {
+      return null;
+    }
+
+    // Fetch positions and instrument names in parallel
+    const [positions, nameMap] = await Promise.all([
+      trading212Fetch<any[]>(connection, "/equity/portfolio").catch(() => []),
+      getInstrumentNames(connection),
+    ]);
+
+    if (!Array.isArray(positions)) return null;
+
+    const match = positions.find((p: any) => {
+      const t = (p.ticker || "");
+      return cleanTicker(t).toUpperCase() === normalTicker;
+    });
+
+    if (!match) return null;
+
+    return normalizePosition(match, nameMap);
+  } catch (e) {
+    console.error("[Investment Detail]", e);
+    return null;
+  }
+}
+
+/** Normalize flat T212 position data into the nested format this page expects */
+function normalizePosition(p: any, nameMap?: Record<string, string>): Trading212Position {
+  // If already has instrument wrapper, return as-is
+  if (p.instrument?.ticker) return p;
+
+  const ticker = p.ticker || "";
+  const qty = num(p.quantity);
+  const avg = num(p.averagePrice || p.averagePricePaid);
+  const cur = num(p.currentPrice);
+  const ppl = num(p.ppl);
+  const cost = qty * avg;
+  const value = qty * cur;
+  const companyName = nameMap?.[ticker] || p.companyName || p.fullName || cleanTicker(ticker);
+
+  return {
+    instrument: {
+      ticker: ticker,
+      name: companyName,
+      currency: p.currencyCode || "USD",
+      isin: p.isin || undefined,
+    },
+    quantity: qty,
+    currentPrice: cur,
+    averagePricePaid: avg,
+    walletImpact: {
+      currency: p.currencyCode || "USD",
+      totalCost: cost,
+      currentValue: value,
+      unrealizedProfitLoss: ppl || (value - cost),
+      fxImpact: num(p.fxPpl),
+    },
+    createdAt: p.initialFillDate || p.createdAt || undefined,
+  };
 }
 
 export default async function InvestmentTickerPage({
@@ -272,7 +360,7 @@ export default async function InvestmentTickerPage({
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.18),_transparent_28%),radial-gradient(circle_at_75%_18%,_rgba(99,102,241,0.16),_transparent_30%),linear-gradient(180deg,#020617_0%,#071226_42%,#020617_100%)] text-white">
-      <div className="mx-auto max-w-7xl px-6 py-10">
+      <div className="mx-auto px-6 py-10">
         <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="mb-3">
