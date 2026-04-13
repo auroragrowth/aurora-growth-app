@@ -237,7 +237,7 @@ function ConnectModal({ onClose }: { onClose: (anyConnected: boolean) => void })
       <div
         className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl"
         style={{
-          background: "#080f1e",
+          background: "var(--bg-card)",
           border: "1px solid rgba(87,211,243,0.2)",
           boxShadow: "0 0 60px rgba(87,211,243,0.08)",
         }}
@@ -245,7 +245,7 @@ function ConnectModal({ onClose }: { onClose: (anyConnected: boolean) => void })
         {/* Header */}
         <div
           className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/10 sticky top-0 z-10"
-          style={{ background: "#080f1e" }}
+          style={{ background: "var(--bg-card)" }}
         >
           <div>
             <h2 className="text-white font-bold text-lg">

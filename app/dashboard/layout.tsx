@@ -12,6 +12,7 @@ import { SubscriptionProvider } from "@/components/providers/SubscriptionProvide
 import QuickStartGuide from "@/components/onboarding/QuickStartGuide";
 import BrokerConnectPopup from "@/components/onboarding/BrokerConnectPopup";
 import AuroraChatWidget from "@/components/chat/AuroraChatWidget";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 import { createClient } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -160,6 +161,10 @@ export default async function DashboardLayout({
           <BrokerConnectPopup />
           <AuroraChatWidget />
           <CookieBanner />
+          {/* Theme toggle — floating */}
+          <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 100 }}>
+            <ThemeToggle />
+          </div>
         </DashboardShell>
       </BrokerPopupProvider>
       </PortfolioProvider>

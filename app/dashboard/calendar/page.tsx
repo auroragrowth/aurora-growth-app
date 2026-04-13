@@ -25,68 +25,63 @@ export default function CalendarPage() {
   }, [])
 
   return (
-    <div className="px-4 py-8 mx-auto space-y-6">
-
-      {/* Header */}
+    <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">Economic Calendar</h1>
-        <p className="text-white/40 text-sm mt-1">
+        <h1 className="text-2xl font-bold" style={{ color: 'var(--text-1)' }}>
+          Economic Calendar
+        </h1>
+        <p className="text-sm mt-1" style={{ color: 'var(--text-2)' }}>
           Upcoming high-impact events that may affect your watchlist stocks
         </p>
       </div>
 
-      {/* Calendar card */}
-      <div className="rounded-[32px] border border-cyan-500/12 bg-[linear-gradient(180deg,rgba(8,20,43,0.98),rgba(3,12,28,0.98))] shadow-[0_28px_90px_rgba(0,0,0,0.32)] overflow-hidden"
+      <div className="rounded-2xl overflow-hidden"
         style={{
-          height: 'calc(100vh - 220px)',
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          height: 'calc(100vh - 240px)',
           minHeight: '500px',
         }}>
-
-        {/* Card header */}
-        <div className="px-5 py-4 border-b flex items-center justify-between"
-          style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+        <div className="px-5 py-4 border-b flex items-center justify-between flex-wrap gap-3"
+          style={{ borderColor: 'var(--border)' }}>
           <div className="flex items-center gap-3">
-            <span className="text-lg">{'\u{1F4C5}'}</span>
+            <span className="text-lg">📅</span>
             <div>
-              <p className="text-white font-bold text-sm">Global Economic Events</p>
-              <p className="text-white/30 text-xs">
-                US &middot; EU &middot; GB &middot; JP &middot; CA &middot; AU &mdash; filtered to high impact
+              <p className="font-bold text-sm" style={{ color: 'var(--text-1)' }}>
+                Global Economic Events
+              </p>
+              <p className="text-xs" style={{ color: 'var(--text-2)' }}>
+                US · EU · GB · JP · CA · AU — filtered to high impact
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {[
-              { dot: 'bg-red-400', label: 'High' },
-              { dot: 'bg-amber-400', label: 'Medium' },
-              { dot: 'bg-white/30', label: 'Low' },
+              { dot: '#ef4444', label: 'High' },
+              { dot: '#f59e0b', label: 'Medium' },
+              { dot: 'var(--text-3)', label: 'Low' },
             ].map(item => (
               <div key={item.label} className="flex items-center gap-1.5">
-                <span className={`w-2 h-2 rounded-full ${item.dot}`} />
-                <span className="text-white/30 text-xs">{item.label}</span>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: item.dot, display: 'inline-block', flexShrink: 0 }} />
+                <span className="text-xs font-bold" style={{ color: 'var(--text-2)' }}>{item.label}</span>
               </div>
             ))}
           </div>
         </div>
-
-        {/* TradingView widget */}
-        <div ref={ref}
-          className="tradingview-widget-container"
-          style={{ height: 'calc(100% - 57px)', width: '100%' }}
-        />
+        <div ref={ref} className="tradingview-widget-container"
+          style={{ height: 'calc(100% - 57px)', width: '100%' }} />
       </div>
 
-      {/* Tip */}
-      <div className="flex items-start gap-3 rounded-xl border border-white/8 bg-[rgba(8,20,43,0.9)] p-4">
-        <span className="text-cyan-400 flex-shrink-0 mt-0.5">{'\u{1F4A1}'}</span>
-        <p className="text-white/40 text-xs leading-relaxed">
-          Check this calendar before placing any Aurora orders.
-          High-impact events &mdash; particularly Federal Reserve decisions,
-          Non-Farm Payrolls, and CPI inflation data &mdash; can cause sharp
-          short-term price movements. Consider waiting until after
+      <div className="flex items-start gap-3 p-4 rounded-xl"
+        style={{ background: 'rgba(8,145,178,0.06)', border: '1px solid rgba(8,145,178,0.15)' }}>
+        <span className="flex-shrink-0 mt-0.5" style={{ color: '#38d9f5' }}>💡</span>
+        <p className="text-xs leading-relaxed" style={{ color: 'var(--text-2)' }}>
+          Check this calendar before placing any Aurora orders. High-impact events —
+          particularly Federal Reserve decisions, Non-Farm Payrolls, and CPI inflation
+          data — can cause sharp short-term price movements. Consider waiting until after
           major events before entering a new position.
         </p>
       </div>
-
     </div>
   )
 }

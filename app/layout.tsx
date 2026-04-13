@@ -1,3 +1,4 @@
+import { ThemeProvider } from '@/components/theme/ThemeProvider'
 import "./globals.css";
 import type { Metadata } from "next";
 import { WatchlistProvider } from "@/components/watchlist/WatchlistProvider";
@@ -20,9 +21,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body suppressHydrationWarning>
-        <WatchlistProvider>{children}<AuroraToastHost />
-        <CookieBanner />
-        </WatchlistProvider>
+        <ThemeProvider>
+          <WatchlistProvider>{children}<AuroraToastHost />
+          <CookieBanner />
+          </WatchlistProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

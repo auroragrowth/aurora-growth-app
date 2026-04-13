@@ -1,7 +1,6 @@
 @import "tailwindcss";
-@source "../app/**/*.{ts,tsx,js,jsx}";
-@source "../components/**/*.{ts,tsx,js,jsx}";
-@source "../lib/**/*.{ts,tsx,js,jsx}";
+
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* =========================================================
    AURORA GROWTH — PREMIUM DASHBOARD GLOBALS
@@ -997,3 +996,458 @@ video {
 .sidebar-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(255,255,255,0.15);
 }
+
+
+/* ── Light mode aggressive overrides ── */
+/* Most components use hardcoded dark hex bg + text-white. Override them in .light. */
+
+.light body,
+.light main,
+.light [class*="bg-[#02"],
+.light [class*="bg-[#03"],
+.light [class*="bg-[#04"],
+.light [class*="bg-[#05"],
+.light [class*="bg-[#06"],
+.light [class*="bg-[#07"],
+.light [class*="bg-[#08"],
+.light [class*="bg-[#09"],
+.light [class*="bg-[#0a"],
+.light [class*="bg-[#0b"],
+.light [class*="bg-[#0c"],
+.light [class*="bg-[#0d"],
+.light [class*="bg-[#0e"],
+.light [class*="bg-[#0f"],
+.light [class*="bg-[#10"],
+.light [class*="bg-[#11"],
+.light [class*="bg-[#12"],
+.light [class*="bg-[#13"],
+.light [class*="bg-[#14"] {
+  background-color: #ffffff !important;
+  background-image: none !important;
+}
+
+/* Cards: a touch of grey so they pop against white body */
+.light [class*="bg-[#08"],
+.light [class*="bg-[#09"],
+.light [class*="bg-[#0a"],
+.light [class*="bg-[#0b"] {
+  background-color: #f8fafc !important;
+}
+
+/* Subtle white overlay tints used for cards/buttons — invert to subtle dark tints */
+.light .bg-white\/5  { background-color: rgba(0,0,0,0.04) !important; }
+.light .bg-white\/6  { background-color: rgba(0,0,0,0.05) !important; }
+.light .bg-white\/8  { background-color: rgba(0,0,0,0.06) !important; }
+.light .bg-white\/10 { background-color: rgba(0,0,0,0.07) !important; }
+.light .hover\:bg-white\/5:hover  { background-color: rgba(0,0,0,0.05) !important; }
+.light .hover\:bg-white\/6:hover  { background-color: rgba(0,0,0,0.06) !important; }
+.light .hover\:bg-white\/10:hover { background-color: rgba(0,0,0,0.08) !important; }
+
+/* Borders */
+.light [class*="border-white/"],
+.light [class*="border-cyan-300/"],
+.light [class*="ring-white/"] {
+  border-color: rgba(0,0,0,0.10) !important;
+}
+
+/* Text colors */
+.light .text-white          { color: #0f172a !important; }
+.light .text-white\/90      { color: #1e293b !important; }
+.light .text-white\/80      { color: #334155 !important; }
+.light .text-white\/78      { color: #334155 !important; }
+.light .text-white\/70      { color: #475569 !important; }
+.light .text-white\/60      { color: #475569 !important; }
+.light .text-white\/55      { color: #64748b !important; }
+.light .text-white\/50      { color: #64748b !important; }
+.light .text-white\/45      { color: #64748b !important; }
+.light .text-white\/40      { color: #94a3b8 !important; }
+.light .text-white\/30      { color: #94a3b8 !important; }
+.light .text-white\/25      { color: #94a3b8 !important; }
+.light .text-white\/20      { color: #cbd5e1 !important; }
+.light .text-slate-100,
+.light .text-slate-200,
+.light .text-slate-300,
+.light .text-slate-400 { color: #475569 !important; }
+
+/* Soft shadow on cards in light mode so they're visible */
+.light [class*="rounded-3xl"][class*="bg-"],
+.light [class*="rounded-2xl"][class*="bg-"] {
+  box-shadow: 0 1px 3px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04);
+}
+
+
+/* ═══════════════════════════════════════
+   AURORA THEME SYSTEM — LIGHT & DARK
+═══════════════════════════════════════ */
+
+/* ── Dark mode (default) ── */
+:root, .dark {
+  --bg-page:       #020c1b;
+  --bg-surface:    #041225;
+  --bg-card:       #071830;
+  --bg-card-2:     #0a1f3a;
+  --bg-input:      rgba(255,255,255,0.05);
+  --bg-hover:      rgba(255,255,255,0.04);
+  --border:        rgba(100,160,255,0.10);
+  --border-strong: rgba(100,160,255,0.20);
+  --text-1:        #e8f1ff;
+  --text-2:        #8ba4c0;
+  --text-3:        #4a6080;
+  --shadow:        0 4px 24px rgba(0,0,0,0.40);
+}
+
+/* ── Light mode ── */
+.light {
+  --bg-page:       #f0f4f8;
+  --bg-surface:    #e8eef5;
+  --bg-card:       #ffffff;
+  --bg-card-2:     #f8fafc;
+  --bg-input:      rgba(0,0,0,0.04);
+  --bg-hover:      rgba(0,0,0,0.03);
+  --border:        rgba(0,0,0,0.09);
+  --border-strong: rgba(0,0,0,0.15);
+  --text-1:        #0f172a;
+  --text-2:        #334155;
+  --text-3:        #64748b;
+  --shadow:        0 4px 24px rgba(0,0,0,0.08);
+}
+
+/* ── Light mode global overrides ── */
+
+.light body,
+.light main,
+.light #__next,
+.light [data-theme="light"] {
+  background-color: var(--bg-page) !important;
+  color: var(--text-1) !important;
+}
+
+/* ── SIDEBAR ── */
+.light aside,
+.light [class*="sidebar"],
+.light [class*="Sidebar"],
+.light nav[class*="side"] {
+  background-color: #ffffff !important;
+  border-color: rgba(0,0,0,0.08) !important;
+}
+
+.light aside a,
+.light aside button,
+.light aside span,
+.light aside p {
+  color: #334155 !important;
+}
+.light aside a:hover,
+.light aside button:hover {
+  background-color: rgba(0,0,0,0.04) !important;
+  color: #0f172a !important;
+}
+
+.light aside a[aria-current="page"],
+.light aside .active {
+  background-color: rgba(8,145,178,0.10) !important;
+  color: #0891b2 !important;
+}
+
+/* ── TOPBAR ── */
+.light header,
+.light [class*="topbar"],
+.light [class*="Topbar"],
+.light [class*="top-bar"] {
+  background: rgba(255,255,255,0.95) !important;
+  border-bottom-color: rgba(0,0,0,0.08) !important;
+  backdrop-filter: blur(12px);
+}
+
+/* ── CARDS & TILES ── */
+.light div[style*="#0a1628"],
+.light div[style*="#080f1e"],
+.light div[style*="#071830"],
+.light div[style*="#041225"],
+.light div[style*="#030712"],
+.light div[style*="#020c1b"],
+.light div[style*="#0a0f1e"],
+.light div[style*="0a1628"],
+.light div[style*="080f1e"],
+.light div[style*="071830"] {
+  background: #ffffff !important;
+  border-color: rgba(0,0,0,0.09) !important;
+}
+
+.light div[class*="rounded-2xl"],
+.light div[class*="rounded-xl"] {
+  --tw-ring-color: rgba(0,0,0,0.09);
+}
+
+/* ── TEXT ── */
+.light .text-white,
+.light [class*="text-white"]:not([class*="text-white/"]) {
+  color: #0f172a !important;
+}
+.light .text-white\/70,
+.light .text-white\/60,
+.light .text-white\/50 {
+  color: #334155 !important;
+}
+.light .text-white\/40,
+.light .text-white\/30 {
+  color: #64748b !important;
+}
+.light .text-white\/20,
+.light .text-white\/15,
+.light .text-white\/10 {
+  color: #94a3b8 !important;
+}
+
+/* ── BACKGROUNDS ── */
+.light .bg-white\/5,
+.light .bg-white\/3 {
+  background-color: rgba(0,0,0,0.03) !important;
+}
+.light .bg-white\/8,
+.light .bg-white\/10 {
+  background-color: rgba(0,0,0,0.05) !important;
+}
+
+/* ── BORDERS ── */
+.light .border-white\/5,
+.light .border-white\/8,
+.light .border-white\/10,
+.light .border-white\/6 {
+  border-color: rgba(0,0,0,0.08) !important;
+}
+.light .border-white\/15,
+.light .border-white\/20 {
+  border-color: rgba(0,0,0,0.12) !important;
+}
+
+/* ── INPUTS ── */
+.light input,
+.light select,
+.light textarea {
+  background-color: #ffffff !important;
+  border-color: rgba(0,0,0,0.12) !important;
+  color: #0f172a !important;
+}
+.light input::placeholder,
+.light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+.light select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+/* ── TABLES ── */
+.light table {
+  color: #0f172a !important;
+}
+.light th {
+  color: #64748b !important;
+  border-color: rgba(0,0,0,0.08) !important;
+}
+.light td {
+  border-color: rgba(0,0,0,0.05) !important;
+}
+.light tr:hover {
+  background-color: rgba(0,0,0,0.02) !important;
+}
+
+/* ── SCROLLBAR ── */
+.light ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+.light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* ── MODALS & OVERLAYS ── */
+.light [class*="modal"],
+.light [class*="Modal"],
+.light [class*="popup"],
+.light [class*="Popup"] {
+  background-color: #ffffff !important;
+}
+
+/* ── GRADIENT TEXT ── */
+.light .gradient-text,
+.light [style*="gradient-text"],
+.light [style*="-webkit-text-fill-color: transparent"] {
+  filter: brightness(0.85);
+}
+
+/* ── SPECIFIC COMPONENT FIXES ── */
+
+.light footer {
+  background-color: #e8eef5 !important;
+  border-color: rgba(0,0,0,0.08) !important;
+}
+
+.light [style*="1a0a00"] {
+  background-color: #fffbeb !important;
+}
+
+.light .text-green-400 { color: #059669 !important; }
+.light .text-amber-400 { color: #d97706 !important; }
+.light .text-red-400   { color: #dc2626 !important; }
+.light .text-cyan-400  { color: #0891b2 !important; }
+.light .text-purple-400 { color: #7c3aed !important; }
+.light .text-blue-400  { color: #2563eb !important; }
+
+.light .bg-green-500\/12,
+.light .bg-green-500\/15 { background-color: rgba(16,185,129,0.12) !important; }
+.light .bg-amber-500\/8,
+.light .bg-amber-400\/8  { background-color: rgba(245,158,11,0.10) !important; }
+.light .bg-red-500\/5    { background-color: rgba(239,68,68,0.08) !important; }
+.light .bg-cyan-400\/8   { background-color: rgba(8,145,178,0.08) !important; }
+
+.light .font-mono {
+  color: inherit;
+}
+
+.light .animate-pulse {
+  background-color: rgba(0,0,0,0.06) !important;
+}
+
+.light .theme-toggle-track {
+  background: linear-gradient(90deg, #f59e0b, #fcd34d) !important;
+}
+
+/* ── Tailwind arbitrary-value gradient backgrounds ── */
+/* Catches bg-[linear-gradient(...)] and bg-[radial-gradient(...)] */
+.light [class*="bg-[linear-gradient"],
+.light [class*="bg-[radial-gradient"],
+.light [class*="bg-\\[linear-gradient"],
+.light [class*="bg-\\[radial-gradient"],
+.light [class*="bg-[rgba(8,20,43"],
+.light [class*="bg-[rgba(14,20,43"],
+.light [class*="bg-[rgba(3,7,18"],
+.light [class*="bg-[rgba(3,12,28"],
+.light [class*="bg-[rgba(8,14,28"],
+.light [class*="bg-[rgba(2,6,23"],
+.light [class*="bg-[rgba(0,0,0"] {
+  background: #ffffff !important;
+  background-image: none !important;
+  border-color: rgba(0,0,0,0.09) !important;
+}
+
+/* Border arbitrary colour overrides for tiles */
+.light .border-cyan-500\/12,
+.light .border-cyan-500\/15,
+.light .border-cyan-500\/20,
+.light [class*="border-cyan-500/"] {
+  border-color: rgba(8,145,178,0.20) !important;
+}
+
+/* ─────────────────────────────────────
+   LIGHT MODE — TARGETED COMPONENT FIXES
+───────────────────────────────────────*/
+
+.light [role="dialog"],
+.light [class*="modal"],
+.light [class*="Modal"],
+.light [class*="popup"],
+.light [class*="Popup"],
+.light [class*="overlay"],
+.light [class*="Overlay"] {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.light label,
+.light [class*="label"] {
+  color: #374151 !important;
+}
+
+.light input[type="text"],
+.light input[type="password"],
+.light input[type="email"],
+.light input[type="number"],
+.light select,
+.light textarea {
+  background-color: #f8fafc !important;
+  border-color: rgba(0,0,0,0.15) !important;
+  color: #0f172a !important;
+}
+.light input::placeholder,
+.light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+.light button[class*="connect"],
+.light button[class*="Connect"],
+.light a[class*="connect"],
+.light a[class*="Connect"] {
+  background: linear-gradient(90deg, #0891b2, #6366f1) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+
+.light [class*="not-connected"],
+.light [class*="notConnected"] {
+  background-color: rgba(239,68,68,0.08) !important;
+  color: #dc2626 !important;
+  border-color: rgba(239,68,68,0.2) !important;
+}
+
+.light [class*="plan"],
+.light [class*="Plan"] {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+}
+
+.light h1, .light h2, .light h3,
+.light h4, .light h5, .light h6 {
+  color: #0f172a !important;
+}
+
+.light p {
+  color: #334155;
+}
+
+.light small,
+.light [class*="text-xs"],
+.light [class*="text-sm"] {
+  color: #475569;
+}
+
+.light [class*="price"],
+.light [class*="Price"] {
+  color: #0f172a !important;
+}
+
+.light li {
+  color: #334155 !important;
+}
+
+.light hr,
+.light [class*="divider"],
+.light [class*="separator"] {
+  border-color: rgba(0,0,0,0.08) !important;
+}
+
+.light [class*="step"],
+.light [class*="Step"] {
+  color: #0f172a !important;
+}
+.light [class*="step"] p,
+.light [class*="Step"] p {
+  color: #334155 !important;
+}
+
+.light [style*="position: fixed"],
+.light [style*="position:fixed"] {
+  background-color: rgba(255,255,255,0.96) !important;
+}
+
+.light footer p,
+.light footer a {
+  color: #475569 !important;
+}
+.light footer a:hover {
+  color: #0f172a !important;
+}
+

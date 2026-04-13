@@ -65,7 +65,7 @@ export default function ConnectionGuideModal({ onClose }: { onClose: () => void 
       <div
         className="w-full max-w-lg rounded-2xl overflow-hidden"
         style={{
-          background: '#080f1e',
+          background: 'var(--bg-card)',
           border: '1px solid rgba(87,211,243,0.2)',
           boxShadow: '0 0 60px rgba(87,211,243,0.08)'
         }}

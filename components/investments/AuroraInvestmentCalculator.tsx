@@ -18,6 +18,8 @@ interface ScannerData {
 interface DropLevel {
   pct: number
   price: number
+  investment: number
+  shares: number
 }
 
 interface LadderRow {
@@ -87,18 +89,39 @@ export default function AuroraInvestmentCalculator() {
   const lastPeakDate = scannerData?.mostRecentHatDate || null
   const totalInvested = parseFloat(investment) || 1000
 
-  // Drop levels 10/20/30/40% from peak
-  const dropLevels: DropLevel[] = [10, 20, 30, 40].map(pct => ({
-    pct,
-    price: lastPeak * (1 - pct / 100)
-  }))
+  // Aurora ladder — 4 drop levels from peak
+  // Allocation: 1.25x geometric weighting so deeper drops get more capital.
+  //   Weights [1, 1.25, 1.5625, 1.953125] summing to 5.765625.
+  // Execution: L1 is never bought on its own — L1 + L2 money are combined
+  //   and bought together at L2 price. L3 and L4 are separate add-ons.
+  const LADDER_WEIGHTS = [1, 1.25, 1.5625, 1.953125]
+  const weightSum = LADDER_WEIGHTS.reduce((a, b) => a + b, 0)
+  const base = totalInvested / weightSum
+
+  // Per-level display data — raw weighted allocation, shares at each level's own price
+  const dropLevels: DropLevel[] = [10, 20, 30, 40].map((pct, i) => {
+    const price = lastPeak * (1 - pct / 100)
+    const levelInvestment = base * LADDER_WEIGHTS[i]
+    const shares = price > 0 ? levelInvestment / price : 0
+    return { pct, price, investment: levelInvestment, shares }
+  })
 
   const currentDropPct = lastPeak > 0
     ? ((lastPeak - currentPrice) / lastPeak * 100)
     : 0
 
-  // Auto BEP = average of all 4 entry levels
-  const autoBep = dropLevels.reduce((s, l) => s + l.price, 0) / dropLevels.length
+  // Actual execution — 3 buys: [L1+L2 combined @ L2 price], [L3 @ L3], [L4 @ L4]
+  const l2 = dropLevels[1]
+  const l3 = dropLevels[2]
+  const l4 = dropLevels[3]
+  const firstBuyInvestment = dropLevels[0].investment + l2.investment  // L1 + L2
+  const firstBuyShares = l2.price > 0 ? firstBuyInvestment / l2.price : 0
+  const l3Shares = l3.price > 0 ? l3.investment / l3.price : 0
+  const l4Shares = l4.price > 0 ? l4.investment / l4.price : 0
+
+  // Auto BEP = totalInvested / total shares actually purchased
+  const totalActualShares = firstBuyShares + l3Shares + l4Shares
+  const autoBep = totalActualShares > 0 ? totalInvested / totalActualShares : 0
 
   const bep = bepMode === 'manual' && manualBep
     ? parseFloat(manualBep) || autoBep
@@ -112,24 +135,32 @@ export default function AuroraInvestmentCalculator() {
     value: totalInvested * (1 + pct / 100),
   }))
 
-  // Full ladder table
-  const perLevel = totalInvested / dropLevels.length
-  const ladderRows: LadderRow[] = dropLevels.map((level, i) => {
-    const shares = perLevel / level.price
-    const cumInvested = perLevel * (i + 1)
-    const cumShares = dropLevels.slice(0, i + 1).reduce((s, l) => s + (perLevel / l.price), 0)
-    const bepCalc = cumInvested / cumShares
-    return {
-      step: i + 1,
-      dropPct: level.pct,
-      entryPrice: level.price,
-      investment: perLevel,
-      shares,
-      cumShares,
-      cumInvested,
-      bep: bepCalc,
-    }
-  })
+  // Full ladder table — 3 actual buy rows (L1 folded into L2)
+  const ladderRows: LadderRow[] = (() => {
+    const rows: LadderRow[] = []
+    const buys = [
+      { dropPct: 20, entryPrice: l2.price, investment: firstBuyInvestment, shares: firstBuyShares },
+      { dropPct: 30, entryPrice: l3.price, investment: l3.investment, shares: l3Shares },
+      { dropPct: 40, entryPrice: l4.price, investment: l4.investment, shares: l4Shares },
+    ]
+    let cumInvested = 0
+    let cumShares = 0
+    buys.forEach((buy, i) => {
+      cumInvested += buy.investment
+      cumShares += buy.shares
+      rows.push({
+        step: i + 1,
+        dropPct: buy.dropPct,
+        entryPrice: buy.entryPrice,
+        investment: buy.investment,
+        shares: buy.shares,
+        cumShares,
+        cumInvested,
+        bep: cumShares > 0 ? cumInvested / cumShares : 0,
+      })
+    })
+    return rows
+  })()
 
   const fmt = (n: number) =>
     `$${Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -277,7 +308,7 @@ export default function AuroraInvestmentCalculator() {
                 />
               </div>
               <p className="text-white/30 text-xs mt-1.5">
-                Split equally across 4 levels &mdash; {fmt(totalInvested / 4)} per level
+                1.25&times; weighted ladder &middot; first buy {fmt(firstBuyInvestment)} (L1+L2 combined) &middot; add-ons {fmt(l3.investment)} &amp; {fmt(l4.investment)}
               </p>
             </div>
           </div>
@@ -337,21 +368,28 @@ export default function AuroraInvestmentCalculator() {
                 </div>
                 <div className="p-5 space-y-2">
                   {dropLevels.map(level => {
+                    const l1Combined = level.pct === 10
                     const hit = currentPrice > 0 && currentPrice <= level.price
                     const isCurrent = currentPrice > 0 &&
                       Math.abs(currentPrice - level.price) / level.price < 0.025
+                    const roleLabel =
+                      level.pct === 10 ? 'Combined with L2 \u2014 bought at L2 price'
+                      : level.pct === 20 ? 'First buy \u2014 L1 + L2 combined here'
+                      : `Add-on \u2014 Level ${level.pct === 30 ? 3 : 4}`
                     return (
                       <div key={level.pct}
                         className={`flex items-center justify-between p-3 rounded-xl border
                         transition-all ${
-                          isCurrent ? 'bg-cyan-400/10 border-cyan-400/30'
+                          l1Combined ? 'bg-white/[0.02] border-dashed border-white/[0.10]'
+                          : isCurrent ? 'bg-cyan-400/10 border-cyan-400/30'
                           : hit ? 'bg-green-500/[0.08] border-green-500/20'
                           : 'bg-white/[0.03] border-white/[0.08]'
                         }`}>
                         <div className="flex items-center gap-3">
                           <div className={`w-9 h-9 rounded-xl flex items-center justify-center
                             text-sm font-bold flex-shrink-0 ${
-                            isCurrent ? 'bg-cyan-400/20 text-cyan-400'
+                            l1Combined ? 'bg-white/5 text-white/40'
+                            : isCurrent ? 'bg-cyan-400/20 text-cyan-400'
                             : hit ? 'bg-green-400/20 text-green-400'
                             : 'bg-white/5 text-white/40'
                           }`}>
@@ -359,25 +397,28 @@ export default function AuroraInvestmentCalculator() {
                           </div>
                           <div>
                             <p className={`font-bold text-base font-mono ${
-                              isCurrent ? 'text-cyan-400'
+                              l1Combined ? 'text-white/60'
+                              : isCurrent ? 'text-cyan-400'
                               : hit ? 'text-green-400'
                               : 'text-white'
                             }`}>
                               {fmt(level.price)}
                             </p>
                             <p className="text-white/30 text-xs">
-                              {level.pct}% below peak
-                              {hit && !isCurrent && ' \u2713 reached'}
-                              {isCurrent && ' \u2190 near here now'}
+                              {roleLabel}
+                              {!l1Combined && hit && !isCurrent && ' \u2713 reached'}
+                              {!l1Combined && isCurrent && ' \u2190 near here now'}
                             </p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-white font-bold text-sm font-mono">
-                            {fmt(totalInvested / 4)}
+                          <p className={`font-bold text-sm font-mono ${
+                            l1Combined ? 'text-white/60' : 'text-white'
+                          }`}>
+                            {fmt(level.investment)}
                           </p>
                           <p className="text-white/20 text-xs">
-                            &asymp; {(totalInvested / 4 / level.price).toFixed(4)} shares
+                            &asymp; {level.shares.toFixed(4)} shares
                           </p>
                         </div>
                       </div>
@@ -429,7 +470,7 @@ export default function AuroraInvestmentCalculator() {
                         />
                       </div>
                       <p className="text-white/30 text-xs mt-1.5">
-                        Auto BEP = {fmt(autoBep)} (average of all 4 entry levels)
+                        Auto BEP = {fmt(autoBep)} (weighted across L2, L3 &amp; L4 buys)
                       </p>
                     </div>
                   ) : (
@@ -440,7 +481,7 @@ export default function AuroraInvestmentCalculator() {
                           {fmt(autoBep)}
                         </p>
                         <p className="text-white/30 text-xs mt-1">
-                          Average of all 4 entry levels
+                          Weighted across L2, L3 &amp; L4 (L1 skipped)
                         </p>
                       </div>
                       <div className="text-right">
@@ -520,7 +561,9 @@ export default function AuroraInvestmentCalculator() {
                     ['Drop from peak', `${currentDropPct.toFixed(1)}%`],
                     ['Break-even', fmt(bep)],
                     ['Total investment', fmt(totalInvested)],
-                    ['Per level', fmt(totalInvested / 4)],
+                    ['First buy (L1+L2)', fmt(firstBuyInvestment)],
+                    ['Add-on L3', fmt(l3.investment)],
+                    ['Add-on L4', fmt(l4.investment)],
                     ['10% target', fmt(profitTargets[0].price)],
                     ['25% target', fmt(profitTargets[3].price)],
                   ] as const).map(([label, value]) => (

@@ -70,7 +70,7 @@ export default function ComplianceAcceptanceModal() {
     <div className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto py-6"
       style={{ background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(8px)' }}>
       <div className="w-full max-w-md rounded-2xl overflow-hidden mx-4"
-        style={{ background: '#080f1e', border: '1px solid rgba(255,255,255,0.1)' }}>
+        style={{ background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.1)' }}>
 
         {done ? (
           <div className="p-6 text-center space-y-3">

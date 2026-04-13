@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { usePortfolio } from "@/components/providers/PortfolioProvider";
 import BrokerModeToggle from "@/components/broker/BrokerModeToggle";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 
 type DashboardShellProps = {
   children: React.ReactNode;
@@ -453,6 +454,9 @@ export default function DashboardShell({
                     return null;
                   })()}
                 </div>
+
+                {/* Theme Toggle */}
+                <ThemeToggle />
 
                 {/* Notification Bell */}
                 <div ref={notifRef} className="relative">

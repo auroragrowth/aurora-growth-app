@@ -91,7 +91,7 @@ export default function AdminCompliancePage() {
           { label: 'Acceptance Rate', value: profiles.length ? `${Math.round((accepted.length / profiles.length) * 100)}%` : '\u2014', colour: 'text-cyan-400' },
         ].map(stat => (
           <div key={stat.label} className="rounded-2xl p-4"
-            style={{ background: '#0a1628', border: '1px solid rgba(255,255,255,0.08)' }}>
+            style={{ background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <p className="text-white/30 text-xs uppercase tracking-wider font-bold">{stat.label}</p>
             <p className={`text-2xl font-bold mt-2 ${stat.colour}`}>{loading ? '\u2026' : stat.value}</p>
           </div>
@@ -131,7 +131,7 @@ export default function AdminCompliancePage() {
       ) : tab === 'overview' ? (
         /* All Profiles Tab */
         <div className="rounded-2xl overflow-hidden"
-          style={{ background: '#0a1628', border: '1px solid rgba(255,255,255,0.08)' }}>
+          style={{ background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.08)' }}>
 
           {/* Table header */}
           <div className="grid grid-cols-[1fr_1fr_100px_100px_140px] gap-4 px-5 py-3 border-b border-white/8">
@@ -180,7 +180,7 @@ export default function AdminCompliancePage() {
       ) : (
         /* Acceptance Records Tab */
         <div className="rounded-2xl overflow-hidden"
-          style={{ background: '#0a1628', border: '1px solid rgba(255,255,255,0.08)' }}>
+          style={{ background: 'var(--bg-card)', border: '1px solid rgba(255,255,255,0.08)' }}>
 
           {/* Table header */}
           <div className="grid grid-cols-[1fr_1fr_140px_80px_80px] gap-4 px-5 py-3 border-b border-white/8">
