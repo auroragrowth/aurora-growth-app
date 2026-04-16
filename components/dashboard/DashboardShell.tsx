@@ -306,6 +306,8 @@ export default function DashboardShell({
                       ? pathname === "/dashboard"
                       : item.href === "/dashboard/stocks"
                       ? pathname.startsWith("/dashboard/stocks/")
+                      : item.href === "/dashboard/investments"
+                      ? pathname === "/dashboard/investments"
                       : pathname === item.href || pathname.startsWith(item.href + "/");
 
                   const Icon = item.icon;
