@@ -145,7 +145,55 @@ export default function VolatilityPage() {
       </div>
 
       {/* Chart card */}
-      
+      <div className="rounded-2xl overflow-hidden"
+        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
+
+        {/* Symbol tabs */}
+        <div className="px-4 py-3 border-b flex items-center justify-between flex-wrap gap-3"
+          style={{ borderColor: 'var(--border)' }}>
+          <div className="flex gap-1.5 flex-wrap">
+            {SYMBOLS.map(s => (
+              <button key={s.ticker} onClick={() => { setSelected(s); setChartKey(k => k + 1) }}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                style={{
+                  background: selected.ticker === s.ticker ? `${s.colour}18` : 'transparent',
+                  color: selected.ticker === s.ticker ? s.colour : 'var(--text-3)',
+                  border: `1px solid ${selected.ticker === s.ticker ? `${s.colour}30` : 'transparent'}`,
+                }}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-1">
+            {INTERVALS.map(iv => (
+              <button key={iv.value} onClick={() => { setChartInterval(iv.value); setChartKey(k => k + 1) }}
+                className="px-2.5 py-1 rounded-md text-xs font-bold transition-all"
+                style={{
+                  background: chartInterval === iv.value ? 'rgba(56,217,245,0.12)' : 'transparent',
+                  color: chartInterval === iv.value ? '#38d9f5' : 'var(--text-3)',
+                  border: `1px solid ${chartInterval === iv.value ? 'rgba(56,217,245,0.2)' : 'transparent'}`,
+                }}>
+                {iv.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Selected symbol info */}
+        <div className="px-4 py-2.5 border-b flex items-center gap-3"
+          style={{ borderColor: 'var(--border)', background: 'var(--bg-hover)' }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: selected.colour, flexShrink: 0 }} />
+          <div>
+            <p className="text-sm font-bold" style={{ color: 'var(--text-1)' }}>
+              {selected.label} <span className="font-mono text-xs" style={{ color: 'var(--text-3)' }}>{selected.ticker}</span>
+            </p>
+            <p className="text-xs" style={{ color: 'var(--text-3)' }}>{selected.note}</p>
+          </div>
+        </div>
+
+        {/* TradingView chart */}
+        <div ref={chartRef} key={chartKey} style={{ height: 500 }} />
+      </div>
 
       {/* Aurora tip */}
       <div className="flex items-start gap-3 p-4 rounded-xl"
