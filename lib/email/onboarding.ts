@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { sendAuroraEmail } from './resend'
 import { getOnboardingEmail } from './templates/onboarding'
+import { getAuroraMarketingHtml } from './aurora-email-selfcontained'
 
 function getAdmin() {
   return createClient(
@@ -69,7 +70,14 @@ export async function sendOnboardingDay(
   const alreadySent = await hasOnboardingBeenSent(userId, dayNumber)
   if (alreadySent) return false
 
-  const template = getOnboardingEmail(dayNumber, firstName)
+  // Day 0 uses the new branded marketing email
+  const template = dayNumber === 0
+    ? {
+        subject: 'Invest with clarity, not guesswork — Aurora Growth Academy',
+        html: getAuroraMarketingHtml(firstName),
+      }
+    : getOnboardingEmail(dayNumber, firstName)
+
   if (!template) return false
 
   const result = await sendAuroraEmail({
@@ -84,3 +92,4 @@ export async function sendOnboardingDay(
 
   return result.success
 }
+
