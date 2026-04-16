@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     // Get or create Stripe customer
     const { data: profile } = await supabase
       .from("profiles")
-      .select("stripe_customer_id, email, full_name")
+      .select("stripe_customer_id, stripe_subscription_id, email, full_name")
       .eq("id", user.id)
       .single();
 
@@ -90,7 +90,46 @@ export async function POST(req: NextRequest) {
         .eq("id", user.id);
     }
 
-    // Record plan selection intent
+    const siteUrl =
+      process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+      "https://app.auroragrowth.co.uk";
+
+    // Existing subscriber → update subscription directly (upgrade/downgrade)
+    if (profile?.stripe_subscription_id) {
+      const subscription = await stripe.subscriptions.retrieve(
+        profile.stripe_subscription_id
+      );
+
+      await stripe.subscriptions.update(profile.stripe_subscription_id, {
+        items: [
+          {
+            id: subscription.items.data[0].id,
+            price: priceId,
+          },
+        ],
+        proration_behavior: "create_prorations",
+        metadata: {
+          user_id: user.id,
+          plan_key: planKey,
+          billing_interval: billingInterval,
+        },
+      });
+
+      await supabaseAdmin
+        .from("profiles")
+        .update({
+          plan_key: planKey,
+          billing_interval: billingInterval,
+          plan: planKey,
+        })
+        .eq("id", user.id);
+
+      return NextResponse.json({
+        url: `${siteUrl}/dashboard/account?upgraded=true`,
+      });
+    }
+
+    // First-time subscriber → record plan selection and create checkout session
     await supabaseAdmin
       .from("profiles")
       .update({
@@ -100,10 +139,6 @@ export async function POST(req: NextRequest) {
         plan: planKey,
       })
       .eq("id", user.id);
-
-    const siteUrl =
-      process.env.NEXT_PUBLIC_APP_URL?.trim() ||
-      "https://app.auroragrowth.co.uk";
 
     // Create checkout session - price ID from DB, no Stripe price lookups
     const session = await stripe.checkout.sessions.create({
