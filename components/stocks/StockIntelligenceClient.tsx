@@ -573,7 +573,7 @@ export default function StockIntelligenceClient({ ticker }: Props) {
               <button
                 type="button"
                 onClick={() => setShowInvestModal(true)}
-                className="inline-flex items-center gap-1.5 rounded-full bg-[linear-gradient(90deg,#22d3ee_0%,#60a5fa_45%,#a855f7_100%)] px-5 py-2 text-sm font-semibold text-slate-950 transition hover:brightness-110"
+                className="aurora-btn aurora-btn-primary"
               >
                 📊 Make Investment
               </button>
@@ -851,7 +851,7 @@ export default function StockIntelligenceClient({ ticker }: Props) {
           <button
             type="button"
             onClick={() => setShowInvestModal(true)}
-            className="inline-flex items-center gap-2 rounded-full bg-[linear-gradient(90deg,#22d3ee_0%,#60a5fa_45%,#a855f7_100%)] px-8 py-4 text-lg font-semibold text-slate-950 transition hover:brightness-110"
+            className="aurora-btn aurora-btn-primary aurora-btn-lg"
           >
             📊 Make Investment
           </button>

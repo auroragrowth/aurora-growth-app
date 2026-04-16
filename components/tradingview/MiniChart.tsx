@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef } from 'react'
+import { getTVSymbol } from '@/lib/tv-symbol'
 
 export default function MiniChart({ ticker }: { ticker: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -12,7 +13,7 @@ export default function MiniChart({ ticker }: { ticker: string }) {
     script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js'
     script.async = true
     script.innerHTML = JSON.stringify({
-      symbol: `NASDAQ:${ticker}`,
+      symbol: getTVSymbol(ticker),
       width: 200,
       height: 100,
       locale: 'en',

@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef } from 'react'
+import { getTVSymbol } from '@/lib/tv-symbol'
 
 export default function FundamentalData({ ticker }: { ticker: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -18,7 +19,7 @@ export default function FundamentalData({ ticker }: { ticker: string }) {
       width: '100%',
       height: 500,
       colorTheme: 'dark',
-      symbol: `NASDAQ:${ticker}`,
+      symbol: getTVSymbol(ticker),
       locale: 'en'
     })
 

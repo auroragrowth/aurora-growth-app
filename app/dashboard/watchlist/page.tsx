@@ -9,7 +9,6 @@ import PriceAlertModal from "@/components/watchlist/PriceAlertModal";
 import MiniChart from "@/components/tradingview/MiniChart";
 import TechnicalAnalysis from "@/components/tradingview/TechnicalAnalysis";
 import FundamentalData from "@/components/tradingview/FundamentalData";
-import BrokerModeToggle from "@/components/broker/BrokerModeToggle";
 
 type PriceAlertRow = {
   id: string;
@@ -449,7 +448,6 @@ export default function WatchlistPage() {
               <>🔗 Sync T212</>
             )}
           </button>
-          <BrokerModeToggle initialMode={portfolio.brokerMode || "live"} onModeChange={() => window.location.reload()} />
         </div>
       </div>
 
@@ -822,17 +820,31 @@ export default function WatchlistPage() {
                         </td>
 
                         <td className="px-3 py-2.5">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5">
                             <Link
                               href={`/dashboard/stocks/${encodeURIComponent(row.symbol)}`}
-                              className="inline-flex items-center rounded-full border border-cyan-400/35 bg-cyan-500/10 px-3 py-1.5 text-xs font-medium text-cyan-300 transition hover:bg-cyan-500/20"
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                height: 28, padding: '0 10px', borderRadius: 8,
+                                fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                                background: 'rgba(56,217,245,0.10)',
+                                border: '1px solid rgba(56,217,245,0.20)',
+                                color: '#38d9f5', transition: 'background 0.15s',
+                              }}
                             >
                               View
                             </Link>
 
                             <button
                               onClick={() => handleRemove(row.symbol)}
-                              className="inline-flex items-center rounded-full border border-fuchsia-400/25 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-medium text-fuchsia-200 transition hover:bg-fuchsia-500/20"
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                height: 28, padding: '0 10px', borderRadius: 8,
+                                fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                                background: 'rgba(248,113,113,0.10)',
+                                border: '1px solid rgba(248,113,113,0.20)',
+                                color: '#f87171', cursor: 'pointer', transition: 'background 0.15s',
+                              }}
                             >
                               Remove
                             </button>
@@ -840,23 +852,23 @@ export default function WatchlistPage() {
                             <button
                               onClick={() => toggleInvested(row.symbol)}
                               title={investedSet.has(row.symbol) ? "Mark as not invested" : "Invested in this stock"}
-                              className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                                investedSet.has(row.symbol)
-                                  ? "bg-gradient-to-r from-cyan-500/20 via-purple-500/20 to-pink-500/20 border border-cyan-400/30 text-cyan-400"
-                                  : "bg-white/5 border border-white/10 text-white/30 hover:text-white/60 hover:bg-white/10"
-                              }`}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 4,
+                                height: 28, padding: '0 10px', borderRadius: 8,
+                                fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                                background: investedSet.has(row.symbol)
+                                  ? 'rgba(52,211,153,0.18)' : 'rgba(52,211,153,0.10)',
+                                border: investedSet.has(row.symbol)
+                                  ? '1px solid rgba(52,211,153,0.35)' : '1px solid rgba(52,211,153,0.20)',
+                                color: '#34d399', cursor: 'pointer', transition: 'background 0.15s',
+                              }}
                             >
                               {investedSet.has(row.symbol) ? (
                                 <>
-                                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse flex-shrink-0" />
+                                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34d399', flexShrink: 0 }} />
                                   Invested
                                 </>
-                              ) : (
-                                <>
-                                  <span className="w-1.5 h-1.5 rounded-full bg-white/20 flex-shrink-0" />
-                                  Invest
-                                </>
-                              )}
+                              ) : "Invest"}
                             </button>
                           </div>
                         </td>

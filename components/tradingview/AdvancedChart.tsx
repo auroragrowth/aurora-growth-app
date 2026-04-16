@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef } from 'react'
+import { getTVSymbol } from '@/lib/tv-symbol'
 
 interface Props {
   ticker: string
@@ -14,15 +15,7 @@ export default function AdvancedChart({ ticker, height = 700, exchange }: Props)
     if (!containerRef.current) return
     containerRef.current.innerHTML = ''
 
-    // Determine the TradingView symbol
-    let symbol: string
-    if (exchange) {
-      symbol = `${exchange}:${ticker}`
-    } else if (ticker === 'VIX' || ticker === '^VIX') {
-      symbol = 'CBOE:VIX'
-    } else {
-      symbol = `NASDAQ:${ticker}`
-    }
+    const symbol = getTVSymbol(ticker, exchange)
 
     const script = document.createElement('script')
     script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js'

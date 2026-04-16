@@ -129,13 +129,10 @@ export default function AuroraChatWidget() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group fixed bottom-6 right-6 z-[9980] flex h-[52px] w-[52px] items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-500 shadow-[0_8px_30px_rgba(34,211,238,0.25)] transition-all hover:scale-110 hover:shadow-[0_8px_40px_rgba(34,211,238,0.4)]"
+        className="group fixed bottom-6 right-[14px] z-[9980] flex h-[52px] w-[52px] items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 via-blue-500 to-violet-500 shadow-[0_8px_30px_rgba(34,211,238,0.25)] transition-all hover:scale-110 hover:shadow-[0_8px_40px_rgba(34,211,238,0.4)]"
         title="Ask Aurora anything"
       >
         <Sparkles className="h-6 w-6 text-white" />
-
-        {/* Pulse ring */}
-        <span className="absolute inset-0 animate-ping rounded-full bg-cyan-400/30" style={{ animationDuration: "2.5s" }} />
 
         {/* Tooltip */}
         <span className="pointer-events-none absolute bottom-full right-0 mb-2 whitespace-nowrap rounded-lg bg-[rgba(8,20,42,0.95)] px-3 py-1.5 text-xs font-medium text-white/80 opacity-0 shadow-lg transition group-hover:opacity-100">
@@ -148,7 +145,7 @@ export default function AuroraChatWidget() {
   /* ── Minimized bar ─────────────────────────────────────────── */
   if (minimized) {
     return (
-      <div className="fixed bottom-6 right-6 z-[9980] flex items-center gap-2 rounded-full border border-cyan-400/20 bg-[rgba(8,20,42,0.95)] px-4 py-2 shadow-[0_15px_50px_rgba(0,0,0,0.4)] backdrop-blur-xl">
+      <div className="fixed bottom-6 right-[14px] z-[9980] flex items-center gap-2 rounded-full border border-cyan-400/20 bg-[rgba(8,20,42,0.95)] px-4 py-2 shadow-[0_15px_50px_rgba(0,0,0,0.4)] backdrop-blur-xl">
         <Sparkles className="h-4 w-4 text-cyan-400" />
         <span className="text-sm font-medium text-white/80">Aurora Assistant</span>
         <button
@@ -174,7 +171,7 @@ export default function AuroraChatWidget() {
   /* ── Open panel ────────────────────────────────────────────── */
   return (
     <div
-      className="fixed bottom-6 right-6 z-[9980] flex w-[380px] flex-col overflow-hidden rounded-2xl border border-cyan-400/20 shadow-[0_25px_70px_rgba(0,0,0,0.5),0_0_40px_rgba(34,211,238,0.06)] backdrop-blur-xl animate-in slide-in-from-bottom-4 fade-in duration-300"
+      className="fixed bottom-6 right-[14px] z-[9980] flex w-[380px] flex-col overflow-hidden rounded-2xl border border-cyan-400/20 shadow-[0_25px_70px_rgba(0,0,0,0.5),0_0_40px_rgba(34,211,238,0.06)] backdrop-blur-xl animate-in slide-in-from-bottom-4 fade-in duration-300"
       style={{
         height: "520px",
         background: "linear-gradient(135deg, rgba(8,20,42,0.98) 0%, rgba(12,28,56,0.98) 100%)",

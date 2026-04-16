@@ -296,9 +296,7 @@ export default function CalculatorClient({ initialStocks, initialMode }: Calcula
                     </div>
                     <button
                       onClick={() => router.push(`/dashboard/stocks/${ticker}`)}
-                      className="mt-3 px-4 py-2 rounded-xl text-xs font-bold
-                      bg-amber-500/20 border border-amber-500/30 text-amber-400
-                      hover:bg-amber-500/30 transition-colors"
+                      className="aurora-btn aurora-btn-primary aurora-btn-sm mt-3"
                     >
                       Make Investment → Place Combined Buy
                     </button>

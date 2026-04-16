@@ -93,7 +93,7 @@ export default function AuroraOverlayChart({
 
     if (ticker) {
       load();
-      timer = setInterval(load, 10000);
+      timer = setInterval(load, 300_000); // 5 minutes — candle data barely changes
     }
 
     return () => {

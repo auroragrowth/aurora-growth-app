@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Tooltip from '@/components/ui/Tooltip'
 import AuroraStockCalculator from '@/components/stocks/AuroraStockCalculator'
+import { getTVSymbol } from '@/lib/tv-symbol'
 
 /* ────────────────────────────────────────────
    TradingView Widget Helpers
@@ -111,6 +112,11 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
   const [capital, setCapital] = useState(1000)
   const [placingOrders, setPlacingOrders] = useState(false)
   const [orderResults, setOrderResults] = useState<any[]>([])
+
+  // Remember last visited ticker for sidebar Chart link
+  useEffect(() => {
+    if (ticker) localStorage.setItem('aurora_last_ticker', ticker)
+  }, [ticker])
 
   useEffect(() => {
     if (!ticker) return
@@ -293,9 +299,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                   .then(setLadderData)
                   .catch(() => {})
               }}
-              className="px-4 py-2 rounded-xl text-sm font-bold
-              bg-gradient-to-r from-cyan-400 to-purple-500 text-white
-              hover:opacity-90 transition-opacity"
+              className="aurora-btn aurora-btn-primary"
             >
               Make Investment
             </button>
@@ -352,35 +356,14 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
             </div>
             <span className="text-white/20 text-xs">TradingView</span>
           </div>
-          <TVChart symbol={ticker} height={500} />
+          <TVChart symbol={getTVSymbol(ticker)} height={500} />
         </div>
 
         {/* Two column layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
-          {/* LEFT — Technical Analysis + Fundamental */}
-          <div className="lg:col-span-2 space-y-6">
-
-            <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-              <div className="px-4 pt-4 pb-2 border-b border-white/5">
-                <h2 className="text-white font-bold text-sm">Technical Analysis</h2>
-              </div>
-              <TVWidget
-                src="https://s3.tradingview.com/external-embedding/embed-widget-technical-analysis.js"
-                height={400}
-                config={{
-                  interval: '1D',
-                  width: '100%',
-                  isTransparent: true,
-                  height: 400,
-                  symbol: ticker,
-                  showIntervalTabs: true,
-                  displayMode: 'single',
-                  locale: 'en',
-                  colorTheme: 'dark'
-                }}
-              />
-            </div>
+          {/* LEFT — Fundamental Data */}
+          <div className="space-y-6">
 
             <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
               <div className="px-4 pt-4 pb-2 border-b border-white/5">
@@ -395,7 +378,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                   width: '100%',
                   height: 450,
                   colorTheme: 'dark',
-                  symbol: ticker,
+                  symbol: getTVSymbol(ticker),
                   locale: 'en'
                 }}
               />
@@ -467,7 +450,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                 height={400}
                 config={{
                   feedMode: 'symbol',
-                  symbol: ticker,
+                  symbol: getTVSymbol(ticker),
                   isTransparent: true,
                   displayMode: 'regular',
                   width: '100%',
@@ -491,7 +474,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                   height: 300,
                   isTransparent: true,
                   colorTheme: 'dark',
-                  symbol: ticker,
+                  symbol: getTVSymbol(ticker),
                   locale: 'en'
                 }}
               />
@@ -563,7 +546,7 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                      symbol: ticker,
+                      symbol: getTVSymbol(ticker),
                       company_name: stockData?.company || ticker,
                       alert_type: alertType,
                       target_price: parseFloat(alertPrice),

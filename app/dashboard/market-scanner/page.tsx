@@ -306,7 +306,7 @@ function ReadinessPopout({ row, r }: { row: ScannerRow; r: ReturnType<typeof get
 
   return (
     <div
-      className="w-72 rounded-2xl border border-white/12 shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden"
+      className="w-96 rounded-2xl border border-white/12 shadow-[0_20px_60px_rgba(0,0,0,0.6)] overflow-hidden"
       style={{ background: "#080f1e" }}
     >
       <div className={`px-4 py-3 border-b border-white/10 flex items-center gap-3 ${r.bg}`}>
@@ -545,7 +545,6 @@ export default function MarketScannerPage() {
   const [searchRows, setSearchRows] = useState<ScannerRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTabRaw] = useState<TabFilter>(() => {
     if (typeof window !== "undefined") {
@@ -681,10 +680,9 @@ export default function MarketScannerPage() {
     scheduleClose();
   }
 
-  const loadLists = useCallback(async (showRefreshState = false) => {
+  const loadLists = useCallback(async () => {
     try {
-      if (showRefreshState) setRefreshing(true);
-      else setLoading(true);
+      setLoading(true);
 
       const [coreRes, altRes] = await Promise.all([
         fetch("/api/aurora-market-scanner?universe=core", {
@@ -722,7 +720,6 @@ export default function MarketScannerPage() {
       setAltRows([]);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, []);
 
@@ -1008,22 +1005,15 @@ export default function MarketScannerPage() {
               );
             })}
 
-            <button
-              type="button"
-              onClick={() => loadLists(true)}
-              className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-2 text-sm font-semibold text-white/80 transition hover:bg-white/[0.06]"
-            >
-              {refreshing ? "Refreshing..." : "Refresh"}
-            </button>
           </div>
         </div>
       </div>
 
       <ExpiredBlur>
-        <div className="overflow-visible rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(8,12,20,.98),rgba(8,14,26,.95))]">
-          <div className="overflow-x-auto">
+        <div className="overflow-hidden rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(8,12,20,.98),rgba(8,14,26,.95))]">
+          <div className="overflow-x-auto overflow-y-auto max-h-screen">
             <table className="min-w-full text-left">
-              <thead className="border-b border-white/10 bg-white/[0.03]">
+              <thead className="border-b border-white/10 bg-white/[0.03] sticky top-0 z-10">
                 <tr className="text-[11px] uppercase tracking-[0.18em] text-white/45">
                   <th className="w-12 px-3 py-4 text-center" title="Add to your watchlist">Watch</th>
                   <th className="px-4 py-4">
@@ -1153,7 +1143,7 @@ export default function MarketScannerPage() {
                                   <span className={`h-2 w-2 rounded-full flex-shrink-0 ${rd.dot}`} />
                                   <span className={rd.text}>{rd.label}</span>
                                 </div>
-                                <div className="absolute z-50 left-0 top-full mt-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none group-hover:pointer-events-auto">
+                                <div className="absolute z-50 left-1/2 -translate-x-1/2 top-full mt-1 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none group-hover:pointer-events-auto">
                                   <ReadinessPopout row={row} r={rd} />
                                 </div>
                               </div>

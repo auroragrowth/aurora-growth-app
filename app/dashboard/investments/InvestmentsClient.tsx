@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
+import TrackerClient from './tracker/TrackerClient'
 
 /* ── Types ── */
 
@@ -733,6 +734,11 @@ export default function InvestmentsClient() {
           </div>
         </>
       )}
+
+      {/* Investment Tracker section */}
+      <div className="mt-10 border-t border-white/8 pt-8">
+        <TrackerClient />
+      </div>
     </div>
   )
 }

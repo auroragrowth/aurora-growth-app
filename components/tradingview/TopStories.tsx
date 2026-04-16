@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef } from 'react'
+import { getTVSymbol } from '@/lib/tv-symbol'
 
 export default function TopStories({ ticker }: { ticker: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -13,7 +14,7 @@ export default function TopStories({ ticker }: { ticker: string }) {
     script.async = true
     script.innerHTML = JSON.stringify({
       feedMode: 'symbol',
-      symbol: `NASDAQ:${ticker}`,
+      symbol: getTVSymbol(ticker),
       isTransparent: true,
       displayMode: 'regular',
       width: '100%',

@@ -253,7 +253,7 @@ export default function AuroraMethodExplainer() {
           </div>
         )}
 
-        <p className="text-white/15 text-xs text-center pt-2">
+        <p className="text-xs text-center pt-2" style={{ color: '#cbd5e1' }}>
           Aurora Growth Academy is for educational purposes only and does not constitute financial advice.
         </p>
       </div>

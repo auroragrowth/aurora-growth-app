@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useBrokerPopup } from "@/components/providers/BrokerPopupProvider";
 
-import BrokerModeToggle from "@/components/broker/BrokerModeToggle";
+
 import { ConnectionGuideButton } from "@/components/broker/ConnectionGuideModal";
 import AlertsPanel from "@/components/telegram/AlertsPanel";
 
@@ -376,7 +376,6 @@ function NotificationPreferences() {
   const [prefs, setPrefs] = useState<{
     notify_telegram: boolean;
     notify_email: boolean;
-    notify_in_app: boolean;
   } | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -389,7 +388,7 @@ function NotificationPreferences() {
       .catch(() => {});
   }, []);
 
-  async function toggle(key: "notify_telegram" | "notify_email" | "notify_in_app") {
+  async function toggle(key: "notify_telegram" | "notify_email") {
     if (!prefs) return;
     const updated = { ...prefs, [key]: !prefs[key] };
     setPrefs(updated);
@@ -410,7 +409,6 @@ function NotificationPreferences() {
   const channels = [
     { key: "notify_telegram" as const, label: "Telegram", icon: "💬", desc: "Receive alerts via Telegram bot" },
     { key: "notify_email" as const, label: "Email", icon: "📧", desc: "Receive alerts to your email address" },
-    { key: "notify_in_app" as const, label: "In-App", icon: "🔔", desc: "See alerts inside Aurora dashboard" },
   ];
 
   return (
@@ -586,9 +584,6 @@ export default function ConnectionsClient() {
 
           <ConnectionGuideButton />
 
-          <div className="my-5 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-
-          <BrokerModeToggle initialMode={activeMode} />
         </div>
 
         {/* ═══ RIGHT — Telegram Alerts ═══ */}

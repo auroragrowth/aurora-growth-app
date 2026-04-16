@@ -1,21 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { usePortfolio } from "@/components/providers/PortfolioProvider";
 
 type Props = {
-  initialMode: "live" | "demo";
+  initialMode?: "live" | "demo";
   compact?: boolean;
   onModeChange?: (mode: "live" | "demo") => void;
 };
 
 export default function BrokerModeToggle({ initialMode, compact, onModeChange }: Props) {
-  const [mode, setMode] = useState(initialMode);
+  const { data: portfolio } = usePortfolio();
+  const mode = portfolio.brokerMode || initialMode || "live";
   const [switching, setSwitching] = useState(false);
-
-  // Sync with parent when initialMode changes (e.g. after PortfolioProvider loads)
-  useEffect(() => {
-    setMode(initialMode);
-  }, [initialMode]);
 
   const toggle = useCallback(async (next: "live" | "demo") => {
     if (next === mode || switching) return;
@@ -27,7 +24,6 @@ export default function BrokerModeToggle({ initialMode, compact, onModeChange }:
         body: JSON.stringify({ mode: next }),
       });
       if (res.ok) {
-        setMode(next);
         onModeChange?.(next);
       }
     } catch (e) {

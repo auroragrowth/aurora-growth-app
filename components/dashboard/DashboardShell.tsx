@@ -8,6 +8,7 @@ import {
   ScanSearch,
   Star,
   BriefcaseBusiness,
+  ClipboardList,
   Calculator,
   LineChart,
   Activity,
@@ -23,7 +24,7 @@ import {
 } from "lucide-react";
 import { usePortfolio } from "@/components/providers/PortfolioProvider";
 import BrokerModeToggle from "@/components/broker/BrokerModeToggle";
-import ThemeToggle from "@/components/theme/ThemeToggle";
+import MobileBottomNav from "./MobileBottomNav";
 
 type DashboardShellProps = {
   children: React.ReactNode;
@@ -44,6 +45,7 @@ type NavItem = {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   tourId?: string;
+  dynamic?: boolean;
 };
 
 const navItems: NavItem[] = [
@@ -51,13 +53,11 @@ const navItems: NavItem[] = [
   { label: "Market Scanner", href: "/dashboard/market-scanner", icon: ScanSearch, tourId: "scanner" },
   { label: "Watchlist", href: "/dashboard/watchlist", icon: Star, tourId: "watchlist" },
   { label: "Calculator", href: "/dashboard/investments/calculator", icon: Calculator, tourId: "calculator" },
-  { label: "Chart", href: "/dashboard/stocks/USLM", icon: LineChart },
+  { label: "Chart", href: "/dashboard/stocks", icon: LineChart, dynamic: true },
   { label: "Investments", href: "/dashboard/investments", icon: BriefcaseBusiness },
   { label: "Volatility Compass", href: "/dashboard/volatility", icon: Activity },
   { label: "Calendar", href: "/dashboard/calendar", icon: CalendarDays },
   { label: "Heatmap", href: "/dashboard/heatmap", icon: Grid3X3 },
-  { label: "Connections", href: "/dashboard/connections", icon: Link2, tourId: "connections" },
-  { label: "Upgrade Plan", href: "/dashboard/upgrade", icon: CreditCard },
   { label: "Account", href: "/dashboard/account", icon: User },
 ];
 
@@ -295,17 +295,25 @@ export default function DashboardShell({
             <nav className="flex-1 overflow-y-auto min-h-0 px-3 py-4 sidebar-scroll">
               <div className="space-y-1.5">
                 {navItems.map((item) => {
+                  const resolvedHref = item.dynamic
+                    ? (typeof window !== "undefined" && localStorage.getItem("aurora_last_ticker")
+                      ? `/dashboard/stocks/${localStorage.getItem("aurora_last_ticker")}`
+                      : "/dashboard/stocks/NVDA")
+                    : item.href;
+
                   const active =
-                    pathname === item.href ||
-                    pathname.startsWith(item.href + "/") ||
-                    (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                    item.href === "/dashboard"
+                      ? pathname === "/dashboard"
+                      : item.href === "/dashboard/stocks"
+                      ? pathname.startsWith("/dashboard/stocks/")
+                      : pathname === item.href || pathname.startsWith(item.href + "/");
 
                   const Icon = item.icon;
 
                   return (
                     <Link
                       key={item.href}
-                      href={item.href}
+                      href={resolvedHref}
                       data-tour={item.tourId || undefined}
                       title={collapsed ? item.label : undefined}
                       className={[
@@ -374,10 +382,10 @@ export default function DashboardShell({
                 </button>
 
                 <div>
-                  <div className="bg-gradient-to-r from-cyan-300 via-sky-300 to-violet-300 bg-clip-text text-[1.28rem] font-semibold tracking-tight text-transparent sm:text-[1.45rem]">
+                  <div className="bg-gradient-to-r from-cyan-300 via-sky-300 to-violet-300 bg-clip-text text-[1.05rem] font-semibold tracking-tight text-transparent sm:text-[1.28rem] md:text-[1.45rem]">
                     {pageTitle}
                   </div>
-                  <div className="mt-0.5 text-[11px] text-white/42">
+                  <div className="mt-0.5 hidden text-[11px] text-white/42 sm:block">
                     Aurora platform workspace
                   </div>
                 </div>
@@ -385,7 +393,7 @@ export default function DashboardShell({
 
               <div className="ml-auto flex items-center gap-2 sm:gap-3">
                 {/* Broker mode toggle — always visible */}
-                <BrokerModeToggle initialMode={portfolio.brokerMode || "live"} compact onModeChange={handleModeChange} />
+                <BrokerModeToggle compact onModeChange={handleModeChange} />
 
                 {/* Portfolio data when broker connected */}
                 {brokerConnected ? (
@@ -454,9 +462,6 @@ export default function DashboardShell({
                     return null;
                   })()}
                 </div>
-
-                {/* Theme Toggle */}
-                <ThemeToggle />
 
                 {/* Notification Bell */}
                 <div ref={notifRef} className="relative">
@@ -590,20 +595,15 @@ export default function DashboardShell({
             </div>
           )}
 
-          {/* Mode switch toast */}
-          {modeToast && (
-            <div className="flex h-8 items-center justify-center bg-cyan-400/10 text-xs font-medium text-cyan-300">
-              {modeToast}
-            </div>
-          )}
-
-          <main className="flex-1 overflow-y-auto min-h-0">
+          <main className="flex-1 overflow-y-auto min-h-0 pb-20 lg:pb-0">
             <div className="mx-auto w-full max-w-[1600px] px-4 py-5 sm:px-6 lg:px-8">
               {children}
             </div>
           </main>
         </div>
       </div>
+
+      <MobileBottomNav />
     </div>
   );
 }

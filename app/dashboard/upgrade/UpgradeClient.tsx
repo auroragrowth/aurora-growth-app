@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { BillingInterval, Plan } from "@/lib/billing/plans";
+import { useSubscription } from "@/components/providers/SubscriptionProvider";
 
 function formatExpiry(value?: string | null) {
   if (!value) return null;
@@ -25,6 +26,9 @@ export default function UpgradeClient({
   subscriptionStatus: string | null;
   currentPeriodEnd: string | null;
 }) {
+  const { planKey: contextPlanKey } = useSubscription();
+  const activePlan = currentPlan || contextPlanKey || "core";
+
   const [billingInterval, setBillingInterval] = useState<BillingInterval>("yearly");
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -62,7 +66,7 @@ export default function UpgradeClient({
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-10">
+    <div className="mx-auto max-w-6xl space-y-10">
       <div className="text-center">
         <div className="inline-flex rounded-full border border-cyan-400/25 bg-cyan-400/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200">
           Upgrade Your Plan
@@ -100,7 +104,8 @@ export default function UpgradeClient({
             }`}
           >
             Yearly
-            <span className="ml-1.5 rounded-full bg-emerald-400/20 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
+            <span className="ml-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold"
+              style={{ background: 'rgba(52,211,153,0.2)', border: '1px solid rgba(52,211,153,0.4)', color: '#34d399' }}>
               Save 17%
             </span>
           </button>
@@ -120,7 +125,7 @@ export default function UpgradeClient({
             billingInterval === "yearly"
               ? plan.yearlyMonthlyPrice
               : plan.monthlyPrice;
-          const isCurrent = currentPlan === plan.key;
+          const isCurrent = activePlan === plan.key;
           const isPopular = plan.key === "pro";
           const isLoading = loadingPlan === plan.key;
 
@@ -129,7 +134,7 @@ export default function UpgradeClient({
               key={plan.key}
               className={`relative overflow-hidden rounded-[28px] border p-6 shadow-[0_20px_80px_rgba(0,0,0,0.28)] backdrop-blur-xl transition ${
                 isCurrent
-                  ? "border-transparent bg-white/[0.06] ring-2 ring-transparent"
+                  ? "border-cyan-400/40 bg-white/[0.06]"
                   : isPopular
                     ? "border-cyan-400/35 bg-cyan-400/10"
                     : "border-white/10 bg-white/[0.05]"
@@ -137,16 +142,11 @@ export default function UpgradeClient({
               style={
                 isCurrent
                   ? {
-                      borderImage: "linear-gradient(135deg, #22d3ee, #3b82f6, #d946ef) 1",
-                      borderImageSlice: 1,
+                      boxShadow: "0 0 0 2px rgba(34,211,238,0.5), 0 0 30px rgba(34,211,238,0.12), 0 20px 80px rgba(0,0,0,0.28)",
                     }
                   : undefined
               }
             >
-              {/* Gradient border overlay for current plan */}
-              {isCurrent && (
-                <div className="pointer-events-none absolute inset-0 rounded-[28px] ring-2 ring-cyan-400/50 shadow-[0_0_30px_rgba(34,211,238,0.15),inset_0_0_30px_rgba(34,211,238,0.05)]" />
-              )}
 
               {isCurrent ? (
                 <div className="mb-4 inline-flex rounded-full border border-emerald-300/30 bg-emerald-300/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-100">

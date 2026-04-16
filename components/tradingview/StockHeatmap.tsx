@@ -20,6 +20,7 @@ export default function StockHeatmap() {
       locale: 'en',
       symbolUrl: '',
       colorTheme: 'dark',
+      isTransparent: true,
       hasTopBar: true,
       isDataSetEnabled: true,
       isZoomEnabled: true,

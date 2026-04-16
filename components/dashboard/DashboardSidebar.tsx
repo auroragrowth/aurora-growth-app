@@ -155,7 +155,6 @@ export default function DashboardSidebar({
     { href: "/dashboard/watchlist", label: "Watchlist", icon: Star },
     { href: "/dashboard/investments", label: "Investments", icon: BriefcaseBusiness },
     { href: "/dashboard/investments/calculator", label: "Calculator", icon: Calculator },
-    { href: "/dashboard/connections", label: "Connections", icon: Link2 },
     { href: "/dashboard/upgrade", label: "Upgrade Plan", icon: CreditCard },
     { href: "/dashboard/account", label: "Account", icon: UserCircle2 },
   ];
