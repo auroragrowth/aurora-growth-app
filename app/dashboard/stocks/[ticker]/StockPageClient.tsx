@@ -383,6 +383,26 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
                 }}
               />
             </div>
+          
+
+            {/* Company Profile */}
+            <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
+              <div className="px-4 pt-4 pb-2 border-b border-white/5">
+                <h2 className="text-white font-bold text-sm">Company Profile</h2>
+              </div>
+              <TVWidget
+                src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-profile.js"
+                height={300}
+                config={{
+                  width: '100%',
+                  height: 300,
+                  isTransparent: true,
+                  colorTheme: 'dark',
+                  symbol: getTVSymbol(ticker),
+                  locale: 'en'
+                }}
+              />
+            </div>
           </div>
 
           {/* RIGHT — Calculator + Intelligence + News + Profile */}
@@ -440,45 +460,9 @@ export default function StockPageClient({ ticker }: { ticker: string }) {
               )}
             </div>
 
-            {/* News */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-              <div className="px-4 pt-4 pb-2 border-b border-white/5">
-                <h2 className="text-white font-bold text-sm">Latest News</h2>
-              </div>
-              <TVWidget
-                src="https://s3.tradingview.com/external-embedding/embed-widget-timeline.js"
-                height={400}
-                config={{
-                  feedMode: 'symbol',
-                  symbol: getTVSymbol(ticker),
-                  isTransparent: true,
-                  displayMode: 'regular',
-                  width: '100%',
-                  height: 400,
-                  colorTheme: 'dark',
-                  locale: 'en'
-                }}
-              />
-            </div>
+            
 
-            {/* Company Profile */}
-            <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden">
-              <div className="px-4 pt-4 pb-2 border-b border-white/5">
-                <h2 className="text-white font-bold text-sm">Company Profile</h2>
-              </div>
-              <TVWidget
-                src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-profile.js"
-                height={300}
-                config={{
-                  width: '100%',
-                  height: 300,
-                  isTransparent: true,
-                  colorTheme: 'dark',
-                  symbol: getTVSymbol(ticker),
-                  locale: 'en'
-                }}
-              />
-            </div>
+            
           </div>
         </div>
       </div>
