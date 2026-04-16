@@ -68,27 +68,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Get or create Stripe customer
     const { data: profile } = await supabase
       .from("profiles")
       .select("stripe_customer_id, stripe_subscription_id, email, full_name")
       .eq("id", user.id)
       .single();
-
-    let customerId = profile?.stripe_customer_id;
-
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: profile?.email || user.email!,
-        name: profile?.full_name || undefined,
-        metadata: { user_id: user.id },
-      });
-      customerId = customer.id;
-      await supabaseAdmin
-        .from("profiles")
-        .update({ stripe_customer_id: customerId })
-        .eq("id", user.id);
-    }
 
     const siteUrl =
       process.env.NEXT_PUBLIC_APP_URL?.trim() ||
@@ -129,7 +113,23 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // First-time subscriber → record plan selection and create checkout session
+    // First-time subscriber → get or create Stripe customer
+    let customerId = profile?.stripe_customer_id;
+
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email: profile?.email || user.email!,
+        name: profile?.full_name || undefined,
+        metadata: { user_id: user.id },
+      });
+      customerId = customer.id;
+      await supabaseAdmin
+        .from("profiles")
+        .update({ stripe_customer_id: customerId })
+        .eq("id", user.id);
+    }
+
+    // Record plan selection and create checkout session
     await supabaseAdmin
       .from("profiles")
       .update({
@@ -140,7 +140,6 @@ export async function POST(req: NextRequest) {
       })
       .eq("id", user.id);
 
-    // Create checkout session - price ID from DB, no Stripe price lookups
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ["card"],
