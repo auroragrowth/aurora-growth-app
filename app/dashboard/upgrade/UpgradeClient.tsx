@@ -66,7 +66,7 @@ export default function UpgradeClient({
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-10">
+    <div className="mx-auto max-w-7xl space-y-10">
       <div className="text-center">
         <div className="inline-flex rounded-full border border-cyan-400/25 bg-cyan-400/10 px-4 py-1 text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200">
           Upgrade Your Plan

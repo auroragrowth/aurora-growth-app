@@ -60,7 +60,7 @@ export default function EmailSendPage() {
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(36,215,238,0.12),transparent_20%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.12),transparent_20%),linear-gradient(180deg,#020617_0%,#04101f_35%,#020617_100%)] px-4 py-6 text-white">
-      <div className="mx-auto max-w-xl">
+      <div className="mx-auto max-w-7xl">
         <div className="mb-5 rounded-[28px] border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur">
           <div className="mb-3 inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.24em] text-cyan-300">
             Aurora admin
