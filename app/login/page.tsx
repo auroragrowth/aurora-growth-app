@@ -207,6 +207,9 @@ function LoginPageInner() {
 
               <p className="text-white/20 text-xs">
                 Aurora Growth v{APP_VERSION}
+                {process.env.NEXT_PUBLIC_APP_ENV === 'dev' ? (
+                  <span className="ml-1 text-amber-400/60"> · DEV</span>
+                ) : null}
               </p>
             </div>
           </div>
